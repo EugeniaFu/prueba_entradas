@@ -1,0 +1,187 @@
+<div class="modal fade" id="modalNotaEntrada" tabindex="-1" aria-labelledby="modalNotaEntradaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form id="form-nota-entrada">
+      <div class="modal-content card-borde-azul">
+        <div class="modal-header modal-header-azul">
+          <h5 class="modal-title" id="modalNotaEntradaLabel">
+            <i class="bi bi-box-arrow-in-down"></i> Nota de Entrada
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Información general -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-azul">
+                  <h6 class="mb-0"><i class="bi bi-info-circle"></i> Información de la Entrega</h6>
+                </div>
+                <div class="card-body">
+                  <div><strong>Folio Entrada:</strong> <span id="folio-entrada" class="text-primary">-----</span></div>
+                  <div><strong>Folio Salida:</strong> <span id="folio-salida" class="text-primary">-----</span></div>
+                  <div><strong>Cliente:</strong> <span id="cliente-nombre">---</span></div>
+                  <div><strong>Teléfono:</strong> <span id="cliente-telefono">---</span></div>
+                  <div><strong>Dirección de Obra:</strong> <span id="direccion-obra">---</span></div>
+                  <div><strong>Traslado Original:</strong> <span id="traslado-original">---</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-azul-claro">
+                  <h6 class="mb-0"><i class="bi bi-clock-history"></i> Estado de Entrega</h6>
+                </div>
+                <div class="card-body">
+                  <div><strong>Fecha y Hora:</strong> <span id="fecha-hora-entrada">--/--/---- --:--</span></div>
+                  <div><strong>Fecha Límite:</strong> <span id="fecha-limite-entrada">--/--/---- --:--</span></div>
+                  <div><strong>Estado:</strong> <span id="estado-renta">---</span></div>
+                </div>
+              </div>
+              <!-- Avisos de retraso -->
+              <div id="aviso-retraso-ninguno" class="alert alert-warning mt-2 d-none">
+                <i class="bi bi-exclamation-triangle"></i>
+                Al finalizar la entrada se hará el cobro de los días de retraso.
+              </div>
+              <div id="opcion-retraso-medio" class="mt-2 d-none">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="checkbox-cobrar-retraso-medio">
+                  <label class="form-check-label" for="checkbox-cobrar-retraso-medio">
+                    ¿Cobrar días de retraso?
+                  </label>
+                </div>
+                <div id="aviso-retraso-medio" class="alert alert-warning mt-2 d-none">
+                  <i class="bi bi-exclamation-triangle"></i>
+                  Al finalizar la entrada se hará el cobro de los días de retraso.
+                </div>
+              </div>
+              <div id="aviso-retraso-redondo" class="alert alert-info mt-2 d-none">
+                <i class="bi bi-truck"></i>
+                La renta ya venció. Debes mandar al chofer a recoger el equipo.
+              </div>
+            </div>
+          </div>
+          <!-- Traslado Extra y Observaciones -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-amarillo">
+                  <h6 class="mb-0"><i class="bi bi-truck"></i> Traslado Extra</h6>
+                </div>
+                <div class="card-body">
+                  <label for="traslado-extra" class="form-label">¿Requiere traslado extra?</label>
+                  <select id="traslado-extra" name="traslado_extra" class="form-select">
+                    <option value="ninguno">No requiere</option>
+                    <option value="medio">Medio</option>
+                    <option value="redondo">Redondo</option>
+                  </select>
+                  <div class="mt-2">
+                    <label for="costo-traslado-extra" class="form-label">Costo traslado extra</label>
+                    <input type="number" id="costo-traslado-extra" name="costo_traslado_extra" class="form-control"
+                      min="0" step="0.01" value="0">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-gris">
+                  <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Observaciones</h6>
+                </div>
+                <div class="card-body">
+                  <textarea id="observaciones-entrada" name="observaciones" class="form-control" rows="3"
+                    placeholder="Observaciones adicionales de la entrega..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Tablas de piezas -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-verde">
+                  <h6 class="mb-0"><i class="bi bi-list-check"></i> Piezas que Salieron</h6>
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-bordered mb-0 modal-nota-salida-table">
+                      <thead class="table-dark">
+                        <tr>
+                          <th>Pieza</th>
+                          <th class="col-cantidad">Cantidad Esperada</th>
+                          <th class="col-cantidad">Cantidad Recibida</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tabla-piezas-salieron">
+                        <!-- Se llenará dinámicamente -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card card-borde-azul">
+                <div class="card-header card-header-rojo">
+                  <h6 class="mb-0"><i class="bi bi-clipboard-check"></i> Estado de las Piezas</h6>
+                </div>
+                <div class="card-body p-0">
+                  <div class="table-responsive">
+                    <table class="table table-bordered mb-0 modal-nota-salida-table">
+                      <thead class="table-dark">
+                        <tr>
+                          <th style="width: 25%;">Buenas</th>
+                          <th style="width: 25%;">Dañadas</th>
+                          <th style="width: 25%;">Sucias</th>
+                          <th style="width: 25%;">Perdidas</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tabla-evaluacion-piezas">
+                        <!-- Se llenará dinámicamente -->
+                      </tbody>
+                    </table>
+                  </div>
+                  <small class="text-muted ms-2">* Por defecto todas las piezas se reciben como buenas. Modifica según
+                    evaluación.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="aviso-cobro-extra" class="alert alert-warning mt-3 d-none">
+            <i class="bi bi-exclamation-triangle"></i>
+            Esta renta tiene cobros extras. Al finalizar la entrada se activarán los cobros.
+          </div>
+        </div>
+
+
+        <div id="opciones-accion-devolucion" class="mt-3 d-none">
+          <label class="form-label"><strong>¿Qué acción deseas tomar por los productos no devueltos?</strong></label>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="accion_devolucion" id="radio-renovacion"
+              value="renovacion">
+            <label class="form-check-label" for="radio-renovacion">Renovar renta</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="accion_devolucion" id="radio-cobro-extra"
+              value="cobro_extra">
+            <label class="form-check-label" for="radio-cobro-extra">Cobrar extra</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="accion_devolucion" id="radio-pendiente"
+              value="pendiente">
+            <label class="form-check-label" for="radio-pendiente">No cobrar, solo registrar como pendiente</label>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="modal-footer modal-footer-azul">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Cancelar
+          </button>
+          <button type="submit" class="btn btn-success" id="btn-generar-nota-entrada">
+            <i class="bi bi-check-circle"></i> Generar Nota de Entrada
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

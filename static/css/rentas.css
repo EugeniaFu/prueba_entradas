@@ -1,0 +1,529 @@
+/* --- CONTENEDOR PRINCIPAL RENTAS --- */
+.rentas-box-container {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 2px 14px rgba(35, 57, 93, 0.10);
+    padding: 1.5rem 1.2rem 1.2rem 1.2rem;
+    margin-bottom: 2rem;
+    margin-top: 1.2rem;
+}
+
+.rentas-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.2rem;
+}
+
+.rentas-section-title {
+    color: #23395d;
+    font-weight: bold;
+    font-size: 1.5rem;
+    margin-bottom: 0;
+}
+
+.btn-rentas-main {
+    background: #c62828;
+    color: #fff;
+    font-weight: bold;
+    border-radius: 10px;
+    padding: 0.5rem 1.5rem;
+    font-size: 1rem;
+    border: none;
+    transition: background 0.2s;
+}
+
+.btn-rentas-main:hover {
+    background: #a31515;
+    color: #fff;
+}
+
+.btn-rentas-filter {
+    background: #f5f5f5;
+    color: #23395d;
+    border: 1px solid #b0b0b0;
+    border-radius: 8px;
+    margin-right: 0.5rem;
+    font-weight: 500;
+    padding: 0.35rem 1rem;
+    font-size: 0.98rem;
+}
+
+.btn-rentas-filter.active,
+.btn-rentas-filter:hover {
+    background: #23395d;
+    color: #fff;
+}
+
+.search-rentas-box {
+    border-radius: 10px;
+    border: 1.5px solid #b0b0b0;
+    padding: 0.5rem 1rem;
+    width: 100%;
+    max-width: 300px;
+    font-size: 1rem;
+}
+
+
+
+/* --- TABS --- */
+.btn-tab {
+    background: #f5f5f5;
+    color: #23395d;
+    border: 1px solid #b0b0b0;
+    border-radius: 8px;
+    margin-right: 0.5rem;
+    font-weight: 500;
+    padding: 0.35rem 1rem;
+    font-size: 0.98rem;
+    text-decoration: none;
+}
+
+.btn-tab.active,
+.btn-tab:hover {
+    background: #23395d;
+    color: #fff;
+}
+
+
+/* --- TABLA DE RENTAS --- */
+.table-rentas {
+    border: 2.5px solid #23395d;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(35, 57, 93, 0.07);
+    background: #fff;
+    font-size: 0.85rem;
+}
+
+.table-rentas th {
+    background: #23395d;
+    color: #fff;
+    font-weight: bold;
+    border-top: none;
+    font-size: 0.9rem;
+    padding: 0.4em 0.3em;
+    text-align: center;
+}
+
+.table-rentas td {
+    vertical-align: middle;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.85rem;
+    padding: 0.35em 0.3em;
+    text-align: center;
+    background: #f8fafc;
+    color: #23395d;
+    line-height: 1.3;
+}
+
+.table-rentas td small {
+    font-size: 0.85rem;
+    color: #23395d;
+    line-height: 1.2;
+}
+
+.table-rentas td .text-muted {
+    font-size: 0.8rem !important;
+    color: #6c757d !important;
+}
+
+.table-rentas td .text-primary {
+    font-size: 0.8rem !important;
+    color: #14d668 !important;
+}
+
+.table-rentas tr:nth-child(even) td {
+    background: #f1f4fa;
+}
+
+.table-rentas tr:hover td {
+    background: #e3eafc;
+}
+
+.table-rentas th:first-child {
+    border-top-left-radius: 14px;
+}
+
+.table-rentas th:last-child {
+    border-top-right-radius: 14px;
+}
+
+.table-rentas tr:last-child td:first-child {
+    border-bottom-left-radius: 14px;
+}
+
+.table-rentas tr:last-child td:last-child {
+    border-bottom-right-radius: 14px;
+}
+
+/* --- BADGES DE ESTADOS --- */
+.table-rentas .badge {
+    font-size: 0.7rem !important;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+/* ESTADOS ESPECÍFICOS DE RENTA */
+.table-rentas .badge.bg-success {
+    background-color: #198754 !important;
+    /* VERDE para ACTIVO */
+    color: #ffffff !important;
+}
+
+.table-rentas .badge.bg-dark {
+    background-color: #212529 !important;
+    /* NEGRO para FINALIZADA */
+    color: #ffffff !important;
+}
+
+.table-rentas .badge.bg-secondary {
+    background-color: #6c757d !important;
+    /* GRIS para EN CURSO */
+    color: #ffffff !important;
+}
+
+.table-rentas .badge.bg-warning {
+    background-color: #ffc107 !important;
+    /* AMARILLO para PROGRAMADA */
+    color: #000000 !important;
+}
+
+/* ESTADOS DE PAGO */
+.table-rentas .badge.bg-danger {
+    background-color: #dc3545 !important;
+    color: #ffffff !important;
+}
+
+.table-rentas .badge.bg-success-custom {
+    background-color: #198754 !important;
+    /* VERDE para pago realizado */
+    color: #ffffff !important;
+}
+
+
+
+
+/* --- ESTADOS ESPECÍFICOS DE ENTREGA --- */
+.badge-por-regresar {
+    background-color: #eb8f04 !important;
+    color: #ffffff !important;
+    font-size: 0.7rem !important;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: 600;
+    border: none;
+}
+
+.badge-vencida {
+    background-color: #de1428 !important;
+    /* ROJO */
+    color: #ffffff !important;
+    font-size: 0.7rem !important;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-weight: 600;
+    border: none;
+}
+
+/* --- ACCIONES --- */
+.actions .btn {
+    border-radius: 50%;
+    padding: 0.3em 0.6em;
+    font-size: 1em;
+    margin-right: 2px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.no-caret::after {
+    display: none !important;
+}
+
+/* --- DROPDOWNS --- */
+.dropdown-menu {
+    font-size: 0.97rem;
+    border-radius: 10px;
+}
+
+/* --- MODAL --- */
+.modal-content {
+    border-radius: 16px;
+    border: 2px solid #23395d;
+}
+
+.modal-header {
+    border-bottom: 1.5px solid #e0e0e0;
+}
+
+.modal-title {
+    color: #23395d;
+    font-weight: bold;
+}
+
+.btn-close:focus {
+    box-shadow: 0 0 0 0.15rem #3363af33;
+}
+
+/* --- FORMULARIOS --- */
+.form-label {
+    color: #23395d;
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+}
+
+.form-control,
+.form-select {
+    border-radius: 8px;
+    border: 1.2px solid #b0b0b0;
+    font-size: 0.97em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #3363af;
+    box-shadow: 0 0 0 0.12rem #3363af33;
+}
+
+/* --- PRODUCTOS --- */
+.tooltip-producto {
+    cursor: help;
+    border-bottom: 1px dotted #14ff5a;
+}
+
+.tooltip-direccion {
+    cursor: help;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.productos-lista .producto-item {
+    display: block;
+    margin-bottom: 2px;
+    padding: 1px 3px;
+    background: rgba(0, 13, 251, 0.05);
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+
+.productos-lista {
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 900px) {
+    .rentas-box-container {
+        padding: 1rem 0.5rem;
+    }
+
+    .rentas-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .rentas-section-title {
+        font-size: 1.15rem;
+    }
+
+    .table-responsive {
+        border-radius: 10px;
+        overflow-x: auto;
+    }
+
+    .dropdown-menu.show {
+        position: fixed !important;
+        left: unset !important;
+        right: 20px !important;
+        /* Ajusta según tu diseño, o usa left: 50% para centrar */
+        top: 100px !important;
+        /* Ajusta según tu diseño */
+        z-index: 9999 !important;
+        bottom: 100% !important;
+        /* fuerza a abrir hacia arriba */
+        min-width: 200px;
+        /* o el ancho que necesites */
+    }
+
+
+    .btn-rentas-main,
+    .btn-rentas-filter {
+        width: 100%;
+        margin-top: 0.5em;
+    }
+
+    .table-rentas th,
+    .table-rentas td {
+        font-size: 0.8rem;
+        padding: 0.3em 0.15em;
+    }
+}
+
+
+
+
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/* MODAL NUEVA RENTA FORMAL */
+
+.modal-nueva-renta-header {
+    background: #23395d;
+    color: #fff;
+}
+
+.modal-nueva-renta-footer {
+    background: #f1f4fa;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+}
+
+.modal-nueva-renta-borde {
+    border-color: #23395d !important;
+}
+
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/* MODAL NOTA DE SALIDA FORMAL */
+.modal-nota-salida-header {
+    background: #23395d;
+    color: #fff;
+}
+
+.modal-nota-salida-footer {
+    background: #f1f4fa;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+}
+
+.modal-nota-salida-borde {
+    border-color: #23395d !important;
+}
+
+.modal-nota-salida-table th {
+    background: #23395d;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+}
+
+.modal-nota-salida-table td {
+    background: #f8fafc;
+    color: #23395d;
+    text-align: center;
+}
+
+
+/* Ajusta el ancho de la columna "Cantidad" */
+.modal-nota-salida-table .col-cantidad {
+    width: 90px;
+    min-width: 70px;
+    max-width: 110px;
+    text-align: center;
+}
+
+/* Mete la fecha y hora un poco más */
+.nota-salida-fecha-box {
+    margin-right: 10px;
+}
+
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/*///////////////////////////////////////////////////////*/
+/* MODAL DE ENTRADA */
+
+.modal-header-azul {
+    background: #23395d;
+    color: #fff;
+}
+
+.card-header-azul {
+    background: #f1f4fa;
+    color: #23395d;
+}
+
+.card-header-gris {
+    background: #6c757d;
+    color: #fff;
+}
+
+.card-borde-azul {
+    border-color: #23395d !important;
+}
+
+.modal-footer-azul {
+    background: #f1f4fa;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+}
+
+/*///////////////////////////////////////////////////////*/
+/*///////////// MODAL COBRO POR RETRASO FORMAL //////////*/
+/*///////////////////////////////////////////////////////*/
+
+.modal-cobro-retraso-header {
+    background: #23395d;
+    color: #ffffff;
+}
+.modal-cobro-retraso-footer {
+    background: #f1f4fa;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+}
+
+.modal-cobro-retraso-table th {
+    background: #23395d;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+}
+.modal-cobro-retraso-table td {
+    background: #f8fafc;
+    color: #23395d;
+    text-align: center;
+}
+.modal-cobro-retraso-label {
+    color: #23395d;
+    font-weight: bold;
+}
+.modal-cobro-retraso-input,
+.modal-cobro-retraso-select,
+.modal-cobro-retraso-textarea {
+    border-radius: 8px;
+    border: 1.2px solid #b0b0b0;
+    font-size: 0.97em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.modal-cobro-retraso-input:focus,
+.modal-cobro-retraso-select:focus,
+.modal-cobro-retraso-textarea:focus {
+    border-color: #3363af;
+    box-shadow: 0 0 0 0.12rem #3363af33;
+}
+
+/* Separación visual entre columnas */
+#modalCobroRetraso .row > .col-md-6 {
+    padding-right: 18px;
+    padding-left: 18px;
+    border-right: 1px solid #e0e0e0;
+}
+#modalCobroRetraso .row > .col-md-6:last-child {
+    border-right: none;
+}
+@media (max-width: 900px) {
+    #modalCobroRetraso .row > .col-md-6 {
+        border-right: none;
+        padding-right: 0;
+        padding-left: 0;
+    }
+}

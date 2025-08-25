@@ -1,0 +1,58 @@
+<div class="modal fade" id="modalRenovacionPendientes" tabindex="-1" aria-labelledby="modalRenovacionPendientesLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <form id="form-renovacion-pendientes">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalRenovacionPendientesLabel">
+            <i class="bi bi-arrow-repeat"></i> Renovación de renta por productos pendientes
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label>Fecha de salida</label>
+            <input type="datetime-local" class="form-control" id="fecha-salida-renovacion" required>
+          </div>
+          <div class="mb-3">
+            <label>Fecha de entrada</label>
+            <input type="datetime-local" class="form-control" id="fecha-entrada-renovacion" required>
+          </div>
+          <div class="mb-3">
+            <label>Dirección de obra</label>
+            <input type="text" class="form-control" id="direccion-obra-renovacion" required>
+          </div>
+          <div class="mb-3">
+            <label>Traslado extra</label>
+            <select class="form-select" id="traslado-extra-renovacion">
+              <option value="ninguno">No requiere</option>
+              <option value="medio">Medio traslado</option>
+              <option value="redondo">Traslado redondo</option>
+            </select>
+          </div>
+          <div class="mb-3" id="costo-traslado-group-renovacion" style="display:none;">
+            <label>Costo de traslado extra</label>
+            <input type="number" class="form-control" id="costo-traslado-renovacion" step="0.01" min="0">
+          </div>
+          <div class="mb-3">
+            <label>¿Requiere factura legal?</label>
+            <select class="form-select" id="factura-legal-renovacion">
+              <option value="0">No</option>
+              <option value="1">Sí</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label>Productos/Piezas pendientes</label>
+            <div id="lista-pendientes-renovacion">
+              <!-- Aquí se llenan dinámicamente los productos/piezas faltantes -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success" id="btn-crear-renovacion">
+            <i class="bi bi-check-circle"></i> Crear renovación
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

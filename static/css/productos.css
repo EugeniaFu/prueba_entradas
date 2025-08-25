@@ -1,0 +1,245 @@
+:root {
+    --azul-principal: #23395d;
+    --azul-secundario: #3363af;
+    --gris-fondo: #f4f7fb;
+    --gris-borde: #d1d5db;
+    --rojo-accion: #e53935;
+    --rojo-accion-hover: #b71c1c;
+    --verde-accion: #2ecc71;
+}
+
+body, .container, .container-fluid {
+    background: var(--gris-fondo);
+}
+
+/* Contenedor principal */
+.box-container {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 2px 16px 0 rgba(35,57,93,0.08);
+    border: 2.5px solid var(--azul-principal);
+    padding: 2.2rem 2rem 1.5rem 2rem;
+    margin-bottom: 2.5rem;
+}
+
+/* Header de sección */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+}
+.section-title {
+    font-size: 2rem;
+    color: var(--azul-principal);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+/* Botones principales */
+.btn-main, .btn-outline-primary, .btn-outline-success, .btn-outline-secondary, .btn-danger, .btn-primary, .btn-success {
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 1.08rem;
+    padding: 0.6em 1.7em;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    border: none;
+    box-shadow: 0 2px 8px #23395d11;
+}
+.btn-main {
+    background: var(--azul-principal);
+    color: #fff;
+}
+.btn-main:hover {
+    background: var(--azul-secundario);
+    color: #fff;
+}
+.btn-outline-primary {
+    background: #fff;
+    color: var(--azul-principal);
+    border: 2px solid var(--azul-principal);
+}
+.btn-outline-primary:hover {
+    background: var(--azul-principal);
+    color: #fff;
+}
+.btn-outline-success {
+    background: #fff;
+    color: var(--verde-accion);
+    border: 2px solid var(--verde-accion);
+}
+.btn-outline-success:hover {
+    background: var(--verde-accion);
+    color: #fff;
+}
+.btn-outline-secondary {
+    background: #fff;
+    color: var(--azul-principal);
+    border: 2px solid var(--gris-borde);
+}
+.btn-outline-secondary:hover {
+    background: #e3eaf7;
+    color: var(--rojo-accion);
+    border-color: var(--rojo-accion);
+}
+.btn-danger {
+    background: var(--rojo-accion);
+    color: #fff;
+}
+.btn-danger:hover {
+    background: var(--rojo-accion-hover);
+}
+.btn-primary {
+    background: var(--azul-secundario);
+    color: #fff;
+}
+.btn-primary:hover {
+    background: var(--azul-principal);
+}
+.btn-success {
+    background: var(--verde-accion);
+    color: #fff;
+}
+.btn-success:hover {
+    background: #27ae60;
+}
+
+/* Tabs y filtros */
+.btn-tab {
+    background: var(--azul-principal);
+    color: #fff;
+    border: none;
+    font-weight: 500;
+    border-radius: 18px;
+    padding: 0.5em 1.5em;
+    transition: background 0.2s, color 0.2s;
+    margin-right: 4px;
+}
+.btn-tab.active, .btn-tab:hover {
+    background: var(--azul-secundario);
+    color: #fff;
+}
+.btn-group .btn {
+    margin-right: 0.3em;
+}
+
+/* Buscador */
+.search-box, #buscadorProductos {
+    border-radius: 14px;
+    border: 2px solid var(--azul-principal);
+    background: #fff;
+    color: #222;
+    font-size: 1.08em;
+    padding: 0.5em 1.5em;
+    box-shadow: 0 2px 8px #23395d11;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-box:focus, #buscadorProductos:focus {
+    border-color: var(--azul-secundario);
+    box-shadow: 0 0 0 0.15rem #3363af33;
+}
+
+/* Tabla de productos estilo inventario general */
+.table-inventario {
+    border: 2.5px solid #23395d;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(35,57,93,0.07);
+    background: #fff;
+    margin-bottom: 0;
+}
+.table-inventario th {
+    background: #23395d;
+    color: #fff;
+    border: none;
+    font-weight: bold;
+    text-align: center;
+}
+.table-inventario td {
+    background: #f8fafc;
+    color: #23395d;
+    border: none;
+    text-align: center;
+    vertical-align: middle;
+}
+.table-inventario tr:nth-child(even) td {
+    background: #e9ecf3;
+}
+.table-inventario tr:hover td {
+    background: #d1d5db;
+}
+.table-inventario th:first-child {
+    border-top-left-radius: 16px;
+}
+.table-inventario th:last-child {
+    border-top-right-radius: 16px;
+}
+.table-inventario tr:last-child td:first-child {
+    border-bottom-left-radius: 16px;
+}
+.table-inventario tr:last-child td:last-child {
+    border-bottom-right-radius: 16px;
+}
+
+/* Acciones */
+.action-btn {
+    border-radius: 50%;
+    padding: 0.3em 0.6em;
+    font-size: 1.1em;
+    margin-right: 2px;
+    transition: background 0.2s, color 0.2s;
+}
+
+/* Modal */
+.modal-content {
+    border-radius: 18px;
+    border: 2px solid var(--azul-principal);
+}
+.modal-header {
+    border-bottom: 1.5px solid var(--gris-borde);
+}
+.modal-title {
+    color: var(--azul-principal);
+    font-weight: bold;
+}
+.btn-close:focus {
+    box-shadow: 0 0 0 0.15rem #3363af33;
+}
+
+/* Inputs y selects en modal */
+.form-label {
+    color: var(--azul-principal);
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+.form-control, .form-select {
+    border-radius: 10px;
+    border: 1.5px solid var(--gris-borde);
+    font-size: 1em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--azul-secundario);
+    box-shadow: 0 0 0 0.15rem #3363af33;
+}
+
+/* Responsive */
+@media (max-width: 991px) {
+    .section-header, .d-flex.flex-wrap.align-items-center.mb-3.gap-2.justify-content-between {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.7rem;
+    }
+    .box-container {
+        padding: 0.7rem 0.3rem;
+    }
+    .table-responsive {
+        border-radius: 10px;
+        overflow-x: auto;
+    }
+    .btn-main, .btn-tab, .btn-outline-primary, .btn-outline-success, .btn-outline-secondary {
+        width: 100%;
+        margin-top: 0.5em;
+    }
+}

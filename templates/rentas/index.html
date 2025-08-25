@@ -1,0 +1,483 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rentas.css') }}">
+{% endblock %}
+
+{% block content %}
+
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+  {{ message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+</div>
+{% endfor %}
+<script>
+  setTimeout(() => {
+    document.querySelectorAll('.alert').forEach(alert => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+      bsAlert.close();
+    });
+  }, 3000);
+</script>
+{% endif %}
+{% endwith %}
+
+<div class="container-fluid py-4">
+  <div class="rentas-box-container">
+    <div class="rentas-section-header d-flex justify-content-between align-items-center mb-3">
+      <h2 class="rentas-section-title">
+        <i class="bi bi-file-earmark-medical"></i> Módulo de rentas
+      </h2>
+      <a href="#" class="btn btn-rentas-main" data-bs-toggle="modal" data-bs-target="#modalNuevaRenta">
+        <i class="bi bi-file-earmark-medical"></i> Nueva Renta
+      </a>
+    </div>
+
+
+    <!-- Navegación entre Rentas y Cotizaciones -->
+    <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
+
+      <div class="btn-group" role="group">
+        <a href="{{ url_for('rentas.modulo_rentas') }}" class="btn btn-tab active">
+          <i class="bi bi-file-earmark-medical me-1"></i>Rentas
+        </a>
+        <a href="{{ url_for('cotizaciones.index') }}" class="btn btn-tab">
+          <i class="bi bi-calculator me-1"></i>Cotizaciones
+        </a>
+      </div>
+    </div>
+
+
+
+    <!-- Filtros de búsqueda -->
+    <form method="get" class="d-flex flex-wrap align-items-center mb-3 gap-2">
+      <input type="text" class="search-rentas-box" name="busqueda" placeholder="Buscar renta...">
+      <select class="form-select" name="filtro" style="max-width:180px;">
+        <option value="">Filtrar rentas</option>
+        <option value="en curso">En curso</option>
+        <option value="programada">Programadas</option>
+        <option value="finalizadas">Finalizadas</option>
+      </select>
+      <button type="submit" class="btn btn-rentas-filter">
+        <i class="bi bi-search"></i> Buscar
+      </button>
+      <a href="#" class="btn btn-rentas-filter">Rentas canceladas</a>
+    </form>
+
+    <!-- Tabla de rentas -->
+    <div class="table-responsive">
+      <table id="tablaRentas" class="table table-rentas align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Fecha de registro</th>
+            <th>Nombre del cliente</th>
+            <th>Kit/Producto</th>
+
+            <th>Fecha de salida</th>
+            <th>Fecha de entrada</th>
+
+            <th>Dirección de la obra</th>
+            <th>Estado de la renta</th>
+            <th>Estado de pago</th>
+            <th>Método de pago</th>
+            <th>Total en $</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+
+
+        <tbody>
+          {% for renta in rentas %}
+          <tr>
+
+            <!-- COLUMNA DE ID -->
+            <td><strong>#{{ renta[0] }}</strong></td>
+
+
+            <!-- COLUMNA DE FECHA DE REGISTRO -->
+            <td><small>{{ renta[1].strftime('%d/%m/%Y %H:%M') }}</small></td>
+
+            <!-- COLUMNA DE NOMBRE DEL CLIENTE -->
+            <td><strong>{{ renta[12] }} {{ renta[13] }}</strong></td>
+
+
+            <!-- COLUMNA DE PRODUCTOS -->
+            <td>
+              <div class="productos-lista">
+                {% if productos_por_renta.get(renta[0]) %}
+                {% set productos_list = productos_por_renta[renta[0]] %}
+                {% if productos_list|length > 2 %}
+                <span class="tooltip-producto" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
+                  title="{% for item in productos_list %}<div class='mb-1'>• {{ item }}</div>{% endfor %}">
+                  <span class="producto-item">{{ productos_list[0] }}</span>
+                  <span class="producto-item">{{ productos_list[1] }}</span>
+                  <small class="text-muted">+{{ productos_list|length - 2 }} más...</small>
+                </span>
+                {% else %}
+                {% for item in productos_list %}
+                <span class="producto-item">{{ item }}</span>
+                {% endfor %}
+                {% endif %}
+                {% else %}
+                <small class="text-muted">Sin productos</small>
+                {% endif %}
+              </div>
+            </td>
+
+
+            <!-- COLUMNA DE FECHA DE SALIDA -->
+            <td>
+              {% if renta[2] %}
+              {{ renta[2].strftime('%d/%m/%Y') }}
+              {% else %}
+              <small class="text-muted">Sin fecha</small>
+              {% endif %}
+            </td>
+
+
+            <!-- COLUMNA DE FECHA DE ENTRADA -->
+            <td>
+              {% if renta[3] %}
+              <div class="d-flex flex-column">
+                <span>{{ renta[3].strftime('%d/%m/%Y') }}</span>
+                {% if renta[17] %}
+                <span class="badge {{ renta[17]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                  {{ renta[17]['texto'] }}
+                </span>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="d-flex flex-column">
+                <small class="text-warning">Indefinido</small>
+              </div>
+
+              {% if not renta[3] %}
+              <button class="btn btn-sm btn-outline-secondary btn-editar-fecha-entrada" data-renta-id="{{ renta[0] }}"
+                title="Editar fecha de entrada">
+                <i class="bi bi-calendar-check"></i>
+              </button>
+              {% endif %}
+              {% endif %}
+            </td>
+
+
+            <!-- COLUMNA DIRECCIÓN DE OBRA -->
+            <td>
+              {% if renta[11] and renta[11]|length > 25 %}
+              <span class="tooltip-direccion" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ renta[11] }}">
+                {{ renta[11][:25] }}...
+              </span>
+              {% else %}
+              {{ renta[11] or '<small class="text-muted">Sin dirección</small>' }}
+              {% endif %}
+            </td>
+
+
+            <!-- COLUMNA ESTADO DE LA RENTA -->
+            <td>
+              <span class="badge bg-{{ 
+    'success' if renta[4] == 'activo' 
+    else 'dark' if renta[4] == 'finalizada' 
+    else 'secondary' if renta[4] == 'en curso' 
+    else 'warning' if renta[4] == 'programada' 
+    else 'primary' }}">
+                {{ renta[4].title() }}
+              </span>
+            </td>
+
+
+            <!-- COLUMNA ESTADO DE PAGO -->
+            <td>
+              <span
+                class="badge {% if renta[5] == 'pago realizado' %}bg-success-custom{% else %}bg-{{ 'danger' if renta[5] == 'Pago pendiente' else 'warning' }}{% endif %}">
+                {{ renta[5] }}
+              </span>
+
+              {% if renta[17] %}
+              <br>
+              <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17]
+                }}</span>
+              {% endif %}
+
+              {% if renta[20] == 'Retraso Pendiente' %}
+              <br>
+              <span class="badge bg-warning">Retraso Pendiente</span>
+              {% elif renta[20] == 'Retraso Pagado' %}
+              <br>
+              <span class="badge bg-success">Retraso Pagado</span>
+              {% endif %}
+
+            </td>
+
+
+            <!-- COLUMNA MÉTODO DE PAGO -->
+            <td><small>{{ renta[6] or 'N/A' }}</small></td>
+            <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
+
+            <!-- COLUMNA DE ACCIONES -->
+            <td>
+              <div class="d-flex actions justify-content-center gap-1">
+
+                <!-- Botón de Acciones -->
+                <div class="dropdown dropup">
+                  <button class="btn btn-sm btn-primary dropdown-toggle no-caret rounded rounded-circle" type="button"
+                    data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                    title="Opciones de gestión de la renta">
+                    <i class="bi bi-three-dots"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                    <li><a class="dropdown-item" href="#"><i class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
+                    <li>
+                      <hr class="dropdown-divider">
+                    </li>
+                    <li>
+                      <a class="dropdown-item btn-ver-detalle" href="#" data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-eye me-2"></i>Ver Detalles
+                      </a>
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- Botón de PDF -->
+                <div class="dropdown dropup">
+                  <button class="btn btn-sm btn-success dropdown-toggle no-caret rounded rounded-circle" type="button"
+                    data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                    title="Descargar documentos PDF de la renta">
+                    <i class="bi bi-printer"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a class="dropdown-item" href="/notas_salida/pdf_renta/{{ renta[0] }}" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Nota de salida
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="/notas_entrada/pdf_renta/{{ renta[0] }}" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-2 text-primary"></i>Nota de entrada
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" href="/prefactura/pdf_renta/{{ renta[0] }}" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-2 text-success"></i>Prefactura
+                      </a>
+                    </li>
+                    {% if renta[19] %}
+                    <li>
+                      <a class="dropdown-item" href="/cobros_extra/pdf/{{ renta[19] }}" target="_blank">
+                        <i class="bi bi-file-earmark-pdf me-2 text-warning"></i>Cobro Extra
+                      </a>
+                    </li>
+                    {% endif %}
+                  </ul>
+                </div>
+
+                <!-- Botón de Notas -->
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-warning text-dark dropdown-toggle no-caret rounded rounded-circle"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
+                    data-bs-toggle="tooltip" title="Gestionar notas y prefacturas de la renta">
+                    <i class="bi bi-journal-text"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a class="dropdown-item btn-nota-salida" href="#" data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-arrow-right-circle me-2 text-danger"></i>Crear Nota de Salida
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item btn-nota-entrada" href="#" data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear Nota de Entrada
+                      </a>
+                    </li>
+                    <li>
+                      <hr class="dropdown-divider">
+                    </li>
+                    <li>
+                      <a class="dropdown-item btn-prefactura {% if renta[5]|lower == 'pago realizado' %}disabled{% endif %}"
+                        href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
+                        data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
+                        renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
+                        <i class="bi bi-journal-check me-2 text-success"></i>Generar Prefactura
+                      </a>
+                    </li>
+                    {% if renta[17] == 'Extra Pendiente' %}
+                    <li>
+                      <a class="dropdown-item btn-cobro-extra" href="#" data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-cash-coin me-2 text-warning"></i>Cobrar Extra
+                      </a>
+                    </li>
+                    {% endif %}
+
+                    {% if renta[20] == 'Retraso Pendiente' %}
+                    <li>
+                      <a class="dropdown-item btn-cobro-retraso" href="#" data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-clock-history me-2 text-danger"></i>Cobrar Retraso
+                      </a>
+                    </li>
+                    {% endif %}
+                  </ul>
+                </div>
+
+                <!-- Botón de Eliminar -->
+                <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle" type="button"
+                  data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar esta renta permanentemente">
+                  <i class="bi bi-trash-fill"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div id="pagination-container" class="mt-3 d-flex justify-content-center"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalEditarFechaEntrada" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form id="form-editar-fecha-entrada">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar Fecha de Entrada</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="date" id="nueva-fecha-entrada" class="form-control" required>
+          <input type="hidden" id="renta-id-para-editar">
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% include 'rentas/_modal_prefactura.html' %}
+
+{% include 'rentas/_modal_detalle_renta.html' %}
+
+{% include 'rentas/_modal_nota_salida.html' %}
+
+{% include 'rentas/_modal_cobro_retraso.html' %}
+{% include 'rentas/_modal_nota_entrada.html' %}
+{% include 'rentas/_modal_renovaciones_pendientes.html' %}
+{% include 'rentas/_modal_cobro_extra.html' %}
+
+{% include 'rentas/_modal_nueva_renta.html' %}
+
+
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.preciosProductos = {{ precios_productos | tojson }};
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Inicializar todos los tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl, {
+        trigger: 'hover focus',
+        delay: { show: 300, hide: 100 },
+        html: true,
+        placement: 'auto'
+      });
+    });
+
+    // Mejorar la experiencia de tooltips en dispositivos móviles
+    if (window.innerWidth <= 768) {
+      tooltipList.forEach(function (tooltip) {
+        tooltip._config.trigger = 'click';
+      });
+    }
+
+    // Funcionalidad adicional para productos
+    document.querySelectorAll('.tooltip-producto').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+      });
+    });
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const modalFechaEntrada = new bootstrap.Modal(document.getElementById('modalEditarFechaEntrada'));
+
+    // Abrir modal con rentaId cargado
+    document.body.addEventListener('click', function (e) {
+      const btn = e.target.closest('.btn-editar-fecha-entrada');
+      if (btn) {
+        const rentaId = btn.dataset.rentaId;
+        document.getElementById('renta-id-para-editar').value = rentaId;
+        document.getElementById('nueva-fecha-entrada').value = ''; // limpia fecha
+        modalFechaEntrada.show();
+      }
+    });
+
+    // Enviar actualización
+    document.getElementById('form-editar-fecha-entrada').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const rentaId = document.getElementById('renta-id-para-editar').value;
+      const fechaEntrada = document.getElementById('nueva-fecha-entrada').value;
+
+      if (!fechaEntrada) {
+        Swal.fire('Error', 'Debe seleccionar una fecha válida.', 'warning');
+        return;
+      }
+
+      fetch(`/rentas/actualizar_fecha_entrada/${rentaId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha_entrada: fechaEntrada })
+      })
+        .then(async resp => {
+          const isJson = resp.headers.get('content-type')?.includes('application/json');
+          const data = isJson ? await resp.json() : null;
+
+          if (!resp.ok) {
+            throw new Error(data?.error || `Error ${resp.status}`);
+          }
+
+          if (data.success) {
+            Swal.fire('Éxito', data.message, 'success').then(() => {
+              modalFechaEntrada.hide();
+              window.location.reload();
+            });
+          } else {
+            Swal.fire('Error', data.error || 'No se pudo actualizar la fecha.', 'error');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          Swal.fire('Error', 'Error inesperado del servidor.', 'error');
+        });
+
+    });
+  });
+</script>
+
+<script src="{{ url_for('static', filename='js/rentas.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/nota_salida.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/prefactura.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/nota_cobro_retraso.js') }}"></script>
+<script src="{{ url_for('static', filename='js/nota_entrada.js') }}"></script>
+<script src="{{ url_for('static', filename='js/renovacion_pendientes.js') }}"></script>
+<script src="{{ url_for('static', filename='js/nota_cobro_extra.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/paginacion.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,119 @@
+<div class="modal fade" id="modalCobroRetraso" tabindex="-1" aria-labelledby="modalCobroRetrasoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form id="form-cobro-retraso">
+            <div class="modal-content card-borde-azul">
+                <div class="modal-header modal-header-azul">
+                    <h5 class="modal-title" id="modalCobroRetrasoLabel">
+                        <i class="bi bi-clock-history"></i> Cobro por retraso en devolución
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- Columna izquierda: Tabla y datos -->
+                        <div class="col-md-8 d-flex flex-column">
+                            <div class="card card-borde-azul h-100">
+                                <div class="card-header card-header-azul">
+                                    <i class="bi bi-list-check"></i> Detalle de productos con retraso
+                                </div>
+                                <div class="card-body p-0">
+                                    <p class="px-3 pt-2">
+                                        El cliente devolvió el equipo <strong id="dias-retraso"></strong> días después de la fecha límite.
+                                    </p>
+                                    <div class="table-responsive px-3 pb-3">
+                                        <table class="table table-bordered" id="tabla-cobro-retraso">
+                                            <thead>
+                                                <tr>
+                                                    <th>Producto</th>
+                                                    <th>Cantidad</th>
+                                                    <th>Precio original</th>
+                                                    <th>Días de retraso</th>
+                                                    <th>Subtotal</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- Se llena dinámicamente con JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="px-3 pb-3">
+                                        <label class="form-label">¿Requiere traslado extra?</label>
+                                        <select class="form-select" id="cobro-retraso-traslado-extra" name="traslado_extra">
+                                            <option value="ninguno">No requiere</option>
+                                            <option value="extra">Sí, agregar traslado extra</option>
+                                        </select>
+                                    </div>
+                                    <div class="px-3 pb-3" id="cobro-retraso-costo-traslado-group" style="display: none;">
+                                        <label class="form-label">Costo de traslado extra</label>
+                                        <input type="number" class="form-control" id="cobro-retraso-costo-traslado" name="costo_traslado_extra" min="0" step="0.01">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Columna derecha: Cobro y pago -->
+                        <div class="col-md-4 d-flex flex-column">
+                            <div class="card card-borde-azul mb-2">
+                                <div class="card-header card-header-azul">
+                                    <i class="bi bi-cash-coin"></i> Cobro y Pago
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <strong>Subtotal:</strong> $<span id="subtotal-cobro-retraso">0.00</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <strong>IVA (16%):</strong> $<span id="iva-cobro-retraso">0.00</span>
+                                    </div>
+                                    <div class="mb-2 bg-light border rounded px-2 py-1"
+                                        style="border-left: 4px solid #dc3545;">
+                                        <strong class="text-danger fw-bold">TOTAL:</strong>
+                                        <span class="text-danger fw-bold">$<span id="total-cobro-retraso-con-iva">0.00</span></span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="cobro-retraso-metodo-pago" class="form-label">Método de pago</label>
+                                        <select class="form-select" id="cobro-retraso-metodo-pago" name="metodo_pago" required>
+                                            <option value="efectivo">Efectivo</option>
+                                            <option value="transferencia">Transferencia</option>
+                                            <option value="tarjeta_debito">Tarjeta Débito</option>
+                                            <option value="tarjeta_credito">Tarjeta Crédito</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2" id="grupo-numero-seguimiento-retraso" style="display:none;">
+                                        <label for="numero-seguimiento-retraso" class="form-label">Número de seguimiento</label>
+                                        <input type="text" id="numero-seguimiento-retraso" name="numero_seguimiento" class="form-control">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="cobro-retraso-facturable" class="form-label">¿Requiere factura?</label>
+                                        <select class="form-select" id="cobro-retraso-facturable" name="facturable">
+                                            <option value="0">No</option>
+                                            <option value="1">Sí</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="cobro-retraso-monto-recibido" class="form-label">Monto recibido</label>
+                                        <input type="number" class="form-control" id="cobro-retraso-monto-recibido" name="monto_recibido" min="0" step="0.01">
+                                    </div>
+                                    <div class="mb-2">
+                                        <label for="cobro-retraso-cambio" class="form-label">Cambio</label>
+                                        <input type="number" class="form-control" id="cobro-retraso-cambio" name="cambio" min="0" step="0.01" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-borde-azul h-100">
+                                <div class="card-header card-header-azul">
+                                    <i class="bi bi-chat-dots"></i> Observaciones
+                                </div>
+                                <div class="card-body">
+                                    <textarea class="form-control" id="cobro-retraso-observaciones" name="observaciones" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer modal-footer-azul">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Guardar y generar PDF</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>

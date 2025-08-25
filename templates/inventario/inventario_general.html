@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+
+{% block title %}Inventario General{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario.css') }}">
+{% endblock %}
+
+{% block content %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+  {{ message }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+
+<div class="box-container">
+  <div class="section-header">
+    <div>
+      <span class="section-title">Inventario General</span>
+    </div>
+    <button class="btn btn-main" data-bs-toggle="modal" data-bs-target="#modalNuevaPieza">
+      <i class="bi bi-plus-lg"></i> Nueva Pieza
+    </button>
+  </div>
+  <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
+    <input type="text" id="buscadorPiezas" class="search-box" placeholder="Buscar pieza...">
+    <div class="btn-group" role="group">
+      {% if 'ver_inventario_general' in session['permisos'] %}
+      <a href="{{ url_for('inventario.inventario_general') }}"
+        class="btn btn-tab {% if active_tab == 'inventario' %}active{% endif %}">Inventario</a>
+      {% endif %}
+      <a href="{{ url_for('producto.productos') }}"
+        class="btn btn-tab {% if active_tab == 'productos' %}active{% endif %}">Productos</a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-inventario align-middle">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Pieza</th>
+          <th>Categoría</th>
+          <th>Total Empresa</th>
+          {% for sucursal in sucursales %}
+          <th>{{ sucursal.nombre }}</th>
+          {% endfor %}
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pieza in piezas %}
+        <tr>
+          <td class="text-muted small">{{ pieza.codigo_pieza }}</td>
+          <td>
+            <div>{{ pieza.nombre_pieza }}</div>
+            {% if pieza.descripcion %}
+            <div class="text-muted small">{{ pieza.descripcion }}</div>
+            {% endif %}
+          </td>
+          <td>{{ pieza.categoria or '-' }}</td>
+          <td>{{ pieza.total_empresa }}</td>
+          {% for sucursal in sucursales %}
+          <td>
+            <div>Tot: {{ pieza.sucursales[sucursal.id].total }}</div>
+            <div>Disp: {{ pieza.sucursales[sucursal.id].disponibles }}</div>
+            <div>Rent: {{ pieza.sucursales[sucursal.id].rentadas }}</div>
+            <div>Dañ: {{ pieza.sucursales[sucursal.id].daniadas }}</div>
+            <div>Repar: {{ pieza.sucursales[sucursal.id].en_reparacion }}</div>
+          </td>
+          {% endfor %}
+
+
+
+          <td>
+            <div class="d-flex flex-column gap-1">
+              <button class="btn btn-outline-primary btn-sm action-btn-inventario" data-bs-toggle="modal"
+                data-bs-target="#modalAltaBaja{{ pieza.id_pieza }}" title="Alta/Baja">
+                <i class="bi bi-plus-slash-minus"></i>
+              </button>
+              <button class="btn btn-outline-info btn-sm action-btn-inventario" data-bs-toggle="modal"
+                data-bs-target="#modalTransferir{{ pieza.id_pieza }}" title="Transferir">
+                <i class="bi bi-arrow-left-right"></i>
+              </button>
+              <button class="btn btn-outline-warning btn-sm action-btn-inventario" data-bs-toggle="modal"
+                data-bs-target="#modalEditarPieza{{ pieza.id_pieza }}" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+            </div>
+          </td>
+
+
+
+
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modales por pieza (fuera de la tabla) -->
+{% for pieza in piezas %}
+<!-- Modal Alta/Baja -->
+<div class="modal fade" id="modalAltaBaja{{ pieza.id_pieza }}" tabindex="-1"
+  aria-labelledby="modalAltaBajaLabel{{ pieza.id_pieza }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('inventario.alta_baja_pieza') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAltaBajaLabel{{ pieza.id_pieza }}">Alta/Baja de {{ pieza.nombre_pieza }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="id_pieza" value="{{ pieza.id_pieza }}">
+          <div class="mb-2">
+            <label class="form-label">Sucursal</label>
+            <select class="form-select" name="id_sucursal" required>
+              {% for sucursal in sucursales %}
+              <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Cantidad</label>
+            <input type="number" class="form-control" name="cantidad" min="1" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Tipo de movimiento</label>
+            <select class="form-select tipo-movimiento" name="tipo" required
+              onchange="mostrarDescripcion(this, '{{ pieza.id_pieza }}')">
+              <option value="alta">Alta (sumar)</option>
+              <option value="baja">Baja (restar)</option>
+            </select>
+          </div>
+          <div class="mb-2 d-none" id="descripcionBaja{{ pieza.id_pieza }}">
+            <label class="form-label">Descripción de la baja</label>
+            <textarea class="form-control" name="descripcion" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Transferir -->
+<div class="modal fade" id="modalTransferir{{ pieza.id_pieza }}" tabindex="-1"
+  aria-labelledby="modalTransferirLabel{{ pieza.id_pieza }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('inventario.transferir_pieza') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalTransferirLabel{{ pieza.id_pieza }}">Transferir {{ pieza.nombre_pieza }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="id_pieza" value="{{ pieza.id_pieza }}">
+          <div class="mb-2">
+            <label class="form-label">De sucursal</label>
+            <select class="form-select" name="id_sucursal_origen" required>
+              {% for sucursal in sucursales %}
+              <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">A sucursal</label>
+            <select class="form-select" name="id_sucursal_destino" required>
+              {% for sucursal in sucursales %}
+              <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Cantidad</label>
+            <input type="number" class="form-control" name="cantidad" min="1" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-info">Transferir</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Editar Pieza -->
+<div class="modal fade {% if show_modal_editar_pieza == pieza.id_pieza %}show d-block{% endif %}"
+  id="modalEditarPieza{{ pieza.id_pieza }}" tabindex="-1" aria-labelledby="modalEditarPiezaLabel{{ pieza.id_pieza }}"
+  aria-hidden="true" {% if show_modal_editar_pieza==pieza.id_pieza %}style="background:rgba(0,0,0,0.5);" {% endif %}>
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('inventario.editar_pieza', id_pieza=pieza.id_pieza) }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEditarPiezaLabel{{ pieza.id_pieza }}">Editar {{ pieza.nombre_pieza }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          {% if error_codigo_editar and show_modal_editar_pieza == pieza.id_pieza %}
+          <div class="alert alert-danger">{{ error_codigo_editar }}</div>
+          {% endif %}
+          <div class="mb-2">
+            <label class="form-label">Nombre de la pieza</label>
+            <input type="text" class="form-control" name="nombre_pieza" required
+              value="{% if show_modal_editar_pieza == pieza.id_pieza and form_data_editar %}{{ form_data_editar.nombre_pieza }}{% else %}{{ pieza.nombre_pieza }}{% endif %}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Código</label>
+            <input type="text" class="form-control" name="codigo_pieza" required
+              value="{% if show_modal_editar_pieza == pieza.id_pieza and form_data_editar %}{{ form_data_editar.codigo_pieza }}{% else %}{{ pieza.codigo_pieza }}{% endif %}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Categoría</label>
+            <input type="text" class="form-control" name="categoria"
+              value="{% if show_modal_editar_pieza == pieza.id_pieza and form_data_editar %}{{ form_data_editar.categoria }}{% else %}{{ pieza.categoria }}{% endif %}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Descripción</label>
+            <textarea class="form-control" name="descripcion"
+              rows="2">{% if show_modal_editar_pieza == pieza.id_pieza and form_data_editar %}{{ form_data_editar.descripcion }}{% else %}{{ pieza.descripcion }}{% endif %}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">Guardar cambios</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endfor %}
+
+<!-- Modal Nueva Pieza -->
+<div class="modal fade {% if show_modal_nueva_pieza %}show d-block{% endif %}" id="modalNuevaPieza" tabindex="-1"
+  aria-labelledby="modalNuevaPiezaLabel" aria-hidden="true" {% if show_modal_nueva_pieza
+  %}style="background:rgba(0,0,0,0.5);" {% endif %}>
+  <div class="modal-dialog">
+    <form method="POST" action="{{ url_for('inventario.agregar_pieza_general') }}">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalNuevaPiezaLabel">Agregar Nueva Pieza</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          {% if error_codigo %}
+          <div class="alert alert-danger">{{ error_codigo }}</div>
+          {% endif %}
+          <div class="mb-2">
+            <label class="form-label">Nombre de la pieza</label>
+            <input type="text" class="form-control" name="nombre_pieza" required
+              value="{{ form_data.nombre_pieza if form_data else '' }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Código</label>
+            <input type="text" class="form-control" name="codigo_pieza" required
+              value="{{ form_data.codigo_pieza if form_data else '' }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Categoría</label>
+            <input type="text" class="form-control" name="categoria"
+              value="{{ form_data.categoria if form_data else '' }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Descripción</label>
+            <textarea class="form-control" name="descripcion"
+              rows="2">{{ form_data.descripcion if form_data else '' }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Agregar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+<script>
+  function mostrarDescripcion(select, id) {
+    var descDiv = document.getElementById('descripcionBaja' + id);
+    if (select.value === 'baja') {
+      descDiv.classList.remove('d-none');
+    } else {
+      descDiv.classList.add('d-none');
+    }
+  }
+  document.getElementById('buscadorPiezas').addEventListener('keyup', function () {
+    var filtro = this.value.toLowerCase();
+    document.querySelectorAll('.table-inventario tbody tr').forEach(function (row) {
+      var texto = row.innerText.toLowerCase();
+      row.style.display = texto.includes(filtro) ? '' : 'none';
+    });
+  });
+</script>
+
+
+{% if show_modal_nueva_pieza %}
+<script>
+  // Evita que el fondo oscuro se quede fijo si el usuario cierra el modal manualmente
+  document.body.classList.add('modal-open');
+</script>
+{% endif %}
+
+{% endblock %}
