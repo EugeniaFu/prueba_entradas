@@ -120,6 +120,7 @@ def preview_nota_entrada(renta_id):
 ####################################################################
 ####################################################################
 
+
 @notas_entrada_bp.route('/crear/<int:renta_id>', methods=['POST'])
 def crear_nota_entrada(renta_id):
     data = request.get_json()
@@ -134,7 +135,7 @@ def crear_nota_entrada(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # --- Validación: ya existe nota de entrada para esta renta ---
+    # Validación: ya existe nota de entrada para esta renta
     cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
     if cursor.fetchone():
         cursor.close()
@@ -142,18 +143,18 @@ def crear_nota_entrada(renta_id):
         return jsonify({'success': False, 'error': 'Ya existe una nota de entrada para esta renta.'}), 400
 
     try:
-        # Insertar nota de entrada
         cobrar_retraso = data.get('cobrar_retraso', False)
         estado_retraso = 'Retraso Pendiente' if cobrar_retraso else 'Sin Retraso'
 
+        # Insertar nota de entrada (solo una vez)
         cursor.execute("""
             INSERT INTO notas_entrada (
                 folio, renta_id, nota_salida_id, fecha_entrada_real,
-                requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso
-            ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s)
+                requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion
+            ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s)
         """, (
             folio, renta_id, nota_salida_id, requiere_traslado_extra,
-            costo_traslado_extra, observaciones, 'normal', estado_retraso
+            costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion
         ))
         nota_entrada_id = cursor.lastrowid
 
@@ -190,69 +191,55 @@ def crear_nota_entrada(renta_id):
             """, (id_sucursal, id_pieza))
             inventario_row = cursor.fetchone()
             if not inventario_row:
-                continue 
+                continue
 
-           # Buenas: +disponibles, -rentadas
-        cursor.execute("""
-            UPDATE inventario_sucursal
-            SET 
-                disponibles = disponibles + %s,
-                rentadas = rentadas - %s
-            WHERE id_sucursal = %s AND id_pieza = %s
-        """, (
-            cantidad_buena,            # disponibles
-            cantidad_buena,            # rentadas
-            id_sucursal, id_pieza
-        ))
-
-        # Dañadas: +daniadas, -rentadas
-        if cantidad_danada > 0:
+            # Buenas: +disponibles, -rentadas
             cursor.execute("""
                 UPDATE inventario_sucursal
                 SET 
-                    daniadas = daniadas + %s,
+                    disponibles = disponibles + %s,
                     rentadas = rentadas - %s
                 WHERE id_sucursal = %s AND id_pieza = %s
             """, (
-                cantidad_danada,        # daniadas
-                cantidad_danada,        # rentadas
-                id_sucursal, id_pieza
+                cantidad_buena, cantidad_buena, id_sucursal, id_pieza
             ))
 
-        # Perdidas: solo si recibidas == esperadas
-        if cantidad_recibida == cantidad_esperada and cantidad_perdida > 0:
-            cursor.execute("""
-                UPDATE inventario_sucursal
-                SET 
-                    perdidas = perdidas + %s,
-                    rentadas = rentadas - %s,
-                    total = total - %s
-                WHERE id_sucursal = %s AND id_pieza = %s
-            """, (
-                cantidad_perdida,       # perdidas
-                cantidad_perdida,       # rentadas
-                cantidad_perdida,       # total
-                id_sucursal, id_pieza
-            ))
+            # Dañadas: +daniadas, -rentadas
+            if cantidad_danada > 0:
+                cursor.execute("""
+                    UPDATE inventario_sucursal
+                    SET 
+                        daniadas = daniadas + %s,
+                        rentadas = rentadas - %s
+                    WHERE id_sucursal = %s AND id_pieza = %s
+                """, (
+                    cantidad_danada, cantidad_danada, id_sucursal, id_pieza
+                ))
 
-        # Actualizar renta con id de nota de entrada
+            # Perdidas: solo si recibidas == esperadas
+            if cantidad_recibida == cantidad_esperada and cantidad_perdida > 0:
+                cursor.execute("""
+                    UPDATE inventario_sucursal
+                    SET 
+                        perdidas = perdidas + %s,
+                        rentadas = rentadas - %s,
+                        total = total - %s
+                    WHERE id_sucursal = %s AND id_pieza = %s
+                """, (
+                    cantidad_perdida, cantidad_perdida, cantidad_perdida, id_sucursal, id_pieza
+                ))
+
+        # Actualizar renta con id de nota de entrada y estado
         cursor.execute("""
             UPDATE rentas SET nota_entrada_id = %s, estado_renta = 'Finalizada'
             WHERE id = %s
         """, (nota_entrada_id, renta_id))
 
-
-                # Actualizar renta con id de nota de entrada
-        cursor.execute("""
-            UPDATE rentas SET nota_entrada_id = %s, estado_renta = 'Finalizada'
-            WHERE id = %s
-        """, (nota_entrada_id, renta_id))
-
-        # --- ACTIVAR ESTADO DE EXTRA PENDIENTE SI HAY COBROS EXTRA ---
-        hay_cobro_extra = False
-        for pieza in piezas:
-            if pieza['cantidad_danada'] > 0 or pieza['cantidad_sucia'] > 0 or pieza['cantidad_perdida'] > 0:
-                hay_cobro_extra = True
+        # Activar estado de extra pendiente si hay cobros extra
+        hay_cobro_extra = any(
+            pieza['cantidad_danada'] > 0 or pieza['cantidad_sucia'] > 0 or pieza['cantidad_perdida'] > 0
+            for pieza in piezas
+        )
         if requiere_traslado_extra in ['medio', 'redondo'] and costo_traslado_extra > 0:
             hay_cobro_extra = True
 
@@ -267,20 +254,6 @@ def crear_nota_entrada(renta_id):
                 WHERE id = %s
             """, (renta_id,))
 
-        
-        cursor.execute("""
-        INSERT INTO notas_entrada (
-            folio, renta_id, nota_salida_id, fecha_entrada_real,
-            requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion
-        ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s)
-    """, (
-        folio, renta_id, nota_salida_id, requiere_traslado_extra,
-        costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion
-    ))
-
-        
-
-
         conn.commit()
         return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id})
     except Exception as e:
@@ -289,7 +262,7 @@ def crear_nota_entrada(renta_id):
     finally:
         cursor.close()
         conn.close()
-
+        
 
 
 
