@@ -24,6 +24,7 @@ def modulo_rentas():
     cursor = conn.cursor()
 
     # Consulta principal de rentas con cliente
+
     cursor.execute("""
     SELECT 
         r.id, r.fecha_registro, r.fecha_salida, r.fecha_entrada,
@@ -40,14 +41,20 @@ def modulo_rentas():
         r.estado_cobro_extra,
         nce.estado_pago AS estado_pago_extra,
         nce.id AS cobro_extra_id,
-        ne.estado_retraso  
+        ne.estado_retraso,
+        (
+            SELECT COUNT(*) 
+            FROM notas_entrada ne2
+            JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne2.id
+            WHERE ne2.renta_id = r.id AND ned.cantidad_esperada > ned.cantidad_recibida
+        ) AS piezas_pendientes
     FROM rentas r
     JOIN clientes c ON r.cliente_id = c.id
     LEFT JOIN notas_entrada ne ON ne.renta_id = r.id
         AND ne.id = (SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id)
     LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
     ORDER BY r.fecha_registro DESC
-""")        
+    """)
     
     rentas = cursor.fetchall()
 

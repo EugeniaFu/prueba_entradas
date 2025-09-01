@@ -120,6 +120,19 @@ document.addEventListener('DOMContentLoaded', function () {
                         document.getElementById('tabla-piezas-salieron').innerHTML = `<tr><td colspan="3" class="text-danger">${data.error}</td></tr>`;
                         return;
                     }
+
+
+                    if (!data.piezas || data.piezas.length === 0) {
+                        document.getElementById('tabla-piezas-salieron').innerHTML = `
+                <tr>
+                    <td colspan="3" class="text-center text-muted">No hay piezas para mostrar en esta renta.</td>
+                </tr>
+            `;
+                        document.getElementById('tabla-evaluacion-piezas').innerHTML = '';
+                        return;
+                    }
+
+
                     window.notaEntradaNotaSalidaId = data.nota_salida_id;
                     document.getElementById('folio-entrada').textContent = data.folio_entrada;
                     document.getElementById('folio-salida').textContent = data.folio_salida;

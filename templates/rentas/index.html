@@ -188,6 +188,12 @@
     else 'primary' }}">
                 {{ renta[4].title() }}
               </span>
+
+              {% if renta[21] and renta[21] > 0 %}
+              <br>
+              <span class="badge bg-warning text-dark">Piezas pendientes</span>
+              {% endif %}
+              
             </td>
 
 

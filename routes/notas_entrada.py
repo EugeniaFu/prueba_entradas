@@ -9,7 +9,8 @@ from reportlab.pdfgen import canvas
 
 notas_entrada_bp = Blueprint('notas_entrada', __name__, url_prefix='/notas_entrada')
 
-# --- PREVIEW: Obtener datos para el modal de entrada ---
+
+
 @notas_entrada_bp.route('/preview/<int:renta_id>')
 def preview_nota_entrada(renta_id):
     conn = get_db_connection()
@@ -40,8 +41,8 @@ def preview_nota_entrada(renta_id):
         cursor.close()
         conn.close()
         return jsonify({'error': 'Renta no encontrada'}), 404
-    
-    # Obtener folio de salida desde la nota de salida
+
+    # Obtener folio de salida y nota_salida_id
     cursor.execute("""
         SELECT folio, id AS nota_salida_id
         FROM notas_salida
@@ -52,7 +53,6 @@ def preview_nota_entrada(renta_id):
     folio_salida = str(ns_row['folio']).zfill(5) if ns_row and ns_row['folio'] is not None else '-----'
     nota_salida_id = ns_row['nota_salida_id'] if ns_row else None
 
-
     # Fecha y hora actual
     fecha_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
@@ -61,7 +61,6 @@ def preview_nota_entrada(renta_id):
     estado = '---'
     dias_retraso = 0
     if renta['fecha_entrada']:
-    # Si renta['fecha_entrada'] es date, conviértelo a datetime
         fecha_base = renta['fecha_entrada']
         if isinstance(fecha_base, datetime):
             fecha_base = fecha_base.date()
@@ -74,16 +73,8 @@ def preview_nota_entrada(renta_id):
             estado = 'Retrasada'
             delta = ahora - fecha_limite_dt
             dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
-    # Piezas que salieron (de la nota de salida)
-    cursor.execute("""
-        SELECT ns.id AS nota_salida_id
-        FROM notas_salida ns
-        WHERE ns.renta_id = %s
-        ORDER BY ns.id DESC LIMIT 1
-    """, (renta_id,))
-    ns_row = cursor.fetchone()
-    nota_salida_id = ns_row['nota_salida_id'] if ns_row else None
 
+    # Piezas que salieron (de la nota de salida)
     piezas = []
     if nota_salida_id:
         cursor.execute("""
@@ -93,6 +84,39 @@ def preview_nota_entrada(renta_id):
             WHERE nsd.nota_salida_id = %s
         """, (nota_salida_id,))
         piezas = cursor.fetchall()
+    else:
+        piezas = []
+
+    # Consulta de piezas pendientes (si ya hay notas de entrada)
+    cursor.execute("""
+        SELECT id_pieza, SUM(cantidad_esperada) AS cantidad_esperada_total, SUM(cantidad_recibida) AS cantidad_recibida_total
+        FROM notas_entrada_detalle
+        WHERE nota_entrada_id IN (
+            SELECT id FROM notas_entrada WHERE renta_id = %s
+        )
+        GROUP BY id_pieza
+        HAVING SUM(cantidad_esperada) > SUM(cantidad_recibida)
+    """, (renta_id,))
+    piezas_pendientes = cursor.fetchall()
+
+    # Verifica si ya existe alguna nota de entrada
+    cursor.execute("SELECT COUNT(*) AS total FROM notas_entrada WHERE renta_id = %s", (renta_id,))
+    existe_entrada = cursor.fetchone()['total'] > 0
+
+    if existe_entrada and piezas_pendientes:
+        piezas = [
+            {
+                'id_pieza': p['id_pieza'],
+                'nombre_pieza': next((x['nombre_pieza'] for x in piezas if x['id_pieza'] == p['id_pieza']), ''),
+                'cantidad_esperada': p['cantidad_esperada_total'] - p['cantidad_recibida_total']
+            }
+            for p in piezas_pendientes
+        ]
+    elif not existe_entrada:
+        # piezas ya contiene las piezas de la nota de salida
+        pass
+    else:
+        piezas = []
 
     cursor.close()
     conn.close()
@@ -104,13 +128,14 @@ def preview_nota_entrada(renta_id):
         'cliente': f"{renta['nombre']} {renta['apellido1']} {renta['apellido2']}",
         'telefono': renta['telefono'],
         'direccion_obra': renta['direccion_obra'],
-        'traslado_original': renta['traslado'],  # tipo de traslado pagado al inicio
+        'traslado_original': renta['traslado'],
         'fecha_hora': fecha_hora,
         'fecha_limite': fecha_limite,
         'estado': estado,
         'dias_retraso': dias_retraso,
         'piezas': piezas
     })
+
 
 
 
@@ -135,18 +160,12 @@ def crear_nota_entrada(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Validación: ya existe nota de entrada para esta renta
-    cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
-    if cursor.fetchone():
-        cursor.close()
-        conn.close()
-        return jsonify({'success': False, 'error': 'Ya existe una nota de entrada para esta renta.'}), 400
-
+    
     try:
         cobrar_retraso = data.get('cobrar_retraso', False)
         estado_retraso = 'Retraso Pendiente' if cobrar_retraso else 'Sin Retraso'
 
-        # Insertar nota de entrada (solo una vez)
+        # Insertar nota de entrada 
         cursor.execute("""
             INSERT INTO notas_entrada (
                 folio, renta_id, nota_salida_id, fecha_entrada_real,
@@ -231,9 +250,9 @@ def crear_nota_entrada(renta_id):
 
         # Actualizar renta con id de nota de entrada y estado
         cursor.execute("""
-            UPDATE rentas SET nota_entrada_id = %s, estado_renta = 'Finalizada'
+            UPDATE rentas SET estado_renta = 'Finalizada'
             WHERE id = %s
-        """, (nota_entrada_id, renta_id))
+        """, (renta_id,))
 
         # Activar estado de extra pendiente si hay cobros extra
         hay_cobro_extra = any(
@@ -254,6 +273,28 @@ def crear_nota_entrada(renta_id):
                 WHERE id = %s
             """, (renta_id,))
 
+
+            # Verificar si quedan piezas pendientes después de esta nota
+            cursor.execute("""
+                SELECT COUNT(*) AS pendientes
+                FROM notas_entrada ne
+                JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne.id
+                WHERE ne.renta_id = %s AND ned.cantidad_esperada > ned.cantidad_recibida
+            """, (renta_id,))
+            pendientes = cursor.fetchone()['pendientes']
+
+            if pendientes == 0:
+                cursor.execute("""
+                    UPDATE rentas SET estado_renta = 'Finalizada'
+                    WHERE id = %s
+                """, (renta_id,))
+            else:
+                cursor.execute("""
+                    UPDATE rentas SET estado_renta = 'Activo'
+                    WHERE id = %s
+                """, (renta_id,))
+
+
         conn.commit()
         return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id})
     except Exception as e:
@@ -264,6 +305,33 @@ def crear_nota_entrada(renta_id):
         conn.close()
         
 
+
+
+
+####################################################################
+####################################################################
+####################################################################
+####################################################################
+
+
+@notas_entrada_bp.route('/historial/<int:renta_id>')
+def historial_notas_entrada(renta_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT id, folio, fecha_entrada_real
+        FROM notas_entrada
+        WHERE renta_id = %s
+        ORDER BY fecha_entrada_real DESC
+    """, (renta_id,))
+    notas = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    # Convert datetime to string for JSON
+    for nota in notas:
+        if isinstance(nota['fecha_entrada_real'], datetime):
+            nota['fecha_entrada_real'] = nota['fecha_entrada_real'].strftime('%Y-%m-%d %H:%M')
+    return jsonify(notas)
 
 
 

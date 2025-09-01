@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Limpiar datos previos
             document.getElementById('detalle-renta-id').textContent = rentaId;
-            document.getElementById('detalle-productos-tabla').innerHTML = 
+            document.getElementById('detalle-productos-tabla').innerHTML =
                 '<tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>';
 
             // Cargar datos
@@ -20,10 +20,32 @@ document.addEventListener('DOMContentLoaded', function () {
                         alert('Error: ' + data.error);
                         return;
                     }
-                    
+
                     cargarDatosRenta(data.renta);
                     cargarDatosCliente(data.cliente);
                     cargarProductos(data.productos);
+
+
+                    fetch(`/notas_entrada/historial/${rentaId}`)
+                        .then(resp => resp.json())
+                        .then(notas => {
+                            const tbody = document.getElementById('detalle-notas-entrada-tabla');
+                            if (!notas.length) {
+                                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin notas de entrada</td></tr>';
+                                return;
+                            }
+                            tbody.innerHTML = notas.map(nota => `
+                                <tr>
+                                    <td>${nota.folio}</td>
+                                    <td>${new Date(nota.fecha_entrada_real).toLocaleString()}</td>
+                                    <td>
+                                        <a href="/notas_entrada/pdf/${nota.id}" target="_blank" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                                        </a>
+                                    </td>
+                                </tr>
+                            `).join('');
+                        });
                 })
                 .catch(err => {
                     console.error('Error:', err);
@@ -40,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'finalizada': 'bg-secondary',
             'cancelada': 'bg-danger'
         };
-        
+
         const estadoPagoClass = {
             'Pago realizado': 'bg-success',
             'Pago pendiente': 'bg-danger',
@@ -48,28 +70,28 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         document.getElementById('detalle-estado-renta').textContent = renta.estado_renta;
-        document.getElementById('detalle-estado-renta').className = 
+        document.getElementById('detalle-estado-renta').className =
             `badge ${estadoRentaClass[renta.estado_renta.toLowerCase()] || 'bg-secondary'}`;
-        
+
         document.getElementById('detalle-estado-pago').textContent = renta.estado_pago;
-        document.getElementById('detalle-estado-pago').className = 
+        document.getElementById('detalle-estado-pago').className =
             `badge ${estadoPagoClass[renta.estado_pago] || 'bg-secondary'}`;
-        
+
         document.getElementById('detalle-metodo-pago').textContent = renta.metodo_pago;
         document.getElementById('detalle-fecha-registro').textContent = renta.fecha_registro;
         document.getElementById('detalle-direccion-obra').textContent = renta.direccion_obra;
-        document.getElementById('detalle-periodo-renta').textContent = 
+        document.getElementById('detalle-periodo-renta').textContent =
             `${renta.fecha_salida} al ${renta.fecha_entrada}`;
         document.getElementById('detalle-fecha-limite').textContent = renta.fecha_limite;
         document.getElementById('detalle-traslado').textContent = renta.traslado;
-        
+
         // Totales
         const subtotal = renta.total - renta.iva - renta.costo_traslado;
         document.getElementById('detalle-subtotal').textContent = `$${subtotal.toFixed(2)}`;
         document.getElementById('detalle-costo-traslado').textContent = `$${renta.costo_traslado.toFixed(2)}`;
         document.getElementById('detalle-iva').textContent = `$${renta.iva.toFixed(2)}`;
         document.getElementById('detalle-total').textContent = `$${renta.total.toFixed(2)}`;
-        
+
         // Observaciones
         if (renta.observaciones) {
             document.getElementById('detalle-observaciones').textContent = renta.observaciones;
@@ -90,12 +112,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function cargarProductos(productos) {
         const tbody = document.getElementById('detalle-productos-tabla');
-        
+
         if (productos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay productos</td></tr>';
             return;
         }
-        
+
         let html = '';
         productos.forEach(producto => {
             html += `
@@ -108,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </tr>
             `;
         });
-        
+
         tbody.innerHTML = html;
     }
 
