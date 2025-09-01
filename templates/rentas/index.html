@@ -336,6 +336,10 @@
                   data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar esta renta permanentemente">
                   <i class="bi bi-trash-fill"></i>
                 </button>
+                <a class="btn btn-sm btn-light no-caret rounded rounded-circle btn-abrir-modal-renovacion" type="button"
+                  data-bs-placement="top" href="#" data-bs-toggle="tooltip" title="Renovar renta" data-renta-id="{{ renta[0] }}">
+                  <i class="bi bi-arrow-repeat"></i>
+                </a>
               </div>
             </td>
           </tr>
@@ -380,6 +384,7 @@
 
 {% include 'rentas/_modal_nueva_renta.html' %}
 
+{% include 'rentas/_modal_renovar_renta.html' %}
 
 
 {% endblock %}
@@ -388,6 +393,8 @@
 <script>
   window.preciosProductos = {{ precios_productos | tojson }};
 </script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
@@ -486,4 +493,6 @@
 
 <script src="{{ url_for('static', filename='js/paginacion.js') }}"></script>
 <script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/renovacion_renta.js') }}"></script>
 {% endblock %}

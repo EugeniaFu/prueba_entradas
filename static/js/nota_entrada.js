@@ -372,21 +372,47 @@ document.addEventListener('DOMContentLoaded', function () {
                     const notaEntradaId = json.nota_entrada_id;
                     const modal = bootstrap.Modal.getInstance(document.getElementById('modalNotaEntrada'));
                     modal.hide();
-                    Swal.fire({
-                        title: 'Nota de entrada generada',
-                        text: 'La nota de entrada se guardó correctamente.',
-                        icon: 'success',
-                        showCancelButton: true,
-                        confirmButtonText: 'Ver PDF',
-                        cancelButtonText: 'Cerrar'
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            window.open(`/notas_entrada/pdf/${notaEntradaId}`, '_blank');
-                            window.location.reload();
-                        } else {
-                            window.location.reload(); // Esto actualiza la tabla y muestra el botón si corresponde
-                        }
-                    });
+
+                    // Si la opción es renovacion, mostrar un SweetAlert con botón especial
+                    if (accionDevolucion === 'renovacion') {
+                        Swal.fire({
+                            title: 'Nota de entrada generada',
+                            text: '¿Deseas generar la renovación ahora?',
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: 'Generar Renovación',
+                            cancelButtonText: 'Cerrar'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                // Aquí ejecutas la acción para abrir el modal de renovación
+                                const btnRenovacion = document.querySelector('.btn-abrir-modal-renovacion');
+                                if (btnRenovacion) {
+                                    btnRenovacion.dataset.rentaId = rentaId; // Asegura que el ID esté actualizado
+                                    btnRenovacion.click(); // Simula el click para abrir el modal de renovación
+                                }
+                            } else {
+                                // Si cancela, simplemente recarga para refrescar la tabla
+                                window.location.reload();
+                            }
+                        });
+                    } else {
+                        // Si NO es renovación, mostramos el SweetAlert normal
+                        Swal.fire({
+                            title: 'Nota de entrada generada',
+                            text: 'La nota de entrada se guardó correctamente.',
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: 'Ver PDF',
+                            cancelButtonText: 'Cerrar'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.open(`/notas_entrada/pdf/${notaEntradaId}`, '_blank');
+                                window.location.reload();
+                            } else {
+                                window.location.reload();
+                            }
+                        });
+                    }
                 } else {
                     Swal.fire('Error', json.error || 'No se pudo guardar la nota de entrada', 'error');
                     btn.disabled = false;

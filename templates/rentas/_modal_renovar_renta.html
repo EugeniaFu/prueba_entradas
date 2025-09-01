@@ -1,0 +1,88 @@
+<div class="modal fade" id="modalNuevaRentaRenovacion" tabindex="-1" aria-labelledby="modalNuevaRentaRenovacionLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form id="form-renovar-renta" method="POST" action="">
+            <input type="hidden" name="renta_id" id="renta_id_hidden" value="">
+            <div class="modal-content modal-nueva-renta-borde">
+                <div class="modal-header modal-nueva-renta-header">
+                    <h5 class="modal-title" id="modalNuevaRentaRenovacionLabel">
+                        <i class="bi bi-plus-circle"></i> Renovar Renta
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Columna Izquierda -->
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Cliente</label>
+                                <input type="text" class="form-control" id="cliente_nombre_modal" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label for="direccion_obra_modal" class="form-label">Dirección de obra</label>
+                                <textarea class="form-control" id="direccion_obra_modal" name="direccion_obra" rows="2" maxlength="200"></textarea>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <label for="fecha_salida_modal" class="form-label">Fecha inicio</label>
+                                    <input type="date" class="form-control" id="fecha_salida_modal" name="nueva_fecha_salida" required>
+                                </div>
+                                <div class="col">
+                                    <label for="fecha_entrada_modal" class="form-label">Fecha fin (opcional)</label>
+                                    <input type="date" class="form-control" id="fecha_entrada_modal" name="fecha_entrada">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="observaciones_modal" class="form-label">Observaciones</label>
+                                <textarea class="form-control" id="observaciones_modal" name="observaciones" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Columna Derecha -->
+                        <div class="col-md-8">
+                            <label class="form-label">Productos de la renta original</label>
+                            <table class="table table-bordered" id="tabla-productos-renovacion">
+                                <thead>
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th>Cantidad</th>
+                                        <th>Días</th>
+                                        <th>Costo unitario</th>
+                                        <th>Subtotal</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Las filas se cargan dinámicamente desde JS -->
+                                </tbody>
+                            </table>
+
+                            <div class="mt-3">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td>Subtotal</td>
+                                        <td id="subtotal_general">$0.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>+IVA (16%)</td>
+                                        <td id="iva_general">$0.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Total</strong></td>
+                                        <td id="total_general"><strong>$0.00</strong></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="modal-footer modal-nueva-renta-footer">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle"></i> Guardar Renovación
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
