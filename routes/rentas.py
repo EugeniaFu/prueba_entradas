@@ -524,3 +524,124 @@ def obtener_detalle_renta(renta_id):
         if conn:
             conn.close()
         return jsonify({'error': str(e)}), 500
+
+@rentas_bp.route('/renovar/<int:renta_id>', methods=['POST'])
+def renovar_renta(renta_id):
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Datos del formulario
+        nueva_fecha_salida = request.form.get('nueva_fecha_salida')
+        fecha_entrada = request.form.get('fecha_entrada') or None
+        observaciones = request.form.get('observaciones') or ''
+        productos = request.form.getlist('producto_id[]')
+        cantidades = request.form.getlist('cantidad[]')
+        dias_form = request.form.getlist('dias_renta[]')
+        costos = request.form.getlist('costo_unitario[]')
+
+        if not nueva_fecha_salida:
+            flash("Debes ingresar la nueva fecha de salida para renovar la renta.", "danger")
+            return redirect(url_for('rentas.modulo_rentas'))
+
+        # Obtener datos de la renta original
+        cursor.execute(
+            "SELECT cliente_id, direccion_obra, id_sucursal, costo_traslado, traslado "
+            "FROM rentas WHERE id = %s", (renta_id,)
+        )
+        renta_original = cursor.fetchone()
+        if not renta_original:
+            flash("La renta original no existe.", "danger")
+            return redirect(url_for('rentas.modulo_rentas'))
+
+        # Actualizar estado de la renta padre
+        cursor.execute("UPDATE rentas SET estado_renta=%s WHERE id=%s", ("Renta parcial", renta_id))
+
+        fecha_registro = datetime.now()
+        costo_traslado = renta_original[3] or 0
+        traslado = renta_original[4] or 'ninguno'
+
+        # Insertar nueva renta hija
+        cursor.execute("""
+            INSERT INTO rentas (
+                cliente_id, fecha_registro, fecha_salida, fecha_entrada,
+                direccion_obra, estado_renta, estado_pago, metodo_pago,
+                total, iva, total_con_iva, observaciones, fecha_programada, id_sucursal,
+                costo_traslado, traslado, renta_asociada_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            renta_original[0], fecha_registro, nueva_fecha_salida, fecha_entrada,
+            renta_original[1], 'en curso', 'Pago pendiente', 'Pendiente',
+            0, 0, 0, observaciones, None, renta_original[2],
+            costo_traslado, traslado, renta_id
+        ))
+        nueva_renta_id = cursor.lastrowid
+
+        # Insertar productos renovados en renta_detalle
+        total = 0
+        for i in range(len(productos)):
+            prod_id_raw = productos[i]
+            cant_raw = cantidades[i]
+            dias_raw = dias_form[i] if i < len(dias_form) else "1"
+            costo_raw = costos[i]
+
+            # Saltar si datos inválidos
+            if not prod_id_raw or not cant_raw or not costo_raw:
+                continue
+
+            try:
+                prod_id = int(prod_id_raw)
+                cant = int(cant_raw)
+                costo_unitario = float(costo_raw)
+            except ValueError:
+                continue
+
+            # Calcular días según fechas o datos
+            if fecha_entrada:
+                try:
+                    fecha_salida_dt = datetime.strptime(nueva_fecha_salida, "%Y-%m-%d")
+                    fecha_entrada_dt = datetime.strptime(fecha_entrada, "%Y-%m-%d")
+                    dias_renta = (fecha_entrada_dt - fecha_salida_dt).days + 1
+                    if dias_renta < 1:
+                        dias_renta = 1
+                except:
+                    dias_renta = int(dias_raw) if dias_raw else 1
+            else:
+                dias_renta = int(dias_raw) if dias_raw else 1
+                if dias_renta < 1:
+                    dias_renta = 1
+
+            subtotal = cant * dias_renta * costo_unitario
+            total += subtotal
+
+            cursor.execute("""
+                INSERT INTO renta_detalle (
+                    renta_id, id_producto, cantidad, dias_renta,
+                    costo_unitario, subtotal
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+            """, (nueva_renta_id, prod_id, cant, dias_renta, costo_unitario, subtotal))
+
+        # Actualizar totales de la renta hija
+        total_iva = total * 0.16
+        total_con_iva = total + total_iva
+        cursor.execute("""
+            UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
+        """, (total, total_iva, total_con_iva, nueva_renta_id))
+
+        conn.commit()
+        flash(f"Renta renovada con éxito (nueva renta ID {nueva_renta_id}).", "success")
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        flash(f"Error al renovar la renta: {e}", "danger")
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    return redirect(url_for('rentas.modulo_rentas'))
