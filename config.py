@@ -1,10 +1,12 @@
 import os
 from dotenv import load_dotenv
+from flask import Flask
 
 load_dotenv()
 
 class Config:
     # Configuración básica de Flask
+    app = Flask(__name__)
     SECRET_KEY = os.environ.get("SECRET_KEY")
     
     # Configuración de SQLAlchemy
