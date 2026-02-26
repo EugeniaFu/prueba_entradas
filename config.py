@@ -1,11 +1,12 @@
 import os
 from dotenv import load_dotenv
+from prueba_entradas import app
 
 load_dotenv()
 
 class Config:
     # Configuración básica de Flask
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'clave-secreta-cambiar-en-produccion'
+    app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
     
     # Configuración de SQLAlchemy
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
