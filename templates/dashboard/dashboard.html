@@ -155,19 +155,25 @@
                     </div>
                     <div class="card-content">
                         {% if cobros_pendientes %}
-                        {% for renta in cobros_pendientes %}
+                        {% for cobro in cobros_pendientes %}
                         <div class="list-group-item-sistema">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ renta.cliente_nombre }}</h6>
+                                    <h6 class="mb-1">{{ cobro.cliente_nombre }}</h6>
                                     <small class="text-muted">
-                                        <i class="bi bi-cash me-1"></i>Cobro pendiente por retraso
+                                        <i class="bi bi-geo-alt me-1"></i>{{ cobro.direccion_obra[:45] }}{% if cobro.direccion_obra|length > 45 %}...{% endif %}
                                     </small>
+                                    <div class="mt-1">
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar me-1"></i>{{ cobro.fecha.strftime('%d/%m/%Y') }}
+                                            <span class="ms-2"><i class="bi bi-currency-dollar me-1"></i>${{ "%.2f"|format(cobro.total) }}</span>
+                                        </small>
+                                    </div>
                                 </div>
                                 <div class="text-end">
                                     <span class="badge badge-warning">Pendiente</span>
                                     <div class="mt-1">
-                                        <a href="/rentas/detalle/{{ renta.id }}"
+                                        <a href="/rentas/detalle/{{ cobro.renta_id }}"
                                             class="btn btn-outline-primary btn-sm">Gestionar</a>
                                     </div>
                                 </div>

@@ -84,18 +84,21 @@ def dashboard():
         """, params)
         rentas_programadas = cursor.fetchall()
         
-        # 4. COBROS PENDIENTES DE RENTAS (rentas con estado_retraso)
+        # 4. COBROS PENDIENTES DE RETRASO (tabla notas_cobro_retraso)
         cursor.execute(f"""
-            SELECT r.id, r.fecha_entrada, r.direccion_obra,
+            SELECT ncr.id as cobro_id, ncr.fecha, ncr.total, ncr.estado_pago,
+                   r.id as renta_id, r.direccion_obra,
                    CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
                    c.telefono, s.nombre as sucursal_nombre,
-                   r.estado_retraso
-            FROM rentas r
+                   ncr.observaciones
+            FROM notas_cobro_retraso ncr
+            JOIN notas_entrada ne ON ncr.nota_entrada_id = ne.id
+            JOIN rentas r ON ne.renta_id = r.id
             JOIN clientes c ON r.cliente_id = c.id
             JOIN sucursales s ON r.id_sucursal = s.id
             {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} r.estado_retraso = 'Retraso Pendiente'
-            ORDER BY r.fecha_entrada ASC
+            {"AND" if where_sucursal else "WHERE"} ncr.estado_pago = 'Retraso Pendiente'
+            ORDER BY ncr.fecha ASC
             LIMIT 10
         """, params)
         cobros_pendientes = cursor.fetchall()

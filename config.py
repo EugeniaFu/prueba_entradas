@@ -42,14 +42,12 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     ENV = 'development'
-    SHOW_RESET_LINKS_ON_ERROR = True  # Solo en desarrollo mostrar enlaces
+    SHOW_RESET_LINKS_ON_ERROR = True  
     
 class ProductionConfig(Config):
     DEBUG = False
     ENV = 'production'
-    SHOW_RESET_LINKS_ON_ERROR = False  # NUNCA en producción
-    # En producción, asegúrate de usar variables de entorno para datos sensibles
-    
+    SHOW_RESET_LINKS_ON_ERROR = False  
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
