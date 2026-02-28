@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}Andamios Colosio{% endblock %}</title>
-    
+
     <!-- Estilos base y Bootstrap -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
@@ -73,13 +73,17 @@
                                 data-bs-parent="#sucursalesAccordion">
                                 <div class="accordion-body p-0">
                                     <ul class="nav flex-column ms-3">
-                                        <li class="nav-item"><a class="nav-link" href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"><i class="bi bi-box-seam"></i>
+                                        <li class="nav-item"><a class="nav-link"
+                                                href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"><i
+                                                    class="bi bi-box-seam"></i>
                                                 Inventario</a></li>
                                         <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-people"></i>
                                                 Clientes</a></li>
                                         <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-bag"></i>
                                                 Productos</a></li>
-                                        <li class="nav-item"><a class="nav-link" href="{{ url_for('rentas.modulo_rentas', sucursal_id=2) }}"><i class="bi bi-truck"></i>
+                                        <li class="nav-item"><a class="nav-link"
+                                                href="{{ url_for('rentas.modulo_rentas', sucursal_id=2) }}"><i
+                                                    class="bi bi-truck"></i>
                                                 Rentas</a></li>
                                     </ul>
                                 </div>
@@ -103,13 +107,16 @@
                                 <div class="accordion-body p-0">
                                     <ul class="nav flex-column ms-3">
                                         <li class="nav-item"><a class="nav-link"
-                                                href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"><i class="bi bi-box-seam"></i> 
+                                                href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"><i
+                                                    class="bi bi-box-seam"></i>
                                                 Inventario</a></li>
                                         <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-people"></i>
                                                 Clientes</a></li>
                                         <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-bag"></i>
                                                 Productos</a></li>
-                                        <li class="nav-item"><a class="nav-link" href="{{ url_for('rentas.modulo_rentas', sucursal_id=3) }}"><i class="bi bi-truck"></i>
+                                        <li class="nav-item"><a class="nav-link"
+                                                href="{{ url_for('rentas.modulo_rentas', sucursal_id=3) }}"><i
+                                                    class="bi bi-truck"></i>
                                                 Rentas</a></li>
                                     </ul>
                                 </div>
@@ -128,15 +135,15 @@
                                     href="{{ url_for('inventario.inventario_general') }}"><i class="bi bi-boxes"></i>
                                     Inventario General</a></li>
                             {% endif %}
-                            <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes.reporte_diario') }}"><i class="bi bi-bar-chart"></i>
+                            <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes.reporte_diario') }}"><i
+                                        class="bi bi-bar-chart"></i>
                                     Reportes</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ url_for('caja.movimientos_caja') }}"><i
+                                        class="bi bi-cash-stack"></i>
+                                    Caja</a></li>
                             {% if session['rol_id'] == 2 %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('empleados.empleados') }}"><i
                                         class="bi bi-person-badge"></i> Empleados</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{{ url_for('caja.movimientos_caja') }}"><i class="bi bi-cash-stack"></i>
-                                    Caja</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#"><i class="bi bi-gear"></i>
-                                    Configuración</a></li>
                         </ul>
                     </div>
                     {% endif %}
