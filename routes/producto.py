@@ -56,12 +56,21 @@ def crear_producto():
     nombre = request.form['nombre']
     descripcion = request.form.get('descripcion', '')
     tipo = request.form['tipo']
-    precio_7dias = request.form['precio_7dias']
-    precio_15dias = request.form['precio_15dias']
-    precio_30dias = request.form['precio_30dias']
-    precio_31mas = request.form['precio_31mas']
     precio_unico = 1 if request.form.get('precio_unico') == '1' else 0
-    precio_dia = request.form.get('precio_dia') or None
+    precio_dia = request.form.get('precio_dia') or 0
+    
+    # Si es precio único, usar precio_dia para todos los rangos
+    if precio_unico:
+        precio_7dias = precio_dia
+        precio_15dias = precio_dia
+        precio_30dias = precio_dia
+        precio_31mas = precio_dia
+    else:
+        # Si no es precio único, usar los valores del formulario o 0
+        precio_7dias = request.form.get('precio_7dias') or 0
+        precio_15dias = request.form.get('precio_15dias') or 0
+        precio_30dias = request.form.get('precio_30dias') or 0
+        precio_31mas = request.form.get('precio_31mas') or 0
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -106,13 +115,22 @@ def crear_producto():
 def editar_producto(id_producto):
     nombre = request.form['nombre']
     descripcion = request.form.get('descripcion', '')
-    tipo = request.form['tipo']  # <-- AGREGADO
-    precio_7dias = request.form['precio_7dias']
-    precio_15dias = request.form['precio_15dias']
-    precio_30dias = request.form['precio_30dias']
-    precio_31mas = request.form['precio_31mas']
+    tipo = request.form['tipo']  
     precio_unico = 1 if request.form.get('precio_unico') == '1' else 0
-    precio_dia = request.form.get('precio_dia') or None
+    precio_dia = request.form.get('precio_dia') or 0
+    
+    # Si es precio único, usar precio_dia para todos los rangos
+    if precio_unico:
+        precio_7dias = precio_dia
+        precio_15dias = precio_dia
+        precio_30dias = precio_dia
+        precio_31mas = precio_dia
+    else:
+        # Si no es precio único, usar los valores del formulario o 0
+        precio_7dias = request.form.get('precio_7dias') or 0
+        precio_15dias = request.form.get('precio_15dias') or 0
+        precio_30dias = request.form.get('precio_30dias') or 0
+        precio_31mas = request.form.get('precio_31mas') or 0
 
     conn = get_db_connection()
     cursor = conn.cursor()
