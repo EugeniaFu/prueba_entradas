@@ -13,7 +13,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Configuración de Base de Datos 
+    # Configuración de Base de Datos (para mysql-connector-python directo)
     DB_CONFIG = {
         'host': os.getenv('DB_HOST'),
         'user': os.getenv('DB_USER'),
@@ -39,17 +39,19 @@ class Config:
     ENV = os.environ.get('FLASK_ENV', 'development')
     
     # Configuración de seguridad
-    SHOW_RESET_LINKS_ON_ERROR = False  
+    SHOW_RESET_LINKS_ON_ERROR = False  # Por defecto NO mostrar enlaces en errores
     
 class DevelopmentConfig(Config):
     DEBUG = True
     ENV = 'development'
-    SHOW_RESET_LINKS_ON_ERROR = True  
+    SHOW_RESET_LINKS_ON_ERROR = True  # Solo en desarrollo mostrar enlaces
     
 class ProductionConfig(Config):
     DEBUG = False
     ENV = 'production'
-    SHOW_RESET_LINKS_ON_ERROR = False  
+    SHOW_RESET_LINKS_ON_ERROR = False  # NUNCA en producción
+    # En producción, asegúrate de usar variables de entorno para datos sensibles
+    
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
