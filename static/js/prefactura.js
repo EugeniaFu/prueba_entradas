@@ -283,6 +283,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 // El subtotal del modal muestra solo productos (sin traslado)
                 if (subtotalEl) subtotalEl.textContent = subtotalProductos.toFixed(2);
                 if (ivaEl) ivaEl.textContent = iva.toFixed(2);
+                
+                // Resetear campos de efectivo al cambiar tipo o método
+                if (montoRecibido) montoRecibido.value = '';
+                if (cambio) cambio.textContent = '0.00';
             }
 
             if (tipoSelect) {
@@ -290,6 +294,10 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             actualizarMontoPagar();
             
+            // CONFIGURAR LISTENERS DESPUÉS DE QUE SE ACTUALICEN LOS TOTALES
+            configurarListenersPago();
+            
+            function configurarListenersPago() {
             // Listeners para pago
             if (metodoPago) {
                 metodoPago.onchange = () => {
@@ -454,6 +462,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Ya no se condiciona el botón
                 };
             }
+            } // Fin de configurarListenersPago
         }).catch(err => {
             const detalleElement = document.getElementById('prefactura-detalle-pago');
             if (detalleElement) {
@@ -566,14 +575,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const json = await res.json();
                 if (json.success) {
-                    const modalElement = document.getElementById('modalPrefacturaPago');
-                    if (modalElement) {
-                        const modalInstance = bootstrap.Modal.getInstance(modalElement);
-                        if (modalInstance) {
-                            modalInstance.hide();
-                        }
-                    }
-                    
                     Swal.fire({
                         title: 'Prefactura generada exitosamente',
                         text: `Folio: ${json.prefactura_id}. ¿Deseas imprimir la prefactura ahora?`,
@@ -583,12 +584,20 @@ document.addEventListener('DOMContentLoaded', function () {
                         cancelButtonText: 'No, continuar',
                         allowOutsideClick: false
                     }).then(result => {
+                        const modalElement = document.getElementById('modalPrefacturaPago');
+                        if (modalElement) {
+                            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            }
+                        }
+                        
                         if (result.isConfirmed) {
                             window.open(`/prefactura/pdf/${json.prefactura_id}`, '_blank');
                         }
                         
-                        // Actualizar estado de la renta sin recargar la página
-                        actualizarEstadoRenta(rentaId, json);
+                        // Recargar la página como los otros modales
+                        window.location.reload();
                     });
                 } else {
                     Swal.fire('Error', json.error || 'No se pudo registrar la prefactura', 'error');
