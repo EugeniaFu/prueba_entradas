@@ -2,15 +2,18 @@
 // INVENTARIO - FUNCIONALIDAD PRINCIPAL
 // ========================================
 
-// Búsqueda en tabla principal
-document.getElementById('buscadorSucursal').addEventListener('keyup', function () {
-    var filtro = this.value.toLowerCase();
-    var rows = document.querySelectorAll('.table-inventario tbody tr');
-    rows.forEach(function (row) {
-        var texto = row.innerText.toLowerCase();
-        row.style.display = texto.includes(filtro) ? '' : 'none';
+// Búsqueda en tabla principal - solo si el elemento existe
+const buscadorSucursal = document.getElementById('buscadorSucursal');
+if (buscadorSucursal) {
+    buscadorSucursal.addEventListener('keyup', function () {
+        var filtro = this.value.toLowerCase();
+        var rows = document.querySelectorAll('.table-inventario tbody tr');
+        rows.forEach(function (row) {
+            var texto = row.innerText.toLowerCase();
+            row.style.display = texto.includes(filtro) ? '' : 'none';
+        });
     });
-});
+}
 
 // ========================================
 // VARIABLES GLOBALES
@@ -713,7 +716,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = {
                 id_sucursal: sucursalId,
                 piezas: piezasData,
-                observaciones: observaciones
+                observaciones: observaciones,
+                tipo_origen: 'inventario_sucursal'
             };
 
             // Deshabilitar botón y mostrar loading
@@ -723,7 +727,7 @@ document.addEventListener('DOMContentLoaded', function () {
             btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registrando equipos...';
 
             // Enviar con AJAX
-            fetch('/inventario/alta-equipo-nuevo', {
+            fetch('/inventario/alta-equipo', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

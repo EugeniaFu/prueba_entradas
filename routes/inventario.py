@@ -1,5 +1,4 @@
 
-
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, current_app
 from utils.db import get_db_connection
 from functools import wraps
@@ -20,8 +19,12 @@ def requiere_permiso(nombre_permiso):
         def decorated_function(*args, **kwargs):
             permisos = session.get('permisos', [])
             if nombre_permiso not in permisos:
-                flash('No tienes permiso para acceder a esta sección.', 'danger')
-                return redirect(url_for('dashboard.dashboard'))
+                # Detectar si es una petición AJAX
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}), 403
+                else:
+                    flash('No tienes permiso para acceder a esta sección.', 'danger')
+                    return redirect(url_for('dashboard.dashboard'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -31,11 +34,7 @@ def requiere_permiso(nombre_permiso):
 bp_inventario = Blueprint('inventario', __name__, url_prefix='/inventario')
 
 def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
-    """
-    Obtiene el siguiente folio consecutivo para notas (entrada y salida) de una sucursal específica
-    Incluye: notas de rentas, transferencias, altas de equipos, reparaciones y salidas internas
-    """
-    # Considerar TODAS las notas para determinar el siguiente folio consecutivo
+   
     cursor.execute("""
         SELECT IFNULL(MAX(folio), 0) + 1 AS siguiente_folio
         FROM (
@@ -54,14 +53,14 @@ def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
             WHERE mi.id_sucursal = %s 
             AND mi.folio_nota_salida IS NOT NULL
             AND mi.folio_nota_salida != ''
-            AND mi.tipo_movimiento IN ('transferencia_salida', 'reparacion_lote', 'salida_interna')
+            AND mi.tipo_movimiento IN ('transferencia_salida', 'reparacion_lote', 'salida_interna', 'baja_equipo_general')
             UNION ALL
             SELECT CAST(mi.folio_nota_entrada AS UNSIGNED) as folio
             FROM movimientos_inventario mi
             WHERE mi.id_sucursal = %s 
             AND mi.folio_nota_entrada IS NOT NULL
             AND mi.folio_nota_entrada != ''
-            AND mi.tipo_movimiento IN ('alta_equipo', 'transferencia_entrada', 'retorno_salida_interna')
+            AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general', 'transferencia_entrada', 'retorno_salida_interna')
             UNION ALL
             SELECT si.folio_sucursal as folio
             FROM salidas_internas si
@@ -227,60 +226,6 @@ def editar_pieza(id_pieza):
     return redirect(url_for('inventario.inventario_general'))
 
 
-
-
-
-
-
-@bp_inventario.route('/alta_baja_pieza', methods=['POST'])
-@requiere_permiso('modificar_existencias_inventario_general')
-def alta_baja_pieza():
-    id_pieza = request.form['id_pieza']
-    id_sucursal = request.form['id_sucursal']
-    cantidad = int(request.form['cantidad'])
-    tipo = request.form['tipo']
-    descripcion = request.form.get('descripcion', '') if tipo == 'baja' else None
-    usuario_id = session.get('user_id')  # <-- Obtén el usuario de la sesión
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # Verifica si ya existe registro
-    cursor.execute("SELECT total FROM inventario_sucursal WHERE id_pieza=%s AND id_sucursal=%s", (id_pieza, id_sucursal))
-    row = cursor.fetchone()
-    if row:
-        if tipo == 'alta':
-            cursor.execute("""
-                UPDATE inventario_sucursal 
-                SET total=total+%s, disponibles=disponibles+%s 
-                WHERE id_pieza=%s AND id_sucursal=%s
-            """, (cantidad, cantidad, id_pieza, id_sucursal))
-        elif tipo == 'baja':
-            cursor.execute("""
-                UPDATE inventario_sucursal 
-                SET total=GREATEST(total-%s,0), disponibles=GREATEST(disponibles-%s,0) 
-                WHERE id_pieza=%s AND id_sucursal=%s
-            """, (cantidad, cantidad, id_pieza, id_sucursal))
-    else:
-        if tipo == 'alta':
-            cursor.execute("""
-                INSERT INTO inventario_sucursal 
-                (id_pieza, id_sucursal, total, disponibles, rentadas, daniadas, en_reparacion) 
-                VALUES (%s, %s, %s, %s, 0, 0, 0)
-            """, (id_pieza, id_sucursal, cantidad, cantidad))
-    # Registrar movimiento para reporte (ahora incluye usuario)
-    cursor.execute("""
-        INSERT INTO movimientos_inventario (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (id_pieza, id_sucursal, tipo, cantidad, descripcion, usuario_id))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return redirect(url_for('inventario.inventario_general'))
-
-
-
-
-
 ##################################################
 ##################################################
 ##################################################
@@ -302,6 +247,24 @@ def piezas_sucursal(sucursal_id):
         LEFT JOIN inventario_sucursal i ON p.id_pieza = i.id_pieza AND i.id_sucursal = %s
         ORDER BY p.nombre_pieza
     """, (sucursal_id,))
+    piezas = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify({'success': True, 'piezas': piezas})
+
+
+# Endpoint para obtener todas las piezas activas 
+@bp_inventario.route('/todas-piezas-activas')
+@requiere_permiso('ver_inventario_general')
+def todas_piezas_activas():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT id_pieza, codigo_pieza, nombre_pieza, categoria, descripcion
+        FROM piezas
+        WHERE estatus = 'activo'
+        ORDER BY nombre_pieza
+    """)
     piezas = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -343,7 +306,6 @@ def inventario_sucursal(sucursal_id):
     conn.close()
     
     return render_template('inventario/inventario_sucursal.html', piezas=piezas, sucursal=sucursal)
-
 
 
 
@@ -697,22 +659,14 @@ def transferir_piezas_multiple():
 
 
 
+########################################################################
+#######################################################################
+########################################################################
+#################################### BAJA DE EQUIPO DEL INVENTARIO GENERAL
 
-
-
-
-
-
-
-
-
-
-@bp_inventario.route('/alta-equipo-nuevo', methods=['POST'])
+@bp_inventario.route('/baja-equipo-nuevo', methods=['POST'])
 @requiere_permiso('modificar_existencias_inventario_general')
-def alta_equipo_nuevo():
-    """
-    Maneja el alta de equipos nuevos a una sucursal específica
-    """
+def baja_equipo_nuevo():
     try:
         data = request.get_json()
         id_sucursal = data.get('id_sucursal')
@@ -727,9 +681,98 @@ def alta_equipo_nuevo():
         cursor = conn.cursor(dictionary=True)
         
         try:
+            # Obtener folio consecutivo para nota de salida
+            folio_num = obtener_siguiente_folio_nota_sucursal(cursor, id_sucursal)
+            folio = str(folio_num).zfill(5)
+            
+            # Procesar cada pieza
+            for pieza_data in piezas:
+                id_pieza = pieza_data['id_pieza']
+                cantidad = pieza_data['cantidad']
+                
+                # Verificar inventario disponible
+                cursor.execute("""
+                    SELECT disponibles FROM inventario_sucursal 
+                    WHERE id_pieza = %s AND id_sucursal = %s
+                """, (id_pieza, id_sucursal))
+                
+                inventario = cursor.fetchone()
+                if not inventario or inventario['disponibles'] < cantidad:
+                    cursor.execute("SELECT nombre_pieza FROM piezas WHERE id_pieza = %s", (id_pieza,))
+                    pieza_info = cursor.fetchone()
+                    nombre_pieza = pieza_info['nombre_pieza'] if pieza_info else 'Desconocida'
+                    return jsonify({
+                        'success': False, 
+                        'error': f'No hay suficiente inventario disponible de {nombre_pieza}. Disponibles: {inventario["disponibles"] if inventario else 0}'
+                    })
+                
+                # Actualizar inventario (restar cantidad)
+                cursor.execute("""
+                    UPDATE inventario_sucursal 
+                    SET total = total - %s, disponibles = disponibles - %s
+                    WHERE id_pieza = %s AND id_sucursal = %s
+                """, (cantidad, cantidad, id_pieza, id_sucursal))
+                
+                # Registrar movimiento de baja
+                cursor.execute("""
+                    INSERT INTO movimientos_inventario 
+                    (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario, folio_nota_salida, fecha)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    id_pieza, 
+                    id_sucursal, 
+                    'baja_equipo_general',
+                    cantidad,
+                    f'Baja de equipo - {observaciones}',
+                    usuario_id,
+                    folio,
+                    get_local_now()
+                ))
+            
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Equipos dados de baja exitosamente',
+                'folio_nota_salida': folio
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            cursor.close()
+            conn.close()
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error en el procesamiento: {str(e)}'})
+
+
+@bp_inventario.route('/alta-equipo', methods=['POST'])
+@requiere_permiso('modificar_existencias_inventario_general')
+def alta_equipo_nuevo():
+
+    try:
+        data = request.get_json()
+        id_sucursal = data.get('id_sucursal')
+        piezas = data.get('piezas', [])
+        observaciones = data.get('observaciones', '')
+        tipo_origen = data.get('tipo_origen', 'inventario_sucursal')
+        usuario_id = session.get('user_id')
+
+        if not id_sucursal or not piezas:
+            return jsonify({'success': False, 'error': 'Datos incompletos'})
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
             # Obtener el siguiente folio para la sucursal
             folio_num = obtener_siguiente_folio_nota_sucursal(cursor, id_sucursal)
             folio = str(folio_num).zfill(5)
+            
+            # Determinar tipo de movimiento según el origen
+            tipo_movimiento = 'alta_equipo_general' if tipo_origen == 'inventario_general' else 'alta_equipo'
 
             # Procesar cada pieza
             for pieza_data in piezas:
@@ -767,7 +810,7 @@ def alta_equipo_nuevo():
                         descripcion, usuario, folio_nota_entrada
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    id_pieza, id_sucursal, 'alta_equipo', cantidad,
+                    id_pieza, id_sucursal, tipo_movimiento, cantidad,
                     f'Alta de equipo. {observaciones}', usuario_id, str(folio)
                 ))
 
@@ -777,7 +820,8 @@ def alta_equipo_nuevo():
                 'success': True, 
                 'message': f'Alta de {len(piezas)} tipo(s) de equipo realizada exitosamente',
                 'folio_nota_entrada': str(folio),
-                'total_piezas': sum(pieza['cantidad'] for pieza in piezas)
+                'total_piezas': sum(pieza['cantidad'] for pieza in piezas),
+                'tipo_origen': tipo_origen
             })
             
         except Exception as e:
@@ -1288,18 +1332,10 @@ def historial_transferencias_page(sucursal_id):
 
 
 
-
-
-
-
-
-
-
 #######################################
 #######################################
 #######################################
 ############################ ENPONIDS DE PDFS DEL INVENTARIO 
-
 
 ########## PDF DE TRANSFERENCIAS DE SALIDAS  ########## 
 
@@ -1664,7 +1700,7 @@ def generar_pdf_alta_equipo(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos del movimiento de alta de equipo
+        # Obtener datos del movimiento de alta de equipo (incluye inventario general)
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
                    u.nombre as usuario_nombre
@@ -1673,7 +1709,7 @@ def generar_pdf_alta_equipo(folio):
             JOIN sucursales s ON mi.id_sucursal = s.id
             LEFT JOIN usuarios u ON mi.usuario = u.id
             WHERE mi.folio_nota_entrada = %s 
-            AND mi.tipo_movimiento = 'alta_equipo'
+            AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general')
             ORDER BY mi.fecha ASC, p.nombre_pieza ASC
         """, (folio,))
         movimientos = cursor.fetchall()
@@ -1689,6 +1725,7 @@ def generar_pdf_alta_equipo(folio):
         usuario_nombre = primer_movimiento['usuario_nombre'] or 'No disponible'
         fecha_movimiento = primer_movimiento['fecha']
         observaciones = primer_movimiento['descripcion'] or ''
+        tipo_movimiento = primer_movimiento['tipo_movimiento']
         
         cursor.close()
         conn.close()
@@ -1724,7 +1761,9 @@ def generar_pdf_alta_equipo(folio):
         can.drawString(482, 732, "ENTRADA")
         
         can.setFont("Courier-Bold", 15)
-        can.drawString(36, 715, "ALTA DE EQUIPO")
+        # Título dinámico según el tipo de movimiento
+        titulo = "ALTA DE EQUIPO" if tipo_movimiento == 'alta_equipo' else "ALTA DE EQUIPO"
+        can.drawString(36, 715, titulo)
 
         # Sucursal
         can.setFont("Carlito", 10)
@@ -1775,7 +1814,7 @@ def generar_pdf_alta_equipo(folio):
         
         # Etiquetas de firmas
         can.drawString(60, y_position, f"REGISTRA: {sucursal_nombre.upper()}")
-        can.drawString(350, y_position, "RECIBE: ALMACÉN")
+        can.drawString(350, y_position, f"RECIBE: {sucursal_nombre.upper()}")
         y_position -= 20
         
         can.drawString(60, y_position, "NOMBRE: ________________________")
@@ -1824,6 +1863,189 @@ def generar_pdf_alta_equipo(folio):
         if conn:
             conn.close()
         return f"Error al generar PDF: {str(e)}", 500
+
+
+
+
+########################################################
+########################################################
+########################################################
+
+########## PDF DE BAJA DE INVENTARIO GENERAL ########## 
+
+@bp_inventario.route('/pdf-baja-equipo/<folio>')
+@requiere_permiso('ver_inventario_sucursal')
+def generar_pdf_baja_equipo(folio):
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Obtener datos del movimiento de baja de equipo (inventario general)
+        cursor.execute("""
+            SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
+                   u.nombre as usuario_nombre
+            FROM movimientos_inventario mi
+            JOIN piezas p ON mi.id_pieza = p.id_pieza
+            JOIN sucursales s ON mi.id_sucursal = s.id
+            LEFT JOIN usuarios u ON mi.usuario = u.id
+            WHERE mi.folio_nota_salida = %s 
+            AND mi.tipo_movimiento IN ('baja_equipo_general')
+            ORDER BY mi.fecha ASC, p.nombre_pieza ASC
+        """, (folio,))
+        movimientos = cursor.fetchall()
+        
+        if not movimientos:
+            cursor.close()
+            conn.close()
+            return "Folio de baja no encontrado", 404
+            
+        # Datos básicos
+        primer_movimiento = movimientos[0]
+        sucursal_nombre = primer_movimiento['sucursal_nombre']
+        usuario_nombre = primer_movimiento['usuario_nombre'] or 'No disponible'
+        fecha_movimiento = primer_movimiento['fecha']
+        observaciones = primer_movimiento['descripcion'] or ''
+        tipo_movimiento = primer_movimiento['tipo_movimiento']
+        
+        cursor.close()
+        conn.close()
+
+        # --- GENERAR PDF CON EL MISMO DISEÑO QUE TRANSFERENCIAS ---
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
+        
+        # Registrar fuente
+        try:
+            font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+            if os.path.exists(font_path):
+                pdfmetrics.registerFont(TTFont('Carlito', font_path))
+        except:
+            pass
+        
+        # CONFIGURACIÓN INICIAL 
+        page_width, page_height = letter
+        y_position = page_height - 100
+        
+        # Folio
+        can.setFont("Courier-Bold", 20)
+        can.drawRightString(575, 690, f"#{folio}")
+        
+        # Fecha y hora de emisión
+        can.setFont("Carlito", 12)
+        fecha_emision = fecha_movimiento.strftime('%d/%m/%Y - %H:%M:%S')
+        can.drawRightString(575, 715, f"{fecha_emision}")
+        
+
+        # === DATOS DE BAJA DE EQUIPO ===
+        can.setFont("Courier-Bold", 23)
+        can.drawString(496, 732, "SALIDA")
+        
+        can.setFont("Courier-Bold", 15)
+        # Título para baja de inventario
+        titulo = "BAJA DE INVENTARIO"
+        can.drawString(36, 715, titulo)
+
+        # Sucursal
+        can.setFont("Carlito", 10)
+        can.drawString(36, 695, f"SUCURSAL: {sucursal_nombre.upper()}")
+        
+        # Usuario
+        can.drawString(36, 680, f"REGISTRADO POR: {usuario_nombre.upper()}")
+        
+        # DATOS DE PIEZAS 
+        y_position -= 40
+        # Encabezado de tabla
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(36, y_position + 5, "CANT. (PIEZAS)")
+        can.drawString(150, y_position + 5, "DESCRIPCIÓN")
+        y_position -= 15
+        
+        can.setFont("Carlito", 10)
+        for movimiento in movimientos:
+            # Verificar si necesitamos nueva página
+            if y_position < 150:
+                can.showPage()
+                y_position = page_height - 100
+            can.drawString(70, y_position + 5, str(movimiento['cantidad']))
+            can.drawString(150, y_position + 5, movimiento['nombre_pieza'].upper())
+            y_position -= 13
+        y_position -= 5
+        
+        
+        # Observaciones (ajustar a varias líneas si es necesario)
+        can.setFont("Carlito", 13)
+        observaciones_texto = observaciones if observaciones else "Sin observaciones."
+        max_width = 550  # ancho máximo para el texto
+        from reportlab.lib.utils import simpleSplit
+        obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
+        for line in obs_lines:
+            can.drawString(36, y_position, line)
+            y_position -= 18  # espacio entre líneas de observaciones
+
+        # Mantener espacio entre observaciones y firmas
+        y_position -= max(0, 90 - (len(obs_lines) * 18))
+        
+        # === FIRMAS ===
+        can.setFont("Carlito", 10)
+        # Líneas para firmas
+        can.line(60, y_position, 250, y_position)  # Línea sucursal
+        can.line(350, y_position, 540, y_position)  # Línea almacén
+        y_position -= 15
+        
+        # Etiquetas de firmas
+        can.drawString(60, y_position, f"REGISTRA: {sucursal_nombre.upper()}")
+        y_position -= 20
+        
+        can.drawString(60, y_position, "NOMBRE: ________________________")
+        y_position -= 15
+        
+        can.save()
+        packet.seek(0)
+        
+        # --- COMBINAR CON LA PLANTILLA 
+        try:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            overlay_pdf = PdfReader(packet)
+            output = PdfWriter()
+
+            if os.path.exists(plantilla_path):
+                plantilla_pdf = PdfReader(plantilla_path)
+                for i, page in enumerate(overlay_pdf.pages):
+                    base_page = plantilla_pdf.pages[0]
+                    base_page.merge_page(page)
+                    output.add_page(base_page)
+            else:
+                for page in overlay_pdf.pages:
+                    output.add_page(page)
+                
+        except Exception as e:
+            print(f"Error con plantilla: {e}")
+            overlay_pdf = PdfReader(packet)
+            output = PdfWriter()
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+
+        output_stream = BytesIO()
+        output.write(output_stream)
+        output_stream.seek(0)
+        
+        return send_file(
+            output_stream, 
+            download_name=f"nota_baja_equipo_{folio}.pdf", 
+            mimetype='application/pdf'
+        )
+        
+    except Exception as e:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        return f"Error al generar PDF: {str(e)}", 500
+
+
+
+
 
 
 

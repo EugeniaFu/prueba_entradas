@@ -50,11 +50,11 @@
       </div>
     </div>
     <div class="d-flex gap-2">
-      <button class="btn btn-inventario-filter" data-bs-toggle="modal" data-bs-target="#modalTransferenciaGeneral">
-        <i class="bi bi-arrow-left-right"></i> Transferir
-      </button>
       <button class="btn btn-inventario-success" data-bs-toggle="modal" data-bs-target="#modalAltaEquipoGeneral">
-        <i class="bi bi-plus-circle"></i> Altas / Bajas
+        <i class="bi bi-plus-circle"></i> Altas
+      </button>
+      <button class="btn btn-inventario-danger" data-bs-toggle="modal" data-bs-target="#modalBajaEquipoGeneral">
+        <i class="bi bi-dash-circle"></i> Bajas
       </button>
     </div>
   </div>
@@ -208,19 +208,20 @@
 
 
 
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- Modal Transferencia General -->
 
-<div class="modal fade" id="modalTransferenciaGeneral" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <form method="POST" action="#" id="formTransferenciaGeneral" class="modal-content">
-      <div class="modal-header">
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+                                          <!-- Modal Alta de Equipo General -->
+
+<div class="modal fade" id="modalAltaEquipoGeneral" tabindex="-1">
+  <div class="modal-dialog modal-xl"> 
+    <form method="POST" action="#" id="formAltaEquipoGeneral" class="modal-content">
+      <div class="modal-header" style="background: #198754; color: #fff;">
         <h5 class="modal-title">
-          <i class="bi bi-arrow-left-right"></i> Transferir Equipos Entre Sucursales
+          <i class="bi bi-plus-circle"></i> Alta de Equipo - Inventario General
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
@@ -229,49 +230,34 @@
           <div class="col-xl-7 d-flex flex-column" style="min-height: 400px;">
             <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
               <div class="card-header card-header-azul">
-                <h6 class="mb-0"><i class="bi bi-arrow-left-right"></i> Selección de Sucursales y Pieza</h6>
+                <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Selección y Detalle</h6>
               </div>
               <div class="card-body d-flex flex-column" style="flex:1;">
-                <!-- Sucursales origen y destino -->
-                <div class="row mb-3">
-                  <div class="col-md-6">
-                    <label class="form-label">Enviar desde:</label>
-                    <select class="form-select" name="id_sucursal_origen_general" id="id_sucursal_origen_general" required>
-                      <option value="">Seleccionar sucursal origen...</option>
-                      {% for sucursal in sucursales %}
-                      <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Recibir en:</label>
-                    <select class="form-select" name="id_sucursal_destino_general" id="id_sucursal_destino_general" required>
-                      <option value="">Seleccionar sucursal destino...</option>
-                      {% for sucursal in sucursales %}
-                      <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
+                <!-- Selección de sucursal de destino -->
+                <div class="mb-3">
+                  <label for="sucursalDestinoGeneral" class="form-label fw-bold">Sucursal de Destino</label>
+                  <select id="sucursalDestinoGeneral" class="form-select" required>
+                    <option value="">Selecciona la sucursal...</option>
+                    {% for sucursal in sucursales %}
+                    <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+                    {% endfor %}
+                  </select>
                 </div>
-                <!-- Selector de pieza con búsqueda -->
-                <div class="row mb-3">
-                  <div class="col-md-9">
-                    <label class="form-label">Seleccionar Pieza:</label>
-                    <select id="selectorPiezaGeneral" class="form-select" disabled>
-                      <option value="">Primero selecciona la sucursal origen...</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3 d-flex align-items-end">
-                    <button type="button" id="btnAgregarPiezaGeneral" class="btn btn-success w-100" disabled>
-                      <i class="bi bi-plus"></i> Agregar
-                    </button>
-                  </div>
+                
+                <!-- Selección de equipo -->
+                <label class="form-label">Seleccionar tipo de equipo</label>
+                <div class="d-flex gap-2 mb-2">
+                  <select id="selectorPiezaAltaGeneral" class="form-select">
+                    <option value="">Selecciona un tipo de equipo...</option>
+                  </select>
+                  <button type="button" id="btnAgregarPiezaAltaGeneral" class="btn btn-success" disabled>
+                    <i class="bi bi-plus"></i> Agregar
+                  </button>
                 </div>
-                <!-- Información de la pieza seleccionada -->
-                <div id="infoPiezaSeleccionadaGeneral" class="alert alert-info" style="display: none;">
+                <div id="infoPiezaSeleccionadaAltaGeneral" class="alert alert-info py-2 px-3 mb-2" style="display: none;">
                   <small>
-                    <strong>Pieza:</strong> <span id="nombrePiezaInfoGeneral"></span><br>
-                    <strong>Disponibles en origen:</strong> <span id="disponiblesPiezaInfoGeneral"></span>
+                    <strong>Equipo:</strong> <span id="nombrePiezaInfoAltaGeneral"></span> &nbsp;|&nbsp;
+                    <strong>Categoría:</strong> <span id="categoriaPiezaInfoAltaGeneral"></span>
                   </small>
                 </div>
               </div>
@@ -281,213 +267,9 @@
                 <h6 class="mb-0"><i class="bi bi-chat-text"></i> Observaciones</h6>
               </div>
               <div class="card-body">
-                <textarea id="observacionesGeneral" name="observaciones" class="form-control" rows="2" placeholder="Ingresa observaciones sobre esta transferencia..."></textarea>
-                <small class="text-muted">Ejemplo: Motivo de la transferencia, detalles adicionales, etc.</small>
+                <textarea id="observacionesAltaGeneral" name="observaciones" class="form-control" rows="2" placeholder="Detalles de la compra: proveedor, factura, fecha de compra, etc."></textarea>
+                <small class="text-muted">Ejemplo: Compra a proveedor XYZ, Factura #12345, Fecha: 20/10/2025</small>
               </div>
-            </div>
-          </div>
-          <div class="col-xl-5 d-flex flex-column">
-            <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
-              <div class="card-header card-header-azul">
-                <h6 class="mb-0"><i class="bi bi-list-check"></i> Piezas a Transferir</h6>
-              </div>
-              <div class="card-body d-flex flex-column" style="flex:1;">
-                <div id="listaPiezasAgregadasGeneral" style="display: none; flex:1;">
-                  <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                      <tr>
-                        <th>Pieza</th>
-                        <th>Cantidad</th>
-                        <th>Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody id="tablaPiezasAgregadasGeneral">
-                      <!-- Aquí se agregarán las piezas dinámicamente -->
-                    </tbody>
-                  </table>
-                </div>
-                <div id="resumenTransferenciaGeneral" class="mt-4" style="display: none;">
-                  <div class="card border-info">
-                    <div class="card-header bg-info text-white">
-                      <h6 class="mb-0"><i class="bi bi-check-circle"></i> Resumen de Transferencia</h6>
-                    </div>
-                    <div class="card-body">
-                      <div id="resumenContenidoGeneral"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer modal-footer-azul">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-          <i class="bi bi-x-circle"></i> Cancelar
-        </button>
-        <button type="submit" class="btn btn-info" id="btnConfirmarTransferenciaGeneral" disabled>
-          <i class="bi bi-arrow-left-right"></i> Ejecutar Transferencia
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
-
-
-
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- Modal Alta de Equipo General -->
-
-<div class="modal fade" id="modalAltaEquipoGeneral" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <form method="POST" action="#" id="formAltaEquipoGeneral" class="modal-content">
-      <div class="modal-header" style="background: #198754; color: #fff;">
-        <h5 class="modal-title">
-          <i class="bi bi-plus-circle"></i> Gestión de Equipos - Administrador
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="row g-3 align-items-stretch">
-          <div class="col-xl-7 d-flex flex-column" style="min-height: 400px;">
-            <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
-              <div class="card-header card-header-azul">
-                <h6 class="mb-0"><i class="bi bi-gear"></i> Tipo de Operación y Selección</h6>
-              </div>
-              <div class="card-body d-flex flex-column" style="flex:1;">
-                <!-- Tipo de operación -->
-                <div class="row mb-3">
-                  <div class="col-md-6">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="tipoOperacion" id="operacionAlta" value="alta" checked>
-                      <label class="form-check-label text-success" for="operacionAlta">
-                        <i class="bi bi-plus-circle"></i> <strong>Alta de Equipos</strong>
-                        <br><small class="text-muted">Registrar equipos nuevos en inventario</small>
-                      </label>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="tipoOperacion" id="operacionBaja" value="baja">
-                      <label class="form-check-label text-danger" for="operacionBaja">
-                        <i class="bi bi-dash-circle"></i> <strong>Baja de Equipos</strong>
-                        <br><small class="text-muted">Dar de baja equipos existentes</small>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <!-- Selección de sucursal -->
-                <div class="mb-3">
-                  <label class="form-label" id="labelSucursal">Registrar equipos en:</label>
-                  <select class="form-select" name="id_sucursal_operacion_general" id="id_sucursal_operacion_general" required>
-                    <option value="">Seleccionar sucursal...</option>
-                    {% for sucursal in sucursales %}
-                    <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <!-- Selector de piezas dinámico para ALTA -->
-                <div id="contenidoPiezasAlta" style="display: block;">
-                  <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 120px;">
-                    <div class="card-header card-header-azul">
-                      <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Agregar Equipos Nuevos</h6>
-                    </div>
-                    <div class="card-body d-flex flex-column" style="flex:1;">
-                      <div class="row mb-3">
-                        <div class="col-md-9">
-                          <label class="form-label">Seleccionar Tipo de Equipo:</label>
-                          <select id="selectorPiezaAltaGeneral" class="form-select">
-                            <option value="">Selecciona un tipo de equipo...</option>
-                            {% for pieza in piezas %}
-                            {% if pieza.estatus != 'descontinuado' %}
-                            <option value="{{ pieza.id_pieza }}" 
-                                    data-nombre="{{ pieza.nombre_pieza }}" 
-                                    data-categoria="{{ pieza.categoria or 'Sin categoría' }}">
-                              {{ pieza.nombre_pieza }} - {{ pieza.categoria or 'Sin categoría' }}
-                            </option>
-                            {% endif %}
-                            {% endfor %}
-                          </select>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                          <button type="button" onclick="agregarEquipoAlta()" class="btn btn-success w-100">
-                            <i class="bi bi-plus"></i> Agregar
-                          </button>
-                        </div>
-                      </div>
-                      <div id="infoPiezaSeleccionadaAltaGeneral" class="alert alert-success" style="display: none;">
-                        <small>
-                          <strong>Equipo:</strong> <span id="nombrePiezaInfoAltaGeneral"></span><br>
-                          <strong>Categoría:</strong> <span id="categoriaPiezaInfoAltaGeneral"></span>
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Selector de piezas para BAJA -->
-                <div id="contenidoPiezasBaja" style="display: none;">
-                  <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 120px;">
-                    <div class="card-header card-header-azul">
-                      <h6 class="mb-0"><i class="bi bi-dash-circle"></i> Seleccionar Equipos a Dar de Baja</h6>
-                    </div>
-                    <div class="card-body d-flex flex-column" style="flex:1;">
-                      <div class="row mb-3">
-                        <div class="col-md-6">
-                          <label class="form-label">Seleccionar Equipo con Inventario:</label>
-                          <select id="tipoEquipoBaja" class="form-select">
-                            <option value="">Seleccionar equipo...</option>
-                          </select>
-                        </div>
-                        <div class="col-md-3">
-                          <label class="form-label">Cantidad a dar de baja:</label>
-                          <input type="number" id="cantidadBaja" class="form-control" value="1" min="1">
-                          <small class="text-muted">Máximo: <span id="cantidadMaximaBaja">0</span></small>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                          <button type="button" onclick="agregarEquipoBaja()" class="btn btn-danger w-100">
-                            <i class="bi bi-dash"></i> Agregar
-                          </button>
-                        </div>
-                      </div>
-                      <div id="infoPiezaSeleccionadaBajaGeneral" class="alert alert-warning" style="display: none;">
-                        <small>
-                          <strong>Equipo:</strong> <span id="nombrePiezaInfoBajaGeneral"></span><br>
-                          <strong>Disponibles en sucursal:</strong> <span id="disponiblesPiezaInfoBajaGeneral"></span>
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="card card-borde-azul mb-3" style="flex:0 0 auto;">
-              <div class="card-header card-header-azul">
-                <h6 class="mb-0"><i class="bi bi-chat-text"></i> Observaciones</h6>
-              </div>
-              <div class="card-body">
-                <textarea id="observacionesAltaGeneral" name="observaciones" class="form-control" rows="2" placeholder="Ingresa observaciones sobre esta operación..."></textarea>
-                <small class="text-muted">Ejemplo: Detalles de la compra, motivo de baja, etc.</small>
-              </div>
-            </div>
-            <div class="mt-3" id="motivoBajaDiv" style="display: none;">
-              <label for="motivoBaja" class="form-label">
-                <i class="bi bi-exclamation-triangle"></i> Motivo de la Baja <span class="text-danger">*</span>:
-              </label>
-              <select id="motivoBaja" name="motivo_baja" class="form-select">
-                <option value="">Seleccionar motivo...</option>
-                <option value="descontinuado">Equipo descontinuado</option>
-                <option value="danio_permanente">Daño permanente / No reparable</option>
-                <option value="obsoleto">Equipo obsoleto</option>
-                <option value="perdida">Pérdida del equipo</option>
-                <option value="robo">Robo</option>
-                <option value="venta">Venta del equipo</option>
-                <option value="otro">Otro motivo</option>
-              </select>
             </div>
           </div>
           <div class="col-xl-5 d-flex flex-column">
@@ -523,12 +305,121 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer modal-footer-azul">
+      <div class="modal-footer" style="background: #198754; border-color: #198754;">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <i class="bi bi-x-circle"></i> Cancelar
         </button>
-        <button type="submit" class="btn btn-success" id="btnConfirmarAltaEquipoGeneral" disabled>
-          <i class="bi bi-plus-circle" id="iconoBotonConfirmar"></i> <span id="textoBotonConfirmar">Confirmar Alta</span>
+        <button type="submit" class="btn btn-light" id="btnConfirmarAltaEquipoGeneral" disabled>
+          <i class="bi bi-plus-circle"></i> Confirmar Alta
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+                                          <!-- Modal Baja de Equipo General -->
+
+<div class="modal fade" id="modalBajaEquipoGeneral" tabindex="-1">
+  <div class="modal-dialog modal-xl"> 
+    <form method="POST" action="#" id="formBajaEquipoGeneral" class="modal-content">
+      <div class="modal-header" style="background: #dc3545; color: #fff;">
+        <h5 class="modal-title">
+          <i class="bi bi-dash-circle"></i> Baja de Equipo - Inventario General
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 align-items-stretch">
+          <div class="col-xl-7 d-flex flex-column" style="min-height: 400px;">
+            <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
+              <div class="card-header card-header-azul">
+                <h6 class="mb-0"><i class="bi bi-dash-circle"></i> Selección y Detalle</h6>
+              </div>
+              <div class="card-body d-flex flex-column" style="flex:1;">
+                <!-- Selección de sucursal origen -->
+                <div class="mb-3">
+                  <label for="sucursalOrigenBajaGeneral" class="form-label fw-bold">Sucursal de Origen</label>
+                  <select id="sucursalOrigenBajaGeneral" class="form-select" required>
+                    <option value="">Selecciona la sucursal...</option>
+                    {% for sucursal in sucursales %}
+                    <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <!-- Selección de equipo -->
+                <label class="form-label">Seleccionar tipo de equipo</label>
+                <div class="d-flex gap-2 mb-2">
+                  <select id="selectorPiezaBajaGeneral" class="form-select" disabled>
+                    <option value="">Primero selecciona la sucursal...</option>
+                  </select>
+                  <button type="button" class="btn btn-danger" id="btnAgregarPiezaBajaGeneral" disabled>
+                    <i class="bi bi-dash-circle"></i> Agregar
+                  </button>
+                </div>
+                <div id="infoPiezaSeleccionadaBajaGeneral" class="alert alert-warning py-2 px-3 mb-2" style="display: none;">
+                  <small>
+                    <strong>Pieza:</strong> <span id="nombrePiezaInfoBajaGeneral"></span><br>
+                    <strong>Categoría:</strong> <span id="categoriaPiezaInfoBajaGeneral"></span><br>
+                    <strong>Disponibles:</strong> <span id="disponiblesPiezaInfoBajaGeneral"></span>
+                  </small>
+                </div>
+              </div>
+            </div>
+            <div class="card card-borde-azul mb-3" style="flex:0 0 auto;">
+              <div class="card-header card-header-azul">
+                <h6 class="mb-0"><i class="bi bi-chat-text"></i> Motivo de la Baja</h6>
+              </div>
+              <div class="card-body">
+                <textarea id="observacionesBajaGeneral" name="observaciones" class="form-control" rows="2" placeholder="Especifica el motivo de la baja: dañado, perdido, obsoleto, etc." required></textarea>
+                <small class="text-muted">Ejemplo: Equipo dañado irreparable, Pérdida por robo, Obsolescencia tecnológica</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-5 d-flex flex-column">
+            <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
+              <div class="card-header card-header-azul">
+                <h6 class="mb-0"><i class="bi bi-list-check"></i> Equipos a dar de Baja</h6>
+              </div>
+              <div class="card-body d-flex flex-column" style="flex:1;">
+                <div id="listaPiezasAgregadasBajaGeneral" style="display: none; flex:1;">
+                  <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Pieza</th>
+                        <th>Categoría</th>
+                        <th>Cantidad</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tablaPiezasAgregadasBajaGeneral"></tbody>
+                  </table>
+                </div>
+                <div id="resumenBajaEquipoGeneral" class="mt-4" style="display: none; flex:1;">
+                  <div class="card border-danger">
+                    <div class="card-header bg-danger text-white">
+                      <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Resumen de Baja</h6>
+                    </div>
+                    <div class="card-body" id="resumenContenidoBajaGeneral"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="background: #dc3545; border-color: #dc3545;">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+        <button type="submit" class="btn btn-light" id="btnConfirmarBajaEquipoGeneral" disabled>
+          <i class="bi bi-dash-circle"></i> Confirmar Baja
         </button>
       </div>
     </form>
@@ -537,15 +428,13 @@
 
 
 
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+<!-- ////////////////////////////////// -->
+                                          <!-- Modal Nueva Pieza -->
 
-
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-<!-- ////////////////////////////////// -->
-
-<!-- Modal Nueva Pieza -->
 <div class="modal fade {% if show_modal_nueva_pieza %}show d-block{% endif %}" id="modalNuevaPieza" tabindex="-1"
   aria-labelledby="modalNuevaPiezaLabel" aria-hidden="true" {% if show_modal_nueva_pieza %}style="background:rgba(0,0,0,0.5);" {% endif %}>
   <div class="modal-dialog">

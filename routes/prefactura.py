@@ -345,10 +345,33 @@ def registrar_pago_prefactura(renta_id):
         cursor.execute("SELECT metodo_pago, numero_seguimiento FROM prefacturas WHERE id = %s", (prefactura_id,))
         verificacion = cursor.fetchone()
 
+        # Calcular el saldo pendiente actual para devolver al frontend
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) as total_pagado
+            FROM prefacturas 
+            WHERE renta_id = %s AND pagada = 1
+        """, (renta_id,))
+        total_pagado_actual = cursor.fetchone()[0]
+        
+        # Obtener el total de la renta
+        cursor.execute("SELECT total_con_iva FROM rentas WHERE id = %s", (renta_id,))
+        total_renta_actual = cursor.fetchone()[0]
+        
+        saldo_pendiente_actual = float(total_renta_actual) - float(total_pagado_actual)
+
         cursor.close()
         conn.close()
 
-        return jsonify({'success': True, 'prefactura_id': prefactura_id})
+        return jsonify({
+            'success': True, 
+            'prefactura_id': prefactura_id,
+            'saldo_pendiente': round(saldo_pendiente_actual, 2),
+            'total_pagado': round(float(total_pagado_actual), 2),
+            'total_renta': round(float(total_renta_actual), 2),
+            'nuevo_estado': nuevo_estado,
+            'tipo_pago': tipo,
+            'monto_pagado': round(float(monto), 2)
+        })
     except Exception as e:
         print(f"Error al registrar prefactura: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -360,16 +383,12 @@ def registrar_pago_prefactura(renta_id):
 
 
 
-
-
-
-
-
-
+##################################################
+##################################################
+##################################################  PDF
 
 @prefactura_bp.route('/pdf/<int:prefactura_id>')
 def generar_pdf_prefactura(prefactura_id):
-    # --- OBTENER DATOS COMPLETOS DEL CLIENTE ---
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
@@ -423,13 +442,11 @@ def generar_pdf_prefactura(prefactura_id):
     """, (prefactura['renta_id'],))
     historial_pagos = cursor.fetchall()
     
-    # Calcular totales
+    
     total_renta = float(total_renta_info['total_con_iva']) if total_renta_info else float(prefactura['monto'])
     total_pagado = sum(float(pago['monto']) for pago in historial_pagos)
     saldo_pendiente = total_renta - total_pagado
     
-    # Determinar el tipo de visualización basándose en el tipo de prefactura, no en cantidad de pagos
-    # Si hay algún abono en el historial, mostrar como sistema de abonos
     tiene_abonos = any(pago['tipo'] == 'abono' for pago in historial_pagos)
     es_pago_inicial_completo = (len(historial_pagos) == 1 and 
                                historial_pagos[0]['tipo'] == 'inicial' and 
@@ -451,7 +468,7 @@ def generar_pdf_prefactura(prefactura_id):
     cursor.close()
     conn.close()
 
-    # --- FUNCIÓN DE REDONDEO PARA PDF (IGUAL QUE EN BACKEND) ---
+    # --- FUNCIÓN DE REDONDEO PARA PDF ---
     def redondear_efectivo(monto):
         entero = int(monto)
         centavos = round((monto - entero) * 100)
@@ -462,8 +479,6 @@ def generar_pdf_prefactura(prefactura_id):
         else:
             return entero + 0.5
 
-    # --- APLICAR REDONDEO A LOS DATOS DEL PDF SI ES NECESARIO ---
-    # Verificar si hay abonos en efectivo para aplicar redondeo visual
     primer_abono_efectivo = None
     tiene_abonos_efectivo = False
     
@@ -690,30 +705,30 @@ def generar_pdf_prefactura(prefactura_id):
         # Datos de pagos
         can.setFont("Carlito", 8)
         for pago in historial_pagos:
-            # Aplicar redondeo visual a los montos de efectivo si es necesario
+            # Usar los valores exactos guardados en la base de datos
             monto_mostrar = float(pago['monto'])
             monto_recibido_mostrar = pago['monto_recibido']
             cambio_mostrar = pago['cambio']
-            
-            # Si es abono en efectivo, aplicar redondeo visual para consistencia
-            if pago['tipo'] == 'abono' and pago['metodo_pago'] == 'EFECTIVO' and tiene_abonos_efectivo:
-                monto_mostrar = redondear_efectivo(monto_mostrar)
-                # Recalcular cambio si hay monto recibido
-                if monto_recibido_mostrar and float(monto_recibido_mostrar) > 0:
-                    cambio_mostrar = float(monto_recibido_mostrar) - monto_mostrar
             
             can.drawString(36, y_totales, pago['fecha_emision_formatted'])
             can.drawString(120, y_totales, pago['tipo'].upper())
             can.drawString(200, y_totales, pago['metodo_pago'])
             can.drawRightString(350, y_totales, f"${monto_mostrar:.2f}")
             
-            # Mostrar monto recibido y cambio solo si existen
-            if monto_recibido_mostrar:
-                can.drawRightString(450, y_totales, f"${float(monto_recibido_mostrar):.2f}")
-            
-            # Mostrar cambio siempre (incluso si es $0)
-            cambio_valor = float(cambio_mostrar) if cambio_mostrar else 0.0
-            can.drawRightString(550, y_totales, f"${cambio_valor:.2f}")
+            # Mostrar monto recibido y cambio solo para pagos en efectivo
+            if pago['metodo_pago'] == 'EFECTIVO':
+                if monto_recibido_mostrar and float(monto_recibido_mostrar) > 0:
+                    can.drawRightString(450, y_totales, f"${float(monto_recibido_mostrar):.2f}")
+                else:
+                    can.drawRightString(450, y_totales, "${:.2f}".format(monto_mostrar))
+                
+                # Mostrar cambio (usar el valor exacto de la BD)
+                cambio_valor = float(cambio_mostrar) if cambio_mostrar is not None else 0.0
+                can.drawRightString(550, y_totales, f"${cambio_valor:.2f}")
+            else:
+                # Para otros métodos de pago, mostrar monto exacto
+                can.drawRightString(450, y_totales, f"${monto_mostrar:.2f}")
+                can.drawRightString(550, y_totales, "$0.00")
             
             y_totales -= 10
         
@@ -731,26 +746,38 @@ def generar_pdf_prefactura(prefactura_id):
         
 
     else:
-        # === PAGO COMPLETO INICIAL (SOLO CUANDO ES UN PAGO INICIAL QUE LIQUIDA TODO) ===
+        # === PAGO COMPLETO INICIAL ===
         pago_actual = historial_pagos[0] if historial_pagos else prefactura
         
         can.setFont("Carlito", 10)
-        can.drawString(400, y_totales, "MÉTODO/PAGO:")
+        can.drawString(400, y_totales, "MÉTODO DE PAGO:")
         can.drawRightString(570, y_totales, f"{pago_actual['metodo_pago']}")
         y_totales -= 12
         
-        # Mostrar información de cambio si es efectivo y hay cambio
-        if (pago_actual.get('monto_recibido') and 
-            pago_actual.get('cambio') and 
-            float(pago_actual['cambio']) > 0):
+        # Para pagos en efectivo, siempre mostrar información de cambio
+        if pago_actual['metodo_pago'] == 'EFECTIVO':
+            # Obtener valores de monto recibido y cambio
+            monto_recibido = pago_actual.get('monto_recibido')
+            cambio_pago = pago_actual.get('cambio')
+            monto_pago = float(pago_actual['monto'])
             
-            can.setFont("Carlito", 10)
-            can.drawString(400, y_totales, f"RECIBIDO:")
-            can.drawRightString(570, y_totales, f"${float(pago_actual['monto_recibido']):.2f}")
+            # Si no hay monto_recibido registrado, asumir que se pagó exacto
+            if not monto_recibido or float(monto_recibido) <= 0:
+                monto_recibido = monto_pago
+                cambio_pago = 0
+            
+            can.drawString(400, y_totales, "MONTO RECIBIDO:")
+            can.drawRightString(570, y_totales, f"${float(monto_recibido):.2f}")
             y_totales -= 12
             
-            can.drawString(400, y_totales, f"CAMBIO:")
-            can.drawRightString(570, y_totales, f"${float(pago_actual['cambio']):.2f}")
+            can.drawString(400, y_totales, "CAMBIO:")
+            cambio_valor = float(cambio_pago) if cambio_pago is not None else 0.0
+            can.drawRightString(570, y_totales, f"${cambio_valor:.2f}")
+            y_totales -= 12
+        else:
+            # Para otros métodos, mostrar monto exacto
+            can.drawString(400, y_totales, "MONTO PAGADO:")
+            can.drawRightString(570, y_totales, f"${float(pago_actual['monto']):.2f}")
             y_totales -= 12
 
     # === AVISOS IMPORTANTES PARA EL CLIENTE ===

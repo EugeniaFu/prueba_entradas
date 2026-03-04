@@ -348,11 +348,11 @@ def generar_pdf_nota_salida(nota_salida_id):
         y_position -= 15
 
         # Dirección de obra
-        can.setFont("Carlito", 10)
+        can.setFont("Helvetica-Bold", 10)
         direccion_obra_texto = f"DIRECCIÓN DE OBRA: {nota['direccion_obra'].upper()}"
         max_width = 550
         from reportlab.lib.utils import simpleSplit
-        obra_lines = simpleSplit(direccion_obra_texto, "Carlito", 13, max_width)
+        obra_lines = simpleSplit(direccion_obra_texto, "Helvetica-Bold", 12, max_width)
         for line in obra_lines:
             can.drawString(36, y_position, line)
             y_position -= 10

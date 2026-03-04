@@ -79,7 +79,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (metodoPago) metodoPago.value = '';
             if (efectivo) efectivo.style.display = 'none';
             if (seguimiento) seguimiento.style.display = 'none';
-            if (montoRecibido) montoRecibido.value = '';
+            if (montoRecibido) {
+                montoRecibido.value = '';
+                montoRecibido.removeAttribute('readonly');
+            }
             if (cambio) cambio.textContent = '0.00';
             if (numSeguimiento) numSeguimiento.value = '';
             if (btnGenerar) btnGenerar.style.display = '';
@@ -344,6 +347,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     const pagoTotalElement = document.getElementById('pago-total-pago');
                     const totalPagar = pagoTotalElement ? parseFloat(pagoTotalElement.textContent) || 0 : 0;
                     
+                    console.log(`=== DEBUG CAMBIO ===`);
+                    console.log(`Tipo: ${tipo}, Método: ${metodoPago.value}`);
+                    console.log(`Monto recibido: ${recibido}, Total a pagar: ${totalPagar}`);
+                    
                     if (tipo === 'abono') {
                         // Para abonos, permitir hasta el doble del saldo para cambio
                         if (recibido > saldoPendiente * 2) {
@@ -385,10 +392,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         
                         if (pagoTotalElement) pagoTotalElement.textContent = montoCobrar.toFixed(2);
                         if (cambio) cambio.textContent = cambioCalculado > 0 ? cambioCalculado.toFixed(2) : '0.00';
+                        
+                        console.log(`Abono - Monto a cobrar: ${montoCobrar}, Cambio calculado: ${cambioCalculado}`);
                     } else {
                         // Pago inicial: comportamiento normal
-                        const calcCambio = recibido - totalPagar;
-                        if (cambio) cambio.textContent = calcCambio > 0 ? calcCambio.toFixed(2) : '0.00';
+                        const calcCambio = Math.max(0, recibido - totalPagar);
+                        if (cambio) {
+                            cambio.textContent = calcCambio.toFixed(2);
+                        }
+                        console.log(`Pago inicial - Recibido: ${recibido}, Total: ${totalPagar}, Cambio: ${calcCambio}`);
                     }
                 };
             }
@@ -561,18 +573,22 @@ document.addEventListener('DOMContentLoaded', function () {
                             modalInstance.hide();
                         }
                     }
+                    
                     Swal.fire({
-                        title: 'Prefactura generada',
-                        text: '¿Deseas imprimir la prefactura ahora?',
+                        title: 'Prefactura generada exitosamente',
+                        text: `Folio: ${json.prefactura_id}. ¿Deseas imprimir la prefactura ahora?`,
                         icon: 'success',
                         showCancelButton: true,
                         confirmButtonText: 'Sí, imprimir',
-                        cancelButtonText: 'No'
+                        cancelButtonText: 'No, continuar',
+                        allowOutsideClick: false
                     }).then(result => {
                         if (result.isConfirmed) {
                             window.open(`/prefactura/pdf/${json.prefactura_id}`, '_blank');
                         }
-                        window.location.reload();
+                        
+                        // Actualizar estado de la renta sin recargar la página
+                        actualizarEstadoRenta(rentaId, json);
                     });
                 } else {
                     Swal.fire('Error', json.error || 'No se pudo registrar la prefactura', 'error');
@@ -587,5 +603,91 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
+    }
+
+    // Función para actualizar el estado de la renta dinámicamente
+    function actualizarEstadoRenta(rentaId, responseData) {
+        setTimeout(() => {
+            // Buscar elementos de la renta por diferentes posibles selectores
+            const rentaElements = [
+                document.querySelector(`[data-renta-id="${rentaId}"]`),
+                document.querySelector(`tr[data-renta="${rentaId}"]`),
+                document.querySelector(`#renta-${rentaId}`),
+                document.querySelector(`.renta-item[data-id="${rentaId}"]`)
+            ].filter(el => el !== null);
+
+            rentaElements.forEach(rentaElement => {
+                // Actualizar badges de estado de pago
+                const estadoBadges = rentaElement.querySelectorAll('.badge-estado, .estado-pago, .badge-pago, .estado-prefactura');
+                estadoBadges.forEach(badge => {
+                    if (responseData.saldo_pendiente && responseData.saldo_pendiente > 0.01) {
+                        badge.textContent = 'Con Abono';
+                        badge.className = 'badge bg-warning text-dark';
+                    } else {
+                        badge.textContent = 'Pagado';
+                        badge.className = 'badge bg-success';
+                    }
+                });
+
+                // Actualizar celdas de estado en tablas
+                const celdaEstado = rentaElement.querySelector('.td-estado, .celda-estado, td.estado');
+                if (celdaEstado) {
+                    if (responseData.saldo_pendiente && responseData.saldo_pendiente > 0.01) {
+                        celdaEstado.innerHTML = '<span class="badge bg-warning text-dark">Con Abono</span>';
+                    } else {
+                        celdaEstado.innerHTML = '<span class="badge bg-success">Pagado</span>';
+                    }
+                }
+
+                // Actualizar botones de prefactura
+                const botonesAccion = rentaElement.querySelectorAll('.btn-prefactura, .btn-pago');
+                botonesAccion.forEach(boton => {
+                    if (responseData.saldo_pendiente && responseData.saldo_pendiente > 0.01) {
+                        boton.textContent = 'Abono';
+                        boton.className = boton.className.replace('btn-primary', 'btn-warning');
+                    } else {
+                        boton.textContent = 'Pagado';
+                        boton.disabled = true;
+                        boton.className = boton.className.replace('btn-primary', 'btn-success').replace('btn-warning', 'btn-success');
+                    }
+                });
+            });
+
+            // Mostrar notificación de actualización
+            mostrarNotificacionEstado(responseData);
+        }, 300);
+    }
+
+    // Función para mostrar notificación del cambio de estado
+    function mostrarNotificacionEstado(responseData) {
+        const mensaje = responseData.saldo_pendiente && responseData.saldo_pendiente > 0.01 
+            ? `Abono registrado. Saldo pendiente: $${responseData.saldo_pendiente.toFixed(2)}`
+            : 'Renta pagada completamente';
+
+        const toastHtml = `
+            <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="4000">
+                    <div class="toast-header">
+                        <i class="bi bi-check-circle-fill text-success me-2"></i>
+                        <strong class="me-auto">Estado Actualizado</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${mensaje}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const toastElement = document.createElement('div');
+        toastElement.innerHTML = toastHtml;
+        document.body.appendChild(toastElement);
+
+        // Auto-remover el toast después de 5 segundos
+        setTimeout(() => {
+            if (toastElement.parentNode) {
+                toastElement.parentNode.removeChild(toastElement);
+            }
+        }, 5000);
     }
 });
