@@ -2,7 +2,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify, send_file
 from datetime import timedelta
 from utils.db import get_db_connection
-from functools import wraps
+from utils.decorators import requiere_sesion, requiere_permiso
 from utils.datetime_utils import get_local_now, format_datetime_local
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -19,17 +19,10 @@ from routes.inventario import obtener_siguiente_folio_nota_sucursal
 # ======================= BLUEPRINT =======================
 salidas_internas_bp = Blueprint('salidas_internas', __name__, url_prefix='/salidas-internas')
 
-def requiere_permiso(nombre_permiso):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            # Aquí puedes agregar la lógica de permisos si es necesario
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
 # ======================= LISTADO DE SALIDAS INTERNAS =======================
 @salidas_internas_bp.route('/')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
 def index():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -116,6 +109,8 @@ def index():
 
 # ======================= CREAR SALIDA INTERNA =======================
 @salidas_internas_bp.route('/crear', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_salida_interna')
 def crear_salida_interna():
     try:
         data = request.get_json()
@@ -225,6 +220,8 @@ def crear_salida_interna():
 
 # ======================= FINALIZAR SALIDA INTERNA =======================
 @salidas_internas_bp.route('/finalizar/<int:salida_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('finalizar_salida_interna')
 def finalizar_salida_interna(salida_id):
     try:
         data = request.get_json()
@@ -365,6 +362,8 @@ def finalizar_salida_interna(salida_id):
 
 # ======================= OBTENER DETALLE DE SALIDA INTERNA =======================
 @salidas_internas_bp.route('/detalle/<int:salida_id>')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
 def obtener_detalle_salida(salida_id):
     try:
         conn = get_db_connection()
@@ -408,6 +407,8 @@ def obtener_detalle_salida(salida_id):
 
 # ======================= OBTENER FOLIO DE ENTRADA =======================
 @salidas_internas_bp.route('/folio-entrada/<int:salida_id>')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
 def obtener_folio_entrada(salida_id):
     """
     Obtener el folio de nota de entrada para una salida interna finalizada con regreso
@@ -461,6 +462,8 @@ def obtener_folio_entrada(salida_id):
 # ======================= GENERACIÓN DE PDFs =======================
 
 @salidas_internas_bp.route('/pdf-salida/<folio>')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
 def generar_pdf_salida_interna(folio):
     """
     Generar PDF de nota de salida para salidas internas
@@ -705,6 +708,8 @@ def generar_pdf_salida_interna(folio):
 
 
 @salidas_internas_bp.route('/pdf-entrada/<folio>')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
 def generar_pdf_entrada_interna(folio):
     """
     Generar PDF de nota de entrada para salidas internas (cuando regresan) con diseño profesional

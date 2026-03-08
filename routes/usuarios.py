@@ -1,13 +1,17 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app
 from argon2 import PasswordHasher
 from utils.db import get_db_connection
+from utils.decorators import requiere_sesion, requiere_permiso
 import os
 import re
 from werkzeug.utils import secure_filename
 
+
 usuarios_bp = Blueprint('usuarios', __name__, url_prefix='/usuarios')
 
 @usuarios_bp.route('/perfil', methods=['GET', 'POST'])
+@requiere_sesion()
+@requiere_permiso('ver_perfil')
 def perfil():
     user_id = session.get('user_id')
     if not user_id:
@@ -46,6 +50,8 @@ def perfil():
     return render_template('usuarios/perfil.html', usuario=usuario)
 
 @usuarios_bp.route('/cambiar_foto', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('cambiar_foto_perfil')
 def cambiar_foto():
     user_id = session.get('user_id')
     if not user_id or 'foto_perfil' not in request.files:

@@ -4,24 +4,13 @@ import secrets
 from argon2 import PasswordHasher
 from flask_mail import Message
 from flask import current_app
-from functools import wraps
-
-def requiere_permiso(nombre_permiso):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            permisos = session.get('permisos', [])
-            if nombre_permiso not in permisos:
-                flash('No tienes permiso para acceder a esta sección.', 'danger')
-                return redirect(url_for('dashboard.dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+from utils.decorators import requiere_sesion, requiere_permiso
 
 empleados_bp = Blueprint('empleados', __name__, url_prefix='/empleados')
 
 
 @empleados_bp.route('/')
+@requiere_sesion()
 @requiere_permiso('ver_empleados')
 def empleados():
     conn = get_db_connection()
@@ -90,6 +79,7 @@ def empleados():
 
 
 @empleados_bp.route('/nuevo', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('crear_empleado')
 def nuevo_empleado():
     nombre = request.form['nombre']
@@ -136,6 +126,7 @@ def nuevo_empleado():
 
 
 @empleados_bp.route('/editar/<int:id>', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('editar_empleado')
 def editar_empleado(id):
     nombre = request.form['nombre']
@@ -156,6 +147,7 @@ def editar_empleado(id):
     return redirect(url_for('empleados.empleados'))
 
 @empleados_bp.route('/baja/<int:id>')
+@requiere_sesion()
 @requiere_permiso('baja_empleado')
 def baja_empleado(id):
     conn = get_db_connection()
@@ -166,6 +158,7 @@ def baja_empleado(id):
     return redirect(url_for('empleados.empleados'))
 
 @empleados_bp.route('/alta/<int:id>')
+@requiere_sesion()
 @requiere_permiso('alta_empleado')
 def alta_empleado(id):
     conn = get_db_connection()
@@ -179,6 +172,7 @@ def alta_empleado(id):
 
 
 @empleados_bp.route('/permisos/<int:id>', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('gestionar_permisos_empleado')
 def gestionar_permisos(id):
     conn = get_db_connection()

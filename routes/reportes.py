@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, jsonify, session, flash, redirect, url_for, send_file
 from utils.db import get_db_connection
 from utils.datetime_utils import get_local_now, format_date_local
+from utils.decorators import requiere_sesion, requiere_permiso
 from datetime import date, datetime
-from functools import wraps
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -11,21 +11,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import simpleSplit
 import os
 
-def requiere_permiso(nombre_permiso):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            permisos = session.get('permisos', [])
-            if nombre_permiso not in permisos:
-                flash('No tienes permiso para acceder a esta sección.', 'danger')
-                return redirect(url_for('dashboard.dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
 reportes_bp = Blueprint('reportes', __name__, url_prefix='/reportes')
 
 @reportes_bp.route('/diario')
+@requiere_sesion()
+@requiere_permiso('ver_reportes')
 def reporte_diario():
     """
     Muestra el reporte de entradas y salidas por fecha y sucursal
@@ -250,6 +240,8 @@ def reporte_diario():
 
 
 @reportes_bp.route('/pdf/diario')
+@requiere_sesion()
+@requiere_permiso('ver_reportes')
 def generar_pdf_reporte_diario():
     """Genera PDF del reporte diario de movimientos"""
     try:

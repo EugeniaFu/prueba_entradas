@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from utils.db import get_db_connection
 from datetime import datetime, timedelta
 import json
+from utils.datetime_utils import get_local_now
+from utils.decorators import requiere_sesion, requiere_permiso
 
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -550,6 +552,8 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
 
 # Mantener la función original para acceso directo
 @cotizaciones_bp.route('/pdf/<int:cotizacion_id>')
+@requiere_sesion()
+@requiere_permiso('ver_cotizaciones')
 def generar_pdf_cotizacion(cotizacion_id):
     """Generar PDF de cotización - acceso directo por URL"""
     try:
@@ -590,6 +594,8 @@ def generar_pdf_cotizacion(cotizacion_id):
 
 
 @cotizaciones_bp.route('/')
+@requiere_sesion()
+@requiere_permiso('ver_cotizaciones')
 def index():
     """Página principal de cotizaciones"""
     try:
@@ -677,6 +683,8 @@ def index():
 
 
 @cotizaciones_bp.route('/crear', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_cotizacion')
 def crear_cotizacion():
     """Crear nueva cotización"""
     try:
@@ -801,6 +809,7 @@ def crear_cotizacion():
 
 
 @cotizaciones_bp.route('/precios/<int:producto_id>/<int:dias>')  # Cambiar de '/cotizaciones/precios/...' a '/precios/...'
+@requiere_sesion()
 def obtener_precio_producto(producto_id, dias):
 
     """API para obtener precio de producto según días"""
@@ -813,6 +822,8 @@ def obtener_precio_producto(producto_id, dias):
 
 
 @cotizaciones_bp.route('/<int:cotizacion_id>/cambiar-estado', methods=['POST'])  # Quitar '/cotizaciones'
+@requiere_sesion()
+@requiere_permiso('editar_cotizacion')
 def cambiar_estado_cotizacion(cotizacion_id):
  
     """Cambiar estado de una cotización"""
@@ -865,6 +876,8 @@ def cambiar_estado_cotizacion(cotizacion_id):
 
 
 @cotizaciones_bp.route('/<int:cotizacion_id>/convertir-renta', methods=['POST'])  # Quitar '/cotizaciones'
+@requiere_sesion()
+@requiere_permiso('crear_renta')
 def convertir_cotizacion_a_renta(cotizacion_id):
  
     """Convertir cotización a renta"""
@@ -884,6 +897,8 @@ def convertir_cotizacion_a_renta(cotizacion_id):
 ###########################################
 
 @cotizaciones_bp.route('/<int:cotizacion_id>/eliminar', methods=['DELETE'])
+@requiere_sesion()
+@requiere_permiso('eliminar_cotizacion')
 def eliminar_cotizacion(cotizacion_id):
     """Eliminar cotización (eliminación lógica)"""
     try:

@@ -13,11 +13,14 @@ from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from utils.datetime_utils import get_local_now, format_datetime_local
+from utils.decorators import requiere_sesion, requiere_permiso
 import os
 
 notas_salida_bp = Blueprint('notas_salida', __name__, url_prefix='/notas_salida')
 
 @notas_salida_bp.route('/preview/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_salida')
 def preview_nota_salida(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -108,6 +111,8 @@ def preview_nota_salida(renta_id):
 
 
 @notas_salida_bp.route('/crear/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_nota_salida')
 def crear_nota_salida(renta_id):
     data = request.get_json()
     numero_referencia = data.get('numero_referencia')
@@ -186,6 +191,8 @@ def crear_nota_salida(renta_id):
 
 
 @notas_salida_bp.route('/pdf/<int:nota_salida_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_salida')
 def generar_pdf_nota_salida(nota_salida_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -467,6 +474,8 @@ def generar_pdf_nota_salida(nota_salida_id):
 
 
 @notas_salida_bp.route('/pdf_renta/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_salida')
 def generar_pdf_nota_salida_por_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)

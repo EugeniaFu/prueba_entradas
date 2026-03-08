@@ -9,6 +9,7 @@ from num2words import num2words
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from utils.datetime_utils import get_local_now
+from utils.decorators import requiere_sesion, requiere_permiso
 
 # Importar función para registrar movimientos automáticos de caja
 from routes.caja import registrar_movimiento_automatico
@@ -58,6 +59,8 @@ cobro_retraso_bp = Blueprint('cobro_retraso', __name__, url_prefix='/cobros_retr
 
 # --- PREVIEW: Obtener datos para el modal de cobro por retraso ---
 @cobro_retraso_bp.route('/preview/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('cobrar_retraso')
 def preview_cobro_retraso(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -144,6 +147,8 @@ def preview_cobro_retraso(renta_id):
 
 # --- GUARDAR COBRO POR RETRASO ---
 @cobro_retraso_bp.route('/guardar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('cobrar_retraso')
 def guardar_cobro_retraso(renta_id):
     data = request.get_json()
     nota_entrada_id = data.get('nota_entrada_id')
@@ -330,6 +335,8 @@ def guardar_cobro_retraso(renta_id):
 #################### --- GENERAR PDF DE COBRO POR RETRASO ---
 
 @cobro_retraso_bp.route('/pdf/<int:cobro_retraso_id>')
+@requiere_sesion()
+@requiere_permiso('ver_cobro_retraso')
 def generar_pdf_cobro_retraso(cobro_retraso_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -452,7 +459,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     
     # Folio (usar el folio guardado en la BD)
     can.setFont("Courier-Bold", 20)
-    folio_consecutivo = cobro_retraso['folio']  # Usar el folio guardado
+    folio_consecutivo = cobro['folio']  # Usar el folio guardado
     can.drawRightString(575, 690, f"#{str(folio_consecutivo).zfill(4)}")
 
     # === TABLA DE PRODUCTOS ===

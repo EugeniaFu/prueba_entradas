@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, session, send_file
+from flask import Blueprint, render_template, request, jsonify, session, send_file, url_for, flash, redirect
 from utils.db import get_db_connection
 from datetime import date, datetime
 from utils.datetime_utils import get_local_now, format_datetime_local
@@ -10,12 +10,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import simpleSplit
 import traceback
 import os
+from utils.decorators import requiere_sesion, requiere_permiso
+
 
 caja_bp = Blueprint('caja', __name__, url_prefix='/caja')
 
 def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_id, sucursal_id, 
                                   referencia_tabla, referencia_id, numero_seguimiento=None, observaciones=None):
-    """Registra movimientos de caja automáticamente solo para pagos en EFECTIVO"""
     try:
         if metodo_pago != 'EFECTIVO':
             return {'success': True, 'registered': False, 'message': f'Pago por {metodo_pago} no se registra en caja'}
@@ -66,10 +67,12 @@ def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_
         return {'success': False, 'error': str(e)}
 
 @caja_bp.route('/')
+@requiere_sesion()
 def movimientos_caja():
     return render_template('caja/movimiento_caja.html')
 
 @caja_bp.route('/api/movimiento', methods=['POST'])
+@requiere_sesion()
 def crear_movimiento_manual():
     try:
         data = request.get_json()
@@ -130,6 +133,7 @@ def crear_movimiento_manual():
         return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
 
 @caja_bp.route('/api/movimiento/<int:movimiento_id>')
+@requiere_sesion()
 def obtener_detalle_movimiento(movimiento_id):
     try:
         sucursal_id = session.get('sucursal_id', 1)
@@ -202,6 +206,7 @@ def obtener_detalle_movimiento(movimiento_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @caja_bp.route('/api/movimientos')
+@requiere_sesion()
 def obtener_movimientos():
     try:
         fecha_inicio = request.args.get('fecha_inicio')
@@ -264,6 +269,7 @@ def obtener_movimientos():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @caja_bp.route('/api/resumen')
+@requiere_sesion()
 def obtener_resumen():
     try:
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
@@ -332,6 +338,8 @@ def obtener_resumen():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @caja_bp.route('/api/ingresos-digitales')
+@requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def obtener_ingresos_digitales():
     try:
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
@@ -444,6 +452,8 @@ def obtener_ingresos_digitales():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @caja_bp.route('/pdf/movimientos')
+@requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def generar_pdf_movimientos():
     try:
         # Obtener parámetros de filtros de la URL

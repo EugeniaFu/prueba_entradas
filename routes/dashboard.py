@@ -4,14 +4,13 @@ from flask import Blueprint, render_template, session, redirect, url_for, jsonif
 from utils.db import get_db_connection
 from utils.datetime_utils import get_local_now, format_datetime_local
 from datetime import datetime, timedelta
+from utils.decorators import requiere_sesion, requiere_permiso
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
 @dashboard_bp.route('/')
+@requiere_sesion()
 def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login.login'))
-    
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -154,6 +153,7 @@ def dashboard():
 
 # APIs para el bloc de notas
 @dashboard_bp.route('/notas', methods=['POST'])
+@requiere_sesion()
 def agregar_nota():
     data = request.get_json()
     nota = data.get('nota', '').strip()
@@ -180,6 +180,7 @@ def agregar_nota():
         return jsonify({'success': False, 'error': str(e)})
 
 @dashboard_bp.route('/notas/<int:nota_id>', methods=['DELETE'])
+@requiere_sesion()
 def eliminar_nota(nota_id):
     conn = get_db_connection()
     cursor = conn.cursor()

@@ -4,6 +4,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from datetime import datetime, timedelta
 from utils.db import get_db_connection
+from utils.decorators import requiere_sesion, requiere_permiso
 from itertools import zip_longest
 from utils.datetime_utils import get_local_now, get_local_now_naive
 # PDF/Reportlab imports (usados en otras rutas, mantener agrupados)
@@ -20,6 +21,8 @@ rentas_bp = Blueprint('rentas', __name__, url_prefix='/rentas')
 ###########################################################
 # ======================= ELIMINACIÓN DE RENTAS =======================
 @rentas_bp.route('/info_eliminar/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
 def info_eliminar_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -42,6 +45,8 @@ def info_eliminar_renta(renta_id):
 
 
 @rentas_bp.route('/eliminar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('eliminar_renta')
 def eliminar_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -78,6 +83,8 @@ def eliminar_renta(renta_id):
 ###########################################################
 # ======================= CANCELACIÓN DE RENTAS =======================
 @rentas_bp.route('/cancelar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('cancelar_renta')
 def cancelar_renta(renta_id):
     motivo = request.form.get('motivo_cancelacion', '')
     monto_reembolso = request.form.get('monto_reembolso', None)
@@ -115,6 +122,8 @@ def cancelar_renta(renta_id):
 ###########################################################
 # ======================= LISTADO Y CREACIÓN DE RENTAS =======================
 @rentas_bp.route('/')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
 def modulo_rentas():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -405,6 +414,8 @@ def generar_folio_display(sucursal_id, folio_numero):
 ###########################################################
 # ======================= CREAR RENTA =======================
 @rentas_bp.route('/crear', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_renta')
 def crear_renta():
     try:
         conn = get_db_connection()
@@ -553,6 +564,8 @@ def crear_renta():
 ###########################################################
 # ======================= ACTUALIZAR FECHA DE ENTRADA =======================
 @rentas_bp.route('/actualizar_fecha_entrada/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('editar_renta')
 def actualizar_fecha_entrada(renta_id):
     try:
         nueva_fecha_str = request.json.get('fecha_entrada')
@@ -628,6 +641,8 @@ def actualizar_fecha_entrada(renta_id):
 ###########################################################
 # ======================= CERRAR RENTA =======================
 @rentas_bp.route('/cerrar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('cerrar_renta')
 def cerrar_renta(renta_id):
     try:
         conn = get_db_connection()
@@ -716,6 +731,8 @@ def cerrar_renta(renta_id):
 ###########################################################
 # ======================= DETALLE DE RENTA =======================
 @rentas_bp.route('/detalle/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
 def obtener_detalle_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -814,6 +831,8 @@ def obtener_detalle_renta(renta_id):
 ###########################################################
 # ======================= RENOVAR RENTA =======================
 @rentas_bp.route('/renovar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('renovar_renta')
 def renovar_renta(renta_id):
     conn = None
     cursor = None
@@ -939,6 +958,8 @@ def renovar_renta(renta_id):
 ###########################################################
 # ======================= API: RENTAS PENDIENTES =======================
 @rentas_bp.route('/api/rentas_pendientes/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
 def api_rentas_pendientes(renta_id):
     """Endpoint para obtener productos pendientes de una renta"""
     conn = get_db_connection()
@@ -999,6 +1020,8 @@ def api_rentas_pendientes(renta_id):
 ###########################################################
 # ======================= CREAR RENOVACIÓN DE PENDIENTES =======================
 @rentas_bp.route('/renovacion_pendientes/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_renovacion_pendiente')
 def crear_renovacion_pendientes(renta_id):
     """Endpoint para crear renovación de productos pendientes"""
     conn = get_db_connection()

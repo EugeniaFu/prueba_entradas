@@ -3,21 +3,9 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from utils.db import get_db_connection
 from werkzeug.utils import secure_filename
 import os
-from functools import wraps
 import requests
-from utils.datetime_utils import get_local_now, format_date_local  
-
-def requiere_permiso(nombre_permiso):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            permisos = session.get('permisos', [])
-            if nombre_permiso not in permisos:
-                flash('No tienes permiso para acceder a esta sección.', 'danger')
-                return redirect(url_for('dashboard.dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
+from utils.datetime_utils import get_local_now, format_date_local
+from utils.decorators import requiere_sesion, requiere_permiso
 
 
 SUCURSAL_PREFIJOS = {
@@ -29,6 +17,7 @@ SUCURSAL_PREFIJOS = {
 clientes_bp = Blueprint('clientes', __name__, url_prefix='/clientes')
 
 @clientes_bp.route('/', methods=['GET'])
+@requiere_sesion()
 @requiere_permiso('ver_clientes')
 def clientes():
     busqueda = request.args.get('busqueda', '').strip()
@@ -78,6 +67,7 @@ def clientes():
 ############################# EDITA CLIENTES
 
 @clientes_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
+@requiere_sesion()
 @requiere_permiso('editar_cliente')
 def editar_cliente(id):
     conn = get_db_connection()
@@ -172,6 +162,7 @@ def editar_cliente(id):
 
 
 @clientes_bp.route('/baja/<int:id>')
+@requiere_sesion()
 @requiere_permiso('baja_cliente')
 def baja_cliente(id):
     conn = get_db_connection()
@@ -186,6 +177,7 @@ def baja_cliente(id):
 
 
 @clientes_bp.route('/reactivar/<int:id>')
+@requiere_sesion()
 @requiere_permiso('reactivar_cliente')
 def reactivar_cliente(id):
     conn = get_db_connection()
@@ -200,6 +192,7 @@ def reactivar_cliente(id):
 
 
 @clientes_bp.route('/eliminar/<int:id>')
+@requiere_sesion()
 @requiere_permiso('eliminar_cliente')
 def eliminar_cliente(id):
     conn = get_db_connection()
@@ -224,6 +217,7 @@ def eliminar_cliente(id):
 ############################## visualizacion del cliente
 
 @clientes_bp.route('/detalle/<int:id>')
+@requiere_sesion()
 @requiere_permiso('ver_detalle_cliente')
 def detalle_cliente(id):
     conn = get_db_connection()
@@ -260,6 +254,7 @@ def detalle_cliente(id):
 ############################## BUSCADOR
 
 @clientes_bp.route('/buscar')
+@requiere_sesion()
 @requiere_permiso('buscar_clientes')
 def buscar_clientes():
     term = request.args.get('q', '').strip()
@@ -296,6 +291,7 @@ def buscar_clientes():
 ############################## BUSCADOR DE CODIGOS POSTALES 
 
 @clientes_bp.route('/api/colonias/<codigo_postal>')
+@requiere_sesion()
 def obtener_colonias_por_cp(codigo_postal):
     """API para obtener colonias por código postal"""
     import requests
@@ -337,6 +333,7 @@ def obtener_colonias_por_cp(codigo_postal):
 ############################## NUEVO CLIENTE 
 
 @clientes_bp.route('/nuevo', methods=['GET', 'POST'])
+@requiere_sesion()
 @requiere_permiso('crear_cliente')
 def nuevo_cliente():
     if request.method == 'POST':

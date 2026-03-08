@@ -8,6 +8,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from num2words import num2words 
 from reportlab.pdfbase import pdfmetrics
 from utils.datetime_utils import get_local_now
+from utils.decorators import requiere_sesion, requiere_permiso
 
 # Importar función para registrar movimientos automáticos de caja
 from routes.caja import registrar_movimiento_automatico
@@ -53,6 +54,8 @@ def obtener_folio_consecutivo_prefactura():
 bp_extras = Blueprint('cobros_extra', __name__, url_prefix='/cobros_extra')
 
 @bp_extras.route('/detalle/<int:renta_id>', methods=['GET'])
+@requiere_sesion()
+@requiere_permiso('ver_cobro_extra')
 def detalle_cobro_extra(renta_id):
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
@@ -90,6 +93,8 @@ def detalle_cobro_extra(renta_id):
 ##############################################
 
 @bp_extras.route('/crear/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('cobrar_extra')
 def crear_cobro_extra(renta_id):
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
@@ -200,6 +205,8 @@ def crear_cobro_extra(renta_id):
 ##############################################
 
 @bp_extras.route('/sugerencias/<int:renta_id>', methods=['GET'])
+@requiere_sesion()
+@requiere_permiso('ver_cobro_extra')
 def sugerencias_cobro_extra(renta_id):
     db = get_db_connection()
     cursor = db.cursor(dictionary=True)
@@ -288,6 +295,8 @@ def sugerencias_cobro_extra(renta_id):
 ##############################################
 
 @bp_extras.route('/pdf/<int:cobro_extra_id>')
+@requiere_sesion()
+@requiere_permiso('ver_cobro_extra')
 def generar_pdf_cobro_extra(cobro_extra_id):
     # --- OBTENER DATOS COMPLETOS DEL CLIENTE ---
     conn = get_db_connection()

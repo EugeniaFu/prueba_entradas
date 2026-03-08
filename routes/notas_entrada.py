@@ -5,6 +5,7 @@ from utils.db import get_db_connection
 from routes.inventario import obtener_siguiente_folio_nota_sucursal
 # Importar funciones de datetime utils
 from utils.datetime_utils import get_local_now, format_datetime_local
+from utils.decorators import requiere_sesion, requiere_permiso
 
 from flask import send_file
 from io import BytesIO
@@ -24,6 +25,8 @@ notas_entrada_bp = Blueprint('notas_entrada', __name__, url_prefix='/notas_entra
 
 
 @notas_entrada_bp.route('/preview/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
 def preview_nota_entrada(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -202,6 +205,8 @@ def preview_nota_entrada(renta_id):
 ####################################################################
 
 @notas_entrada_bp.route('/crear/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_nota_entrada')
 def crear_nota_entrada(renta_id):
     data = request.get_json()
     folio = data.get('folio_entrada')
@@ -455,6 +460,8 @@ def crear_nota_entrada(renta_id):
 
 
 @notas_entrada_bp.route('/historial/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
 def historial_notas_entrada(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -483,6 +490,8 @@ def historial_notas_entrada(renta_id):
 
 
 @notas_entrada_bp.route('/pdf/<int:nota_entrada_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
 def generar_pdf_nota_entrada(nota_entrada_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -753,6 +762,8 @@ def generar_pdf_nota_entrada(nota_entrada_id):
 
 
 @notas_entrada_bp.route('/pdf_renta/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
 def generar_pdf_nota_entrada_por_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)

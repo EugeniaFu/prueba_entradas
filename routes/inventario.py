@@ -1,7 +1,6 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, current_app
 from utils.db import get_db_connection
-from functools import wraps
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
@@ -11,25 +10,7 @@ from flask import send_file
 from PyPDF2 import PdfReader, PdfWriter
 import os
 from utils.datetime_utils import get_local_now, format_datetime_local
-    
-
-def requiere_permiso(nombre_permiso):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            permisos = session.get('permisos', [])
-            if nombre_permiso not in permisos:
-                # Detectar si es una petición AJAX
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return jsonify({'success': False, 'message': 'No tienes permiso para realizar esta acción.'}), 403
-                else:
-                    flash('No tienes permiso para acceder a esta sección.', 'danger')
-                    return redirect(url_for('dashboard.dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-
+from utils.decorators import requiere_sesion, requiere_permiso
 
 bp_inventario = Blueprint('inventario', __name__, url_prefix='/inventario')
 
@@ -74,6 +55,7 @@ def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
 
 
 @bp_inventario.route('/general')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_general')
 def inventario_general():
     conn = get_db_connection()
@@ -105,6 +87,7 @@ def inventario_general():
 
 
 @bp_inventario.route('/agregar_pieza_general', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('agregar_pieza_inventario_general')
 def agregar_pieza_general():
     nombre_pieza = request.form['nombre_pieza']
@@ -166,6 +149,7 @@ def agregar_pieza_general():
 
 
 @bp_inventario.route('/editar_pieza/<int:id_pieza>', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('modificar_existencias_inventario_general')
 def editar_pieza(id_pieza):
     nombre_pieza = request.form['nombre_pieza']
@@ -232,6 +216,7 @@ def editar_pieza(id_pieza):
 
 # Endpoint para obtener piezas y cantidades disponibles de una sucursal 
 @bp_inventario.route('/piezas-sucursal/<int:sucursal_id>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_general')
 def piezas_sucursal(sucursal_id):
     conn = get_db_connection()
@@ -255,6 +240,7 @@ def piezas_sucursal(sucursal_id):
 
 # Endpoint para obtener todas las piezas activas 
 @bp_inventario.route('/todas-piezas-activas')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_general')
 def todas_piezas_activas():
     conn = get_db_connection()
@@ -274,6 +260,7 @@ def todas_piezas_activas():
 
 
 @bp_inventario.route('/sucursal/<int:sucursal_id>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def inventario_sucursal(sucursal_id):
     conn = get_db_connection()
@@ -314,6 +301,8 @@ def inventario_sucursal(sucursal_id):
 
 
 @bp_inventario.route('/enviar-equipos', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('transferir_piezas_inventario')
 def enviar_equipos():
     """
     Maneja el ENVÍO de equipos - Solo genera nota de salida y resta inventario origen
@@ -408,7 +397,8 @@ def enviar_equipos():
 
 
 @bp_inventario.route('/recibir-equipos', methods=['POST'])
-# @requiere_permiso('transferir_piezas_inventario')  # Temporalmente deshabilitado para prueba
+@requiere_sesion()
+@requiere_permiso('transferir_piezas_inventario')
 def recibir_equipos():
     """
     Maneja la RECEPCIÓN de equipos - Solo genera nota de entrada y suma inventario destino
@@ -499,6 +489,7 @@ def recibir_equipos():
 
 
 @bp_inventario.route('/transferir-piezas-multiple', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('transferir_piezas_inventario')
 def transferir_piezas_multiple():
     try:
@@ -665,6 +656,7 @@ def transferir_piezas_multiple():
 #################################### BAJA DE EQUIPO DEL INVENTARIO GENERAL
 
 @bp_inventario.route('/baja-equipo-nuevo', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('modificar_existencias_inventario_general')
 def baja_equipo_nuevo():
     try:
@@ -749,6 +741,7 @@ def baja_equipo_nuevo():
 
 
 @bp_inventario.route('/alta-equipo', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('modificar_existencias_inventario_general')
 def alta_equipo_nuevo():
 
@@ -836,6 +829,7 @@ def alta_equipo_nuevo():
 
 
 @bp_inventario.route('/marcar-daniadas', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('modificar_existencias_inventario_general')
 def marcar_piezas_daniadas():
     """
@@ -935,6 +929,7 @@ def marcar_piezas_daniadas():
 
 
 @bp_inventario.route('/reparacion-lote', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('mandar_pieza_reparacion')
 def enviar_lote_reparacion():
     """
@@ -973,11 +968,11 @@ def enviar_lote_reparacion():
                 if not inventario or inventario['daniadas'] < cantidad:
                     raise Exception(f'No hay suficientes piezas dañadas para enviar a reparación (ID: {id_pieza})')
 
-                # Actualizar inventario: restar del total y de dañadas (el equipo sale de la bodega)
+                # Actualizar inventario: mover de dañadas a en_reparacion (mantener total)
                 cursor.execute("""
                     UPDATE inventario_sucursal
-                    SET total = total - %s,
-                        daniadas = daniadas - %s
+                    SET daniadas = daniadas - %s,
+                        en_reparacion = en_reparacion + %s
                     WHERE id_pieza = %s AND id_sucursal = %s
                 """, (cantidad, cantidad, id_pieza, sucursal_id))
 
@@ -1015,6 +1010,7 @@ def enviar_lote_reparacion():
 
 
 @bp_inventario.route('/finalizar-reparaciones', methods=['POST'])
+@requiere_sesion()
 @requiere_permiso('regresar_pieza_disponible')
 def finalizar_reparaciones():
     """
@@ -1032,6 +1028,9 @@ def finalizar_reparaciones():
         cursor = conn.cursor(dictionary=True)
         
         try:
+            # Obtener siguiente folio para nota de entrada
+            folio_num = obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id)
+            folio = str(folio_num).zfill(5)
             usuario_id = session.get('user_id')
 
             # Procesar cada pieza
@@ -1049,26 +1048,28 @@ def finalizar_reparaciones():
                 if not inventario or inventario['en_reparacion'] < cantidad:
                     raise Exception(f'No hay suficientes piezas en reparación (ID: {id_pieza})')
 
-                # Solo quitar de en_reparacion (no suma a disponibles porque el equipo ya no existe)
+                # Mover de en_reparacion a disponibles (las piezas reparadas vuelven)
                 cursor.execute("""
                     UPDATE inventario_sucursal
-                    SET en_reparacion = en_reparacion - %s
+                    SET en_reparacion = en_reparacion - %s,
+                        disponibles = disponibles + %s
                     WHERE id_pieza = %s AND id_sucursal = %s
-                """, (cantidad, id_pieza, sucursal_id))
+                """, (cantidad, cantidad, id_pieza, sucursal_id))
 
-                # Registrar movimiento
+                # Registrar movimiento con folio de nota de entrada
                 cursor.execute("""
                     INSERT INTO movimientos_inventario 
-                    (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (id_pieza, sucursal_id, 'reparacion_finalizada', cantidad, 
-                     'Reparación finalizada - tracking limpiado', usuario_id))
+                    (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario, folio_nota_entrada)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (id_pieza, sucursal_id, 'finalizar_reparacion', cantidad, 
+                     'Finalización de reparación - equipo disponible', usuario_id, folio))
 
             conn.commit()
             
             return jsonify({
                 'success': True,
-                'message': 'Tracking de reparaciones limpiado exitosamente'
+                'folio_nota_entrada': folio,
+                'message': f'Reparaciones finalizadas exitosamente. Folio: {folio}. Piezas regresadas a disponibles.'
             })
 
         except Exception as e:
@@ -1086,6 +1087,7 @@ def finalizar_reparaciones():
 
 # Funciones del historial de transferencias
 @bp_inventario.route('/historial-transferencias/<int:sucursal_id>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def historial_transferencias_sucursal(sucursal_id):
     """
@@ -1178,6 +1180,7 @@ def historial_transferencias_sucursal(sucursal_id):
 
 
 @bp_inventario.route('/historial-transferencias-page/<int:sucursal_id>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def historial_transferencias_page(sucursal_id):
     """
@@ -1340,6 +1343,7 @@ def historial_transferencias_page(sucursal_id):
 ########## PDF DE TRANSFERENCIAS DE SALIDAS  ########## 
 
 @bp_inventario.route('/pdf-transferencia-salida/<folio>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def generar_pdf_transferencia_salida(folio):
     
@@ -1515,6 +1519,7 @@ def generar_pdf_transferencia_salida(folio):
 ########## PDF DE TRANSFERENCIAS DE ENTRADAS ########## 
 
 @bp_inventario.route('/pdf-transferencia-entrada/<folio>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def generar_pdf_transferencia_entrada(folio):
     
@@ -1693,6 +1698,7 @@ def generar_pdf_transferencia_entrada(folio):
 
 
 @bp_inventario.route('/pdf-alta-equipo/<folio>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def generar_pdf_alta_equipo(folio):
     
@@ -1874,6 +1880,7 @@ def generar_pdf_alta_equipo(folio):
 ########## PDF DE BAJA DE INVENTARIO GENERAL ########## 
 
 @bp_inventario.route('/pdf-baja-equipo/<folio>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def generar_pdf_baja_equipo(folio):
     
@@ -2057,6 +2064,7 @@ def generar_pdf_baja_equipo(folio):
 #################### PDF DE REPARACIÓN 
 
 @bp_inventario.route('/pdf-reparacion-lote/<folio>')
+@requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
 def generar_pdf_reparacion_lote(folio):
     

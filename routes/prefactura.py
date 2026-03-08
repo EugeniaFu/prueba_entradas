@@ -4,6 +4,7 @@ from io import BytesIO
 from datetime import datetime
 from flask import Blueprint, redirect, request, jsonify, send_file, current_app, url_for, session
 from utils.db import get_db_connection
+from utils.decorators import requiere_sesion, requiere_permiso
 
 # Importar función para registrar movimientos automáticos de caja
 from routes.caja import registrar_movimiento_automatico
@@ -58,6 +59,8 @@ prefactura_bp = Blueprint('prefactura', __name__, url_prefix='/prefactura')
 
 # === Endpoint: Obtener datos de prefactura (AJAX) ===
 @prefactura_bp.route('/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
 def obtener_prefactura(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -90,6 +93,8 @@ def obtener_prefactura(renta_id):
 
 
 @prefactura_bp.route('/api/pagos/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
 def obtener_historial_pagos(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -105,6 +110,8 @@ def obtener_historial_pagos(renta_id):
     return jsonify(pagos)
 
 @prefactura_bp.route('/api/info-redondeo/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
 def obtener_info_redondeo(renta_id):
     """Obtiene información sobre redondeo para coincidir con la lógica de Python"""
     conn = get_db_connection()
@@ -150,6 +157,8 @@ def obtener_info_redondeo(renta_id):
 
 # === Endpoint: Registrar pago 
 @prefactura_bp.route('/pago/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('pagar_prefactura')
 def registrar_pago_prefactura(renta_id):
     data = request.get_json()
     tipo = data.get('tipo', 'inicial')
@@ -388,6 +397,8 @@ def registrar_pago_prefactura(renta_id):
 ##################################################  PDF
 
 @prefactura_bp.route('/pdf/<int:prefactura_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
 def generar_pdf_prefactura(prefactura_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -879,6 +890,8 @@ def generar_pdf_prefactura(prefactura_id):
     )
 
 @prefactura_bp.route('/pdf_renta/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
 def generar_pdf_prefactura_por_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
