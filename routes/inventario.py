@@ -41,7 +41,7 @@ def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
             WHERE mi.id_sucursal = %s 
             AND mi.folio_nota_entrada IS NOT NULL
             AND mi.folio_nota_entrada != ''
-            AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general', 'transferencia_entrada', 'retorno_salida_interna')
+            AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general', 'transferencia_entrada', 'retorno_salida_interna', 'finalizar_reparacion')
             UNION ALL
             SELECT si.folio_sucursal as folio
             FROM salidas_internas si
@@ -1069,6 +1069,7 @@ def finalizar_reparaciones():
             return jsonify({
                 'success': True,
                 'folio_nota_entrada': folio,
+                'pdf_url': f'/inventario/pdf-finalizacion-reparacion/{folio}',
                 'message': f'Reparaciones finalizadas exitosamente. Folio: {folio}. Piezas regresadas a disponibles.'
             })
 
@@ -1288,7 +1289,7 @@ def historial_transferencias_page(sucursal_id):
             
             SELECT 
                 'Finalizar Reparaciones' as tipo,
-                NULL as folio,
+                mi.folio_nota_entrada as folio,
                 DATE_FORMAT(MIN(mi.fecha), '%d/%m/%Y %H:%i') as fecha,
                 mi.observaciones,
                 mi.descripcion,
@@ -1298,7 +1299,8 @@ def historial_transferencias_page(sucursal_id):
             FROM movimientos_inventario mi
             WHERE mi.id_sucursal = %s 
             AND mi.tipo_movimiento = 'finalizar_reparacion'
-            GROUP BY DATE(mi.fecha), mi.observaciones, mi.descripcion
+            AND mi.folio_nota_entrada IS NOT NULL
+            GROUP BY mi.folio_nota_entrada, DATE(mi.fecha), mi.observaciones, mi.descripcion
             
             ORDER BY 
                 CASE 
@@ -2235,6 +2237,182 @@ def generar_pdf_reparacion_lote(folio):
 
 
 
+
+########################################################
+########################################################
+########################################################
+
+########## PDF DE FINALIZACIÓN DE REPARACIONES (ENTRADA) ##########
+
+@bp_inventario.route('/pdf-finalizacion-reparacion/<folio>')
+@requiere_sesion()
+@requiere_permiso('ver_inventario_sucursal')
+def generar_pdf_finalizacion_reparacion(folio):
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Obtener datos de la finalización de reparación
+        cursor.execute("""
+            SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
+                   u.nombre as usuario_nombre
+            FROM movimientos_inventario mi
+            JOIN piezas p ON mi.id_pieza = p.id_pieza
+            JOIN sucursales s ON mi.id_sucursal = s.id
+            LEFT JOIN usuarios u ON mi.usuario = u.id
+            WHERE mi.folio_nota_entrada = %s 
+            AND mi.tipo_movimiento = 'finalizar_reparacion'
+            ORDER BY mi.fecha ASC, p.nombre_pieza ASC
+        """, (folio,))
+        movimientos = cursor.fetchall()
+        
+        if not movimientos:
+            cursor.close()
+            conn.close()
+            return "Folio de finalización de reparación no encontrado", 404
+            
+        # Datos básicos
+        primer_movimiento = movimientos[0]
+        sucursal_nombre = primer_movimiento['sucursal_nombre']
+        usuario_nombre = primer_movimiento['usuario_nombre'] or 'No disponible'
+        fecha_movimiento = primer_movimiento['fecha']
+        observaciones = primer_movimiento['descripcion'] or ''
+        
+        cursor.close()
+        conn.close()
+
+        # --- GENERAR PDF CON EL MISMO DISEÑO QUE NOTAS DE ENTRADA ---
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
+        
+        # Registrar fuente
+        try:
+            font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+            if os.path.exists(font_path):
+                pdfmetrics.registerFont(TTFont('Carlito', font_path))
+        except:
+            pass
+        
+        # CONFIGURACIÓN INICIAL 
+        page_width, page_height = letter
+        y_position = page_height - 100
+        
+        # Folio
+        can.setFont("Courier-Bold", 20)
+        can.drawRightString(575, 690, f"#{folio}")
+        
+        # Fecha y hora de emisión
+        can.setFont("Carlito", 12)
+        fecha_emision = fecha_movimiento.strftime('%d/%m/%Y - %H:%M:%S')
+        can.drawRightString(575, 715, f"{fecha_emision}")
+        
+
+        # === DATOS DE FINALIZACIÓN DE REPARACIÓN ===
+        can.setFont("Courier-Bold", 23)
+        can.drawString(482, 732, "ENTRADA")
+        
+        can.setFont("Courier-Bold", 15)
+        can.drawString(36, 715, "FINALIZACIÓN DE REPARACIÓN")
+
+        # Sucursal
+        can.setFont("Carlito", 10)
+        can.drawString(36, 695, f"SUCURSAL: {sucursal_nombre.upper()}")
+        
+        # Usuario
+        can.drawString(36, 680, f"RECIBIDO POR: {usuario_nombre.upper()}")
+        
+        # DATOS DE PIEZAS 
+        y_position -= 40
+        # Encabezado de tabla
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(36, y_position + 5, "CANT. (PIEZAS)")
+        can.drawString(150, y_position + 5, "DESCRIPCIÓN")
+        y_position -= 15
+        
+        can.setFont("Carlito", 10)
+        for movimiento in movimientos:
+            # Verificar si necesitamos nueva página
+            if y_position < 150:
+                can.showPage()
+                y_position = page_height - 100
+            can.drawString(70, y_position + 5, str(movimiento['cantidad']))
+            can.drawString(150, y_position + 5, movimiento['nombre_pieza'].upper())
+            y_position -= 13
+        y_position -= 5
+        
+        
+        # Observaciones (ajustar a varias líneas si es necesario)
+        can.setFont("Carlito", 13)
+        observaciones_texto = observaciones if observaciones else "Equipos reparados y listos para uso."
+        max_width = 550  # ancho máximo para el texto
+        from reportlab.lib.utils import simpleSplit
+        obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
+        for line in obs_lines:
+            can.drawString(36, y_position, line)
+            y_position -= 18  # espacio entre líneas de observaciones
+
+        # Mantener espacio entre observaciones y firmas
+        y_position -= max(0, 90 - (len(obs_lines) * 18))
+        
+        # === FIRMAS ===
+        can.setFont("Carlito", 10)
+        # Líneas para firmas
+        can.line(60, y_position, 250, y_position)  # Línea taller
+        can.line(350, y_position, 540, y_position)  # Línea sucursal
+        y_position -= 15
+        
+        # Etiquetas de firmas
+        can.drawString(60, y_position, "ENTREGA: TALLER DE REPARACIÓN")
+        can.drawString(350, y_position, f"RECIBE: {sucursal_nombre.upper()}")
+        y_position -= 20
+        
+        can.drawString(60, y_position, "NOMBRE: ________________________")
+        can.drawString(350, y_position, "NOMBRE: ________________________")
+        y_position -= 15
+        
+        can.save()
+        packet.seek(0)
+        
+        # --- COMBINAR CON LA PLANTILLA 
+        try:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            overlay_pdf = PdfReader(packet)
+            output = PdfWriter()
+
+            if os.path.exists(plantilla_path):
+                plantilla_pdf = PdfReader(plantilla_path)
+                for i, page in enumerate(overlay_pdf.pages):
+                    base_page = plantilla_pdf.pages[0]
+                    base_page.merge_page(page)
+                    output.add_page(base_page)
+            else:
+                for page in overlay_pdf.pages:
+                    output.add_page(page)
+                
+        except Exception as e:
+            print(f"Error con plantilla: {e}")
+            overlay_pdf = PdfReader(packet)
+            output = PdfWriter()
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+
+        output_stream = BytesIO()
+        output.write(output_stream)
+        output_stream.seek(0)
+        
+        return send_file(
+            output_stream,
+            download_name=f"nota_finalizacion_reparacion_{folio}.pdf",
+            mimetype='application/pdf'
+        )
+    
+    except Exception as e:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        return f"Error al generar PDF: {str(e)}", 500
 
 
 

@@ -317,7 +317,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire('¡Éxito!', data.message, 'success').then(() => {
+                        Swal.fire({
+                            title: '¡Éxito!', 
+                            text: data.message, 
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="bi bi-file-earmark-pdf me-2"></i>Ver PDF',
+                            cancelButtonText: 'Cerrar',
+                            confirmButtonColor: '#d33',
+                            cancelButtonColor: '#3085d6'
+                        }).then((result) => {
+                            if (result.isConfirmed && data.pdf_url) {
+                                // Abrir PDF en nueva ventana
+                                window.open(data.pdf_url, '_blank');
+                            }
                             // Cerrar modal y recargar página
                             const modal = bootstrap.Modal.getInstance(document.getElementById('modalFinalizarReparaciones'));
                             modal.hide();

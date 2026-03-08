@@ -167,7 +167,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if transferencia.folio and transferencia.tipo in ['Enviado', 'Recibido', 'Alta Equipo', 'Envío a Reparación'] %}
+                        {% if transferencia.folio and transferencia.tipo in ['Enviado', 'Recibido', 'Alta Equipo', 'Envío a Reparación', 'Finalizar Reparaciones'] %}
                             <button class="btn btn-outline-danger action-btn-transferencias" 
                                     onclick="verPDFTransferencia('{{ transferencia.tipo }}', '{{ transferencia.folio }}')"
                                     title="Ver PDF">
@@ -269,7 +269,9 @@ function verPDFTransferencia(tipo, folio) {
     } else if (tipo === 'Alta Equipo') {
         endpoint = 'pdf-alta-equipo';
     } else if (tipo === 'Envío a Reparación') {
-        endpoint = 'pdf-transferencia-salida'; // Usa el mismo endpoint que transferencia salida
+        endpoint = 'pdf-transferencia-salida';
+    } else if (tipo === 'Finalizar Reparaciones') {
+        endpoint = 'pdf-finalizacion-reparacion';  
     } else {
         Swal.fire('Error', 'Tipo de documento no reconocido', 'error');
         return;
