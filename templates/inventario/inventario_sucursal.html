@@ -68,49 +68,48 @@
         <input type="text" id="buscadorSucursal" class="search-inventario-box" placeholder="Buscar pieza...">
     </div>
 
-    <!-- Navegación entre Sucursales y Botones de Acción -->
-    <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
-        <div class="btn-group shadow-sm btn-group-modern" role="group">
-            <a href="{{ url_for('inventario.inventario_general') }}" 
-               class="btn btn-inventario-nav">
-                <i class="bi bi-grid-3x3-gap me-2"></i>General
+    <!-- Navegación entre Sucursales -->
+    <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('inventario.inventario_general') }}" class="btn btn-tab">
+                <i class="bi bi-grid-3x3-gap me-1"></i>General
             </a>
             <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=1) }}"
-               class="btn btn-inventario-nav {{ 'active' if sucursal.id_sucursal == 1 else '' }}">
-                <i class="bi bi-building me-2"></i>Matriz
+               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 1 else '' }}">
+                <i class="bi bi-building me-1"></i>Matriz
             </a>
             <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
-               class="btn btn-inventario-nav {{ 'active' if sucursal.id_sucursal == 2 else '' }}">
-                <i class="bi bi-building me-2"></i>Reyes
+               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 2 else '' }}">
+                <i class="bi bi-building me-1"></i>Reyes
             </a>
             <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
-               class="btn btn-inventario-nav {{ 'active' if sucursal.id_sucursal == 3 else '' }}">
-                <i class="bi bi-building me-2"></i>Lerma
+               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 3 else '' }}">
+                <i class="bi bi-building me-1"></i>Lerma
             </a>
         </div>
-        
-        <!-- Botones de Acción -->
-        <div class="d-flex gap-2">
-            <a href="{{ url_for('inventario.historial_transferencias_page', sucursal_id=sucursal.id_sucursal) }}" 
-               class="btn btn-inventario-filter">
-                <i class="bi bi-clock-history me-2"></i>Historial
-            </a>
-            <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalMarcarDaniadas">
-                <i class="bi bi-exclamation-triangle me-2"></i>Marcar como Dañadas
-            </button>
-            <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalReparacionLote">
-                <i class="bi bi-tools me-2"></i>Enviar a Reparación
-            </button>
-            <button class="btn btn-inventario-success" data-bs-toggle="modal" data-bs-target="#modalFinalizarReparaciones">
-                <i class="bi bi-check2-circle me-2"></i>Finalizar Reparaciones
-            </button>
-            <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalAltaEquipoNuevo">
-                <i class="bi bi-plus-circle me-2"></i>Alta de Equipo
-            </button>
-            <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalTransferencia">
-                <i class="bi bi-arrow-left-right me-2"></i>Transferir Piezas
-            </button>
-        </div>
+    </div>
+
+    <!-- Botones de Acción -->
+    <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+        <a href="{{ url_for('inventario.historial_transferencias_page', sucursal_id=sucursal.id_sucursal) }}" 
+           class="btn btn-inventario-filter">
+            <i class="bi bi-clock-history me-2"></i>Historial
+        </a>
+        <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalMarcarDaniadas">
+            <i class="bi bi-exclamation-triangle me-2"></i>Marcar como Dañadas
+        </button>
+        <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalReparacionLote">
+            <i class="bi bi-tools me-2"></i>Enviar a Reparación
+        </button>
+        <button class="btn btn-inventario-success" data-bs-toggle="modal" data-bs-target="#modalFinalizarReparaciones">
+            <i class="bi bi-check2-circle me-2"></i>Finalizar Reparaciones
+        </button>
+        <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalAltaEquipoNuevo">
+            <i class="bi bi-plus-circle me-2"></i>Alta de Equipo
+        </button>
+        <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalTransferencia">
+            <i class="bi bi-arrow-left-right me-2"></i>Transferir Piezas
+        </button>
     </div>
 
 
@@ -126,8 +125,6 @@
                     <th>Rentadas</th>
                     <th>Dañadas</th>
                     <th>En Reparación</th>
-                    <th>Stock Mínimo</th>
-                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -154,13 +151,6 @@
                     </td>
                     <td>
                         <span class="badge badge-inventario bg-info">{{ pieza.en_reparacion }}</span>
-                    </td>
-                    <td>{{ pieza.stock_minimo }}</td>
-                    <td>
-                        <span class="text-muted small">
-                            <i class="bi bi-info-circle"></i> 
-                            Usar botones de la barra superior
-                        </span>
                     </td>
                 </tr>
                 {% endfor %}

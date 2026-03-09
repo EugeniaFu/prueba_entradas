@@ -399,11 +399,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 ? window.notaEntradaPiezas.map(pieza => ({
                     id_pieza: pieza.id_pieza,
                     cantidad_esperada: pieza.cantidad_esperada,
-                    cantidad_recibida: '',
-                    cantidad_buena: '',
-                    cantidad_danada: '',
-                    cantidad_sucia: '',
-                    cantidad_perdida: '',
+                    cantidad_recibida: 0,
+                    cantidad_buena: 0,
+                    cantidad_danada: 0,
+                    cantidad_sucia: 0,
+                    cantidad_perdida: 0,
                     observaciones_pieza: ''
                 }))
                 : window.notaEntradaPiezas.map((pieza, idx) => ({

@@ -37,12 +37,9 @@
     </div>
 
     <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
-        <input type="text" id="buscadorTransferencias" class="search-transferencias-box" placeholder="Buscar por folio, sucursal, observaciones o tipo de movimiento...">
+        <input type="text" id="buscadorTransferencias" class="search-transferencias-box" placeholder="Buscar movimiento...">
         
         <div class="d-flex gap-2">
-            <button onclick="window.print()" class="btn btn-inventario-filter">
-                <i class="bi bi-printer me-2"></i>Imprimir
-            </button>
             <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=sucursal.id_sucursal) }}" class="btn btn-inventario-main">
                 <i class="bi bi-arrow-left me-2"></i>Volver al Inventario
             </a>

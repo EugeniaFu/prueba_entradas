@@ -35,7 +35,7 @@ function aplicarFiltros() {
   const filtro = filtroActual;
   const texto = (document.getElementById('buscadorProductos')?.value || '').toLowerCase();
 
-  document.querySelectorAll('.table-inventario tbody tr').forEach(function (row) {
+  document.querySelectorAll('.table-productos tbody tr').forEach(function (row) {
     const estatus = row.getAttribute('data-estatus');
     const contenido = row.innerText.toLowerCase();
 

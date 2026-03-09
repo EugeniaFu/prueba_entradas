@@ -28,33 +28,30 @@
   
   <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
     <input type="text" id="buscadorPiezas" class="search-inventario-box" placeholder="Buscar pieza...">
-    <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalNuevaPieza">
-      <i class="bi bi-plus-lg"></i> Nueva Pieza
-    </button>
   </div>
 
-  <!-- Filtros de estatus -->
+  <!-- Filtros de estatus y Botones de Acción -->
   <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
-    <div class="d-flex align-items-center gap-2">
-      
-      <div class="btn-group" role="group">
-        <button class="btn btn-inventario-filter-general filter-todos active" onclick="filtrarPorEstatus('todos')" id="filtro-todos">
-          Todas
-        </button>
-        <button class="btn btn-inventario-filter-general filter-activo" onclick="filtrarPorEstatus('activo')" id="filtro-activo">
-          Activas
-        </button>
-        <button class="btn btn-inventario-filter-general filter-descontinuado" onclick="filtrarPorEstatus('descontinuado')" id="filtro-descontinuado">
-          Descontinuadas
-        </button>
-      </div>
+    <div class="btn-group" role="group">
+      <button class="btn btn-tab active" onclick="filtrarPorEstatus('todos')" id="filtro-todos">
+        Todas
+      </button>
+      <button class="btn btn-tab" onclick="filtrarPorEstatus('activo')" id="filtro-activo">
+        Activas
+      </button>
+      <button class="btn btn-tab" onclick="filtrarPorEstatus('descontinuado')" id="filtro-descontinuado">
+        Descontinuadas
+      </button>
     </div>
     <div class="d-flex gap-2">
       <button class="btn btn-inventario-success" data-bs-toggle="modal" data-bs-target="#modalAltaEquipoGeneral">
-        <i class="bi bi-plus-circle"></i> Altas
+        <i class="bi bi-plus-circle me-2"></i>Altas
       </button>
-      <button class="btn btn-inventario-danger" data-bs-toggle="modal" data-bs-target="#modalBajaEquipoGeneral">
-        <i class="bi bi-dash-circle"></i> Bajas
+      <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalBajaEquipoGeneral">
+        <i class="bi bi-dash-circle me-2"></i>Bajas
+      </button>
+      <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalNuevaPieza">
+        <i class="bi bi-plus-lg me-2"></i>Nueva Pieza
       </button>
     </div>
   </div>

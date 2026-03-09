@@ -132,13 +132,29 @@ def obtener_info_redondeo(renta_id):
     renta_info = cursor.fetchone()
     total_renta = renta_info['total_con_iva'] if renta_info else 0
     
+    # Verificar si hay pagos en efectivo (para lógica de redondeo)
+    cursor.execute("""
+        SELECT COUNT(*) as pagos_efectivo
+        FROM prefacturas
+        WHERE renta_id = %s AND pagada = 1 AND metodo_pago = 'EFECTIVO'
+    """, (renta_id,))
+    hay_pagos_efectivo = cursor.fetchone()['pagos_efectivo'] > 0
+    
     cursor.close()
     conn.close()
     
     es_primer_abono = abono_info['total_abonos'] == 0
     total_ya_pagado = float(abono_info['total_pagado']) if abono_info['total_pagado'] is not None else 0.0
     primer_metodo_abono = abono_info['primer_metodo']
-    saldo_pendiente = float(total_renta) - total_ya_pagado
+    
+    # Calcular saldo pendiente considerando redondeo de efectivo
+    diferencia = float(total_renta) - total_ya_pagado
+    
+    # Si hay pagos en efectivo y la diferencia es mínima, considerar saldo = 0
+    if total_ya_pagado >= float(total_renta) or (hay_pagos_efectivo and abs(diferencia) < 1.00):
+        saldo_pendiente = 0.0
+    else:
+        saldo_pendiente = diferencia
     
     # Lógica simplificada para el frontend: aplicar redondeo en efectivo si es primer abono O si el primero fue efectivo
     aplicar_redondeo_efectivo = es_primer_abono or (primer_metodo_abono == 'EFECTIVO')
@@ -335,8 +351,20 @@ def registrar_pago_prefactura(renta_id):
         cursor.execute("SELECT total_con_iva FROM rentas WHERE id = %s", (renta_id,))
         total_renta = cursor.fetchone()[0]
 
-        # Determinar el nuevo estado de pago
-        if total_pagado >= total_renta:
+        # Verificar si hay pagos en efectivo (que pueden tener redondeo)
+        cursor.execute("""
+            SELECT COUNT(*) as pagos_efectivo
+            FROM prefacturas
+            WHERE renta_id = %s AND pagada = 1 AND metodo_pago = 'EFECTIVO'
+        """, (renta_id,))
+        hay_pagos_efectivo = cursor.fetchone()[0] > 0
+
+        # Determinar el nuevo estado de pago con lógica de redondeo de efectivo
+        diferencia = float(total_renta) - float(total_pagado)
+        
+        # Si hay pagos en efectivo y la diferencia es mínima (menor a $1.00 por redondeo)
+        # O si el total pagado es mayor o igual, considerarlo como pago realizado
+        if total_pagado >= total_renta or (hay_pagos_efectivo and abs(diferencia) < 1.00):
             nuevo_estado = 'Pago realizado'
         elif total_pagado > 0:
             nuevo_estado = 'Saldo pendiente'
@@ -366,7 +394,23 @@ def registrar_pago_prefactura(renta_id):
         cursor.execute("SELECT total_con_iva FROM rentas WHERE id = %s", (renta_id,))
         total_renta_actual = cursor.fetchone()[0]
         
-        saldo_pendiente_actual = float(total_renta_actual) - float(total_pagado_actual)
+        # Verificar nuevamente si hay pagos en efectivo para el cálculo del saldo
+        cursor.execute("""
+            SELECT COUNT(*) as pagos_efectivo
+            FROM prefacturas
+            WHERE renta_id = %s AND pagada = 1 AND metodo_pago = 'EFECTIVO'
+        """, (renta_id,))
+        hay_pagos_efectivo_actual = cursor.fetchone()[0] > 0
+        
+        # Calcular saldo pendiente considerando redondeo de efectivo
+        diferencia_actual = float(total_renta_actual) - float(total_pagado_actual)
+        
+        # Si hay pagos en efectivo y la diferencia es mínima, considerar saldo = 0
+        if float(total_pagado_actual) >= float(total_renta_actual) or \
+           (hay_pagos_efectivo_actual and abs(diferencia_actual) < 1.00):
+            saldo_pendiente_actual = 0.0
+        else:
+            saldo_pendiente_actual = diferencia_actual
 
         cursor.close()
         conn.close()
@@ -454,9 +498,22 @@ def generar_pdf_prefactura(prefactura_id):
     historial_pagos = cursor.fetchall()
     
     
-    total_renta = float(total_renta_info['total_con_iva']) if total_renta_info else float(prefactura['monto'])
+    # Para el PDF, usar el monto real cobrado en lugar del total original de la renta
+    # Si es pago inicial completo, usar el monto de la prefactura (incluye redondeo)
+    # Si hay abonos, usar el total original para cálculos de saldos
+    total_renta_original = float(total_renta_info['total_con_iva']) if total_renta_info else float(prefactura['monto'])
     total_pagado = sum(float(pago['monto']) for pago in historial_pagos)
-    saldo_pendiente = total_renta - total_pagado
+    
+    # Determinar qué total mostrar en el PDF
+    es_pago_inicial_solo = (len(historial_pagos) == 1 and historial_pagos[0]['tipo'] == 'inicial')
+    if es_pago_inicial_solo:
+        # Para pago inicial único, mostrar el monto real cobrado (con redondeo)
+        total_renta = float(prefactura['monto'])
+    else:
+        # Para cases con abonos, mostrar el total original
+        total_renta = total_renta_original
+    
+    saldo_pendiente = total_renta_original - total_pagado
     
     tiene_abonos = any(pago['tipo'] == 'abono' for pago in historial_pagos)
     es_pago_inicial_completo = (len(historial_pagos) == 1 and 
@@ -502,16 +559,16 @@ def generar_pdf_prefactura(prefactura_id):
     
     # Si hay abonos en efectivo, aplicar redondeo visual a los totales y saldos
     if tiene_abonos_efectivo:
-        # Redondear saldo pendiente para mostrar consistencia
+        # Redondear saldo pendiente para mostrar consistencia (usar total original para cálculos)
         if saldo_pendiente > 0.01:
             saldo_pendiente_original = saldo_pendiente
             saldo_pendiente = redondear_efectivo(saldo_pendiente)
-            # Ajustar el total pagado para que sume correctamente
-            total_pagado = total_renta - saldo_pendiente
+            # Ajustar el total pagado para que sume correctamente con el total original
+            total_pagado = total_renta_original - saldo_pendiente
             
             print(f"PDF - Redondeo aplicado: Saldo original {saldo_pendiente_original:.2f} -> Saldo redondeado {saldo_pendiente:.2f}")
     
-    print(f"PDF - Total renta: {total_renta:.2f}, Total pagado: {total_pagado:.2f}, Saldo pendiente: {saldo_pendiente:.2f}")
+    print(f"PDF - Total renta mostrado: {total_renta:.2f}, Total pagado: {total_pagado:.2f}, Saldo pendiente: {saldo_pendiente:.2f}")
 
     # --- GENERAR OVERLAY CON DATOS ---
     packet = BytesIO()
