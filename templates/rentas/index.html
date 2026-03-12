@@ -224,6 +224,12 @@
               <br>
               <span class="badge bg-warning text-dark">Piezas pendientes</span>
               {% endif %}
+              {% if renta[22] and renta[22] > 0 and not renta[23] %}
+              <br>
+              <span class="badge bg-info text-white">
+                <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
+              </span>
+              {% endif %}
             </td>
 
 
@@ -231,20 +237,21 @@
             <td>
 
               {# Estado de pago: mostrar 'Saldo pendiente' si corresponde #}
-              <span
-                class="badge
+              <span class="badge
                   {% if renta[4]|lower == 'cancelada' %}bg-info
                   {% elif renta[5]|lower == 'pago realizado' %}bg-success
                   {% elif renta[5]|lower == 'saldo pendiente' %}bg-warning
                   {% elif renta[5]|lower == 'pago pendiente' %}bg-danger
                   {% else %}bg-secondary
                   {% endif %}">
-                {% if renta[4]|lower == 'cancelada' %}Reembolsado{% elif renta[5]|lower == 'saldo pendiente' %}Saldo pendiente{% else %}{{ renta[5] }}{% endif %}
+                {% if renta[4]|lower == 'cancelada' %}Reembolsado{% elif renta[5]|lower == 'saldo pendiente' %}Saldo
+                pendiente{% else %}{{ renta[5] }}{% endif %}
               </span>
 
               {% if renta[17] %}
               <br>
-              <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17] }}</span>
+              <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17]
+                }}</span>
               {% endif %}
 
               {% if renta[20] == 'Retraso Pendiente' %}
@@ -276,13 +283,11 @@
                   </button>
                   <ul class="dropdown-menu">
                     <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
-                     <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i class="bi bi-ban me-2"></i>Cancelar renta</a></li>
-                    {% if renta[4] in ['Activo'] and not renta[23] %}
-                    <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#" data-renta-id="{{ renta[0] }}"><i class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
-                    
-                    
-                    
-                    
+                    <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
+                          class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                    {% if renta[4] == 'Activo' and not renta[23] %}
+                    <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#" data-renta-id="{{ renta[0] }}"><i
+                          class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
                     {% endif %}
                     <li>
                       <hr class="dropdown-divider">
@@ -344,19 +349,20 @@
                   </button>
                   <ul class="dropdown-menu">
                     <li>
-                      <a class="dropdown-item btn-nota-salida {% if renta[23] %}disabled{% endif %}"
-                        href="#" 
-                        data-renta-id="{{ renta[0] }}"
-                        {% if renta[23] %}tabindex="-1" aria-disabled="true"{% endif %}>
-                        <i class="bi bi-arrow-right-circle me-2 {% if renta[23] %}text-secondary{% else %}text-danger{% endif %}"></i>
+                      <a class="dropdown-item btn-nota-salida {% if renta[23] %}disabled{% endif %}" href="#"
+                        data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true" {% endif %}>
+                        <i
+                          class="bi bi-arrow-right-circle me-2 {% if renta[23] %}text-secondary{% else %}text-danger{% endif %}"></i>
                         Crear Nota de Salida
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item btn-nota-entrada {% if renta[23] %}disabled{% endif %}" 
-                         href="#" data-renta-id="{{ renta[0] }}"
-                         {% if renta[23] %}tabindex="-1" aria-disabled="true" title="Esta renta asociada no requiere nota de entrada"{% endif %}>
-                        <i class="bi bi-arrow-left-circle me-2 {% if renta[23] %}text-secondary{% else %}text-primary{% endif %}"></i>Crear Nota de Entrada
+                      <a class="dropdown-item btn-nota-entrada {% if renta[23] %}disabled{% endif %}" href="#"
+                        data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true"
+                        title="Esta renta asociada no requiere nota de entrada" {% endif %}>
+                        <i
+                          class="bi bi-arrow-left-circle me-2 {% if renta[23] %}text-secondary{% else %}text-primary{% endif %}"></i>Crear
+                        Nota de Entrada
                       </a>
                     </li>
                     <li>
@@ -367,7 +373,8 @@
                         href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
                         data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
                         renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
-                        <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo pendiente' %}Abonar{% else %}Generar Prefactura{% endif %}
+                        <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo pendiente'
+                        %}Abonar{% else %}Generar Prefactura{% endif %}
                       </a>
                     </li>
                     {% if renta[17] == 'Extra Pendiente' %}
@@ -388,10 +395,11 @@
                   </ul>
                 </div>
 
-                
+
                 <!-- Botón de Eliminar -->
-                <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta" type="button"
-                  data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar" data-renta-id="{{ renta[0] }}">
+                <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta"
+                  type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar"
+                  data-renta-id="{{ renta[0] }}">
                   <i class="bi bi-trash-fill"></i>
                 </button>
               </div>
@@ -401,35 +409,37 @@
         </tbody>
       </table>
       <div id="pagination-container" class="mt-3 d-flex justify-content-center"></div>
-          {% include 'rentas/_modal_cancelar_renta.html' %}
-        <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
-        <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <form id="form-cancelar-renta">
-                <div class="modal-header">
-                  <h5 class="modal-title">Cancelar renta</h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      {% include 'rentas/_modal_cancelar_renta.html' %}
+      <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
+      <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <form id="form-cancelar-renta">
+              <div class="modal-header">
+                <h5 class="modal-title">Cancelar renta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
+                  <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2"
+                    required></textarea>
                 </div>
-                <div class="modal-body">
-                  <div class="mb-3">
-                    <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
-                    <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2" required></textarea>
-                  </div>
-                  <div class="mb-3">
-                    <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
-                    <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0" step="0.01" required>
-                  </div>
-                  <input type="hidden" id="renta-id-cancelar" name="renta_id">
+                <div class="mb-3">
+                  <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
+                  <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0"
+                    step="0.01" required>
                 </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                  <button type="submit" class="btn btn-danger" id="btnConfirmarCancelarRenta">Cancelar renta</button>
-                </div>
-              </form>
-            </div>
+                <input type="hidden" id="renta-id-cancelar" name="renta_id">
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="submit" class="btn btn-danger" id="btnConfirmarCancelarRenta">Cancelar renta</button>
+              </div>
+            </form>
           </div>
         </div>
+      </div>
     </div>
   </div>
 </div>
@@ -518,22 +528,22 @@
 
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', function () {
     // Sincronizar sucursal del modal con la vista actual del admin
     const btnNuevaRenta = document.querySelector('[data-bs-target="#modalNuevaRenta"]');
     const modal = document.getElementById('modalNuevaRenta');
-    
+
     if (btnNuevaRenta && modal) {
-        btnNuevaRenta.addEventListener('click', function() {
-            const sucursalActual = this.dataset.sucursalActual;
-            const selectSucursal = modal.querySelector('#id_sucursal');
-            
-            if (sucursalActual && selectSucursal && selectSucursal.tagName === 'SELECT') {
-                selectSucursal.value = sucursalActual === 'todas' ? '{{ sucursal_id }}' : sucursalActual;
-            }
-        });
+      btnNuevaRenta.addEventListener('click', function () {
+        const sucursalActual = this.dataset.sucursalActual;
+        const selectSucursal = modal.querySelector('#id_sucursal');
+
+        if (sucursalActual && selectSucursal && selectSucursal.tagName === 'SELECT') {
+          selectSucursal.value = sucursalActual === 'todas' ? '{{ sucursal_id }}' : sucursalActual;
+        }
+      });
     }
-});
+  });
 </script>
 
 
@@ -622,55 +632,55 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  let rentaIdEliminar = null;
-  let mensajeModal = '';
-  const modalEliminar = new bootstrap.Modal(document.getElementById('modalEliminarRenta'));
+  document.addEventListener('DOMContentLoaded', function () {
+    let rentaIdEliminar = null;
+    let mensajeModal = '';
+    const modalEliminar = new bootstrap.Modal(document.getElementById('modalEliminarRenta'));
 
-  document.body.addEventListener('click', function (e) {
-    const btn = e.target.closest('.btn-eliminar-renta');
-    if (btn) {
-      rentaIdEliminar = btn.getAttribute('data-renta-id');
-      // Petición preliminar para obtener el estado de la renta y mostrar el mensaje adecuado
-      fetch(`/rentas/info_eliminar/${rentaIdEliminar}`)
+    document.body.addEventListener('click', function (e) {
+      const btn = e.target.closest('.btn-eliminar-renta');
+      if (btn) {
+        rentaIdEliminar = btn.getAttribute('data-renta-id');
+        // Petición preliminar para obtener el estado de la renta y mostrar el mensaje adecuado
+        fetch(`/rentas/info_eliminar/${rentaIdEliminar}`)
+          .then(resp => resp.json())
+          .then(data => {
+            if (data.status === 'ok') {
+              mensajeModal = data.mensaje;
+              document.getElementById('eliminarRentaMensaje').innerHTML = mensajeModal;
+              modalEliminar.show();
+            } else {
+              Swal.fire('Error', data.mensaje || 'No se pudo obtener información.', 'error');
+            }
+          })
+          .catch(() => {
+            Swal.fire('Error', 'No se pudo obtener información de la renta.', 'error');
+          });
+      }
+    });
+
+    document.getElementById('btnConfirmarEliminarRenta').addEventListener('click', function () {
+      if (!rentaIdEliminar) return;
+      fetch(`/rentas/eliminar/${rentaIdEliminar}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
         .then(resp => resp.json())
         .then(data => {
           if (data.status === 'ok') {
-            mensajeModal = data.mensaje;
-            document.getElementById('eliminarRentaMensaje').innerHTML = mensajeModal;
-            modalEliminar.show();
+            Swal.fire('Eliminada', data.mensaje, 'success').then(() => {
+              modalEliminar.hide();
+              window.location.reload();
+            });
           } else {
-            Swal.fire('Error', data.mensaje || 'No se pudo obtener información.', 'error');
+            Swal.fire('Error', data.mensaje || 'No se pudo eliminar la renta.', 'error');
           }
         })
         .catch(() => {
-          Swal.fire('Error', 'No se pudo obtener información de la renta.', 'error');
+          Swal.fire('Error', 'Error inesperado al eliminar.', 'error');
         });
-    }
+    });
   });
-
-  document.getElementById('btnConfirmarEliminarRenta').addEventListener('click', function () {
-    if (!rentaIdEliminar) return;
-    fetch(`/rentas/eliminar/${rentaIdEliminar}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    })
-      .then(resp => resp.json())
-      .then(data => {
-        if (data.status === 'ok') {
-          Swal.fire('Eliminada', data.mensaje, 'success').then(() => {
-            modalEliminar.hide();
-            window.location.reload();
-          });
-        } else {
-          Swal.fire('Error', data.mensaje || 'No se pudo eliminar la renta.', 'error');
-        }
-      })
-      .catch(() => {
-        Swal.fire('Error', 'Error inesperado al eliminar.', 'error');
-      });
-  });
-});
 </script>
 <script src="{{ url_for('static', filename='js/rentas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_salida.js') }}"></script>

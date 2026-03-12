@@ -862,10 +862,7 @@ def renovar_renta(renta_id):
         if not renta_original:
             flash("La renta original no existe.", "danger")
             return redirect(url_for('rentas.modulo_rentas'))
-
-        # Actualizar estado de la renta padre a 'activa renovación'
-        cursor.execute("UPDATE rentas SET estado_renta=%s WHERE id=%s", ("activa renovación", renta_id))
-
+        
         fecha_registro = get_local_now()
         costo_traslado = renta_original[3] or 0
         traslado = renta_original[4] or 'ninguno'
