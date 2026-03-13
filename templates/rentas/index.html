@@ -212,7 +212,7 @@
             <td>
               <span class="badge
                 {% if renta[4]|lower in ['activo', 'activa renovación'] %}bg-success
-                {% elif renta[4]|lower in ['finalizada', 'renovación finalizada'] %}bg-dark
+                {% elif renta[4]|lower == 'finalizada' %}bg-dark
                 {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
                 {% elif renta[4]|lower == 'en curso' %}bg-primary
                 {% else %}bg-secondary

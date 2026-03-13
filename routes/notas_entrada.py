@@ -404,7 +404,7 @@ def crear_nota_entrada(renta_id):
                 
                 # Finalizar también las rentas asociadas (renovaciones)
                 cursor.execute("""
-                    UPDATE rentas SET estado_renta = 'renovación finalizada'
+                    UPDATE rentas SET estado_renta = 'finalizada'
                     WHERE renta_asociada_id = %s AND estado_renta = 'activa renovación'
                 """, (renta_id,))
             else:

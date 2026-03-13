@@ -228,11 +228,11 @@ def modulo_rentas():
                 ELSE 0
             END
         ) AS piezas_pendientes,
-        -- Verificar si hay rentas asociadas (renovaciones)
+        -- Verificar si hay rentas asociadas (renovaciones activas)
         (
             SELECT COUNT(*)
             FROM rentas r_hija
-            WHERE r_hija.renta_asociada_id = r.id
+            WHERE r_hija.renta_asociada_id = r.id AND r_hija.estado_renta = 'activa renovación'
         ) AS tiene_renovaciones,
         r.renta_asociada_id,
         r.id_sucursal,
