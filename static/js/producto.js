@@ -113,12 +113,12 @@ function toggleCamposPrecioNuevo() {
   const camposRangos = document.getElementById('camposRangosNuevo');
   if (check.checked) {
     camposRangos.style.display = 'none';
-    document.querySelectorAll('input[name="precio_7dias"], input[name="precio_15dias"], input[name="precio_30dias"], input[name="precio_31mas"]').forEach(function (input) {
+    document.querySelectorAll('input[name="precio_7dias"], input[name="precio_15dias"], input[name="precio_30dias"]').forEach(function (input) {
       input.required = false;
     });
   } else {
     camposRangos.style.display = 'flex';
-    document.querySelectorAll('input[name="precio_7dias"], input[name="precio_15dias"], input[name="precio_30dias"], input[name="precio_31mas"]').forEach(function (input) {
+    document.querySelectorAll('input[name="precio_7dias"], input[name="precio_15dias"], input[name="precio_30dias"]').forEach(function (input) {
       input.required = true;
     });
   }
@@ -135,12 +135,12 @@ function toggleCamposPrecioEditar(idProducto) {
   const camposRangos = document.getElementById('camposRangosEditar' + idProducto);
   if (check.checked) {
     camposRangos.style.display = 'none';
-    document.querySelectorAll(`#camposRangosEditar${idProducto} input[name="precio_7dias"], #camposRangosEditar${idProducto} input[name="precio_15dias"], #camposRangosEditar${idProducto} input[name="precio_30dias"], #camposRangosEditar${idProducto} input[name="precio_31mas"]`).forEach(function (input) {
+    document.querySelectorAll(`#camposRangosEditar${idProducto} input[name="precio_7dias"], #camposRangosEditar${idProducto} input[name="precio_15dias"], #camposRangosEditar${idProducto} input[name="precio_30dias"]`).forEach(function (input) {
       input.required = false;
     });
   } else {
     camposRangos.style.display = 'flex';
-    document.querySelectorAll(`#camposRangosEditar${idProducto} input[name="precio_7dias"], #camposRangosEditar${idProducto} input[name="precio_15dias"], #camposRangosEditar${idProducto} input[name="precio_30dias"], #camposRangosEditar${idProducto} input[name="precio_31mas"]`).forEach(function (input) {
+    document.querySelectorAll(`#camposRangosEditar${idProducto} input[name="precio_7dias"], #camposRangosEditar${idProducto} input[name="precio_15dias"], #camposRangosEditar${idProducto} input[name="precio_30dias"]`).forEach(function (input) {
       input.required = true;
     });
   }

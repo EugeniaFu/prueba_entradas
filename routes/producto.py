@@ -60,7 +60,7 @@ def crear_producto():
         precio_7dias = request.form.get('precio_7dias') or 0
         precio_15dias = request.form.get('precio_15dias') or 0
         precio_30dias = request.form.get('precio_30dias') or 0
-        precio_31mas = request.form.get('precio_31mas') or 0
+        precio_31mas = precio_30dias  # Mantener compatibilidad BD - mismo valor que 30dias
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -121,7 +121,7 @@ def editar_producto(id_producto):
         precio_7dias = request.form.get('precio_7dias') or 0
         precio_15dias = request.form.get('precio_15dias') or 0
         precio_30dias = request.form.get('precio_30dias') or 0
-        precio_31mas = request.form.get('precio_31mas') or 0
+        precio_31mas = precio_30dias  # Mantener compatibilidad BD - mismo valor que 30dias
 
     conn = get_db_connection()
     cursor = conn.cursor()

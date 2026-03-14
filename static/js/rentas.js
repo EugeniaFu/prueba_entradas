@@ -86,11 +86,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (precios.precio_unico === 1) {
             return precios.precio_dia; // Siempre usa precio_dia, sin importar los días
         }
-        if (dias === 1) return precios.precio_dia;
-        if (dias >= 2 && dias <= 7) return precios.precio_7dias;
-        if (dias >= 8 && dias <= 15) return precios.precio_15dias;
-        if (dias >= 16 && dias <= 30) return precios.precio_30dias;
-        if (dias >= 31) return precios.precio_31mas;
+        if (dias <= 2) return precios.precio_dia;
+        if (dias >= 3 && dias <= 14) return precios.precio_7dias;
+        if (dias >= 15 && dias <= 29) return precios.precio_15dias;
+        if (dias >= 30) return precios.precio_30dias;
         return precios.precio_dia;
     }
 

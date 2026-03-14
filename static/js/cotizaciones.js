@@ -381,6 +381,8 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(response => response.json())
             .then(data => {
+                console.log('Respuesta del servidor:', data); // Para debug
+                
                 if (data.success) {
                     // Cerrar modal
                     bootstrap.Modal.getInstance(document.getElementById('modalNuevaCotizacion')).hide();
@@ -395,7 +397,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         cancelButtonText: 'Cerrar'
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            // Abrir PDF en nueva pestaña usando la URL permanente
+                            // Abrir PDF en nueva pestaña usando la URL del servidor
+                            console.log('PDF URL:', data.pdf_url); // Para debug
                             window.open(data.pdf_url, '_blank');
                         }
                     });

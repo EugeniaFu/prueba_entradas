@@ -154,16 +154,14 @@ def calcular_precio_por_dias(producto_id, dias_renta):
         return 0.00
     
     # Lógica para determinar precio según días
-    if dias_renta <= 6:
-        return float(precios[0])  # precio_dia
+    if dias_renta <= 2:
+        return float(precios[0])  # precio_dia (1-2 días)
     elif dias_renta <= 14:
-        return float(precios[1])  # precio_7dias
+        return float(precios[1])  # precio_7dias (3-14 días)
     elif dias_renta <= 29:
-        return float(precios[2])  # precio_15dias
-    elif dias_renta == 30:
-        return float(precios[3])  # precio_30dias
-    else:
-        return float(precios[4])  # precio_31mas
+        return float(precios[2])  # precio_15dias (15-29 días)
+    else:  # 30+ días
+        return float(precios[3])  # precio_30dias (30+ días)
 
 
 
