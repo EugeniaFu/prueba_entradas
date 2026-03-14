@@ -245,6 +245,149 @@
     box-shadow: 0 0 0 0.15rem #3363af33;
 }
 
+/* --- MODAL NUEVA COTIZACIÓN - Estilo consistente con nueva renta --- */
+#modalNuevaCotizacion .modal-header {
+    background: #23395d;
+    color: #fff;
+    border-bottom: none;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 1.5rem 2rem;
+}
+
+#modalNuevaCotizacion .modal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff !important;
+}
+
+#modalNuevaCotizacion .modal-content {
+    border: 2px solid #23395d;
+    border-radius: 16px;
+}
+
+#modalNuevaCotizacion .modal-footer {
+    background: #f1f4fa;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-top: 2px solid #23395d;
+    padding: 1.2rem 2rem;
+}
+
+#modalNuevaCotizacion .card-header {
+    background: #23395d;
+    color: #fff !important;
+    border-bottom: 2px solid #1a2d4a;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+}
+
+#modalNuevaCotizacion .card-header h6 {
+    color: #fff !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#modalNuevaCotizacion .card {
+    border: 2px solid #23395d;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(35, 57, 93, 0.1);
+}
+
+#modalNuevaCotizacion .card-body {
+    padding: 1.5rem;
+    background: #ffffff;
+}
+
+#modalNuevaCotizacion .form-label {
+    color: #23395d;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+}
+
+#modalNuevaCotizacion .form-control,
+#modalNuevaCotizacion .form-select {
+    border: 1.5px solid #d1d9e6;
+    border-radius: 8px;
+    padding: 0.7rem;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+#modalNuevaCotizacion .form-control:focus,
+#modalNuevaCotizacion .form-select:focus {
+    border-color: #23395d;
+    box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25);
+}
+
+#modalNuevaCotizacion .btn-primary {
+    background: #23395d;
+    border: 1px solid #23395d;
+    font-weight: 700;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+#modalNuevaCotizacion .btn-primary:hover {
+    background: #1a2d4a;
+    border-color: #1a2d4a;
+}
+
+#modalNuevaCotizacion .btn-secondary {
+    background: #6c757d;
+    border: 1px solid #6c757d;
+    font-weight: 600;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+}
+
+#modalNuevaCotizacion .table-bordered {
+    border: 2px solid #23395d;
+}
+
+#modalNuevaCotizacion .table thead th {
+    background: #23395d;
+    color: #fff;
+    border-color: #23395d;
+    font-weight: 700;
+    text-align: center;
+}
+
+#modalNuevaCotizacion .table td {
+    border-color: #d1d9e6;
+    vertical-align: middle;
+}
+
+/* Tooltip para productos */
+#modalNuevaCotizacion .tooltip-producto {
+    cursor: help;
+    border-bottom: 1px dotted #23395d;
+}
+
+/* Responsive para el modal */
+@media (max-width: 768px) {
+    #modalNuevaCotizacion .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    #modalNuevaCotizacion .modal-header,
+    #modalNuevaCotizacion .modal-footer {
+        padding: 1rem;
+    }
+    
+    #modalNuevaCotizacion .card-body {
+        padding: 1rem;
+    }
+}
+
 /* --- RESPONSIVE --- */
 @media (max-width: 900px) {
     .cotizaciones-box-container {

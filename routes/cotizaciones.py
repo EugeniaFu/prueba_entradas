@@ -258,7 +258,7 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
         destinatario = cotizacion['cliente_empresa'].upper()
         can.drawString(25, y, f"EMPRESA: {destinatario}")
         y -= 15
-        can.drawString(25, y, f"CONTACTO: {cotizacion['cliente_nombre']}")
+        can.drawString(25, y, f"CONTACTO: {cotizacion['cliente_nombre'].upper()}")
     else:
         destinatario = cotizacion['cliente_nombre'].upper()
         can.drawString(25, y, f"CLIENTE: {destinatario}")
@@ -296,7 +296,6 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     
     can.setFont("Carlito", 8)
     subtotal_productos = 0
-    
     
 
     for producto in productos:
@@ -343,7 +342,25 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
         # Piezas SOLO si es conjunto/kit Y tiene piezas
         if producto['tipo'] == 'conjunto' and producto['piezas']:
             can.setFont("Carlito", 7)
-            piezas_texto = f"INCLUYE: {producto['piezas'].upper()}"
+            
+            # Multiplicar piezas por la cantidad de equipos
+            piezas_multiplicadas = []
+            for pieza in producto['piezas'].split(', '):
+                # Extraer cantidad y nombre de cada pieza (formato: "2 Tubos")
+                partes = pieza.strip().split(' ', 1)
+                if len(partes) >= 2:
+                    try:
+                        cantidad_original = int(partes[0])
+                        nombre_pieza = partes[1]
+                        cantidad_total = cantidad_original * producto['cantidad']
+                        piezas_multiplicadas.append(f"{cantidad_total} {nombre_pieza}")
+                    except ValueError:
+                        # Si no se puede convertir a entero, mantener original
+                        piezas_multiplicadas.append(pieza)
+                else:
+                    piezas_multiplicadas.append(pieza)
+            
+            piezas_texto = f"INCLUYE: {', '.join(piezas_multiplicadas).upper()}"
             lineas_piezas = dividir_texto(piezas_texto, 75)
             
             for linea in lineas_piezas:
@@ -410,8 +427,7 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     y -= 10
 
 
-    # ⭐ AGREGAR CONTROL DE PÁGINA NUEVA ⭐
-    # Verificar si hay suficiente espacio para el resto del contenido
+    
     espacio_necesario = 100 # Espacio para certificaciones, métodos de pago, etc.
 
     if y < espacio_necesario:
@@ -481,7 +497,27 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
         can.drawString(60, y, cond)
         y -= 10
 
+    y -= 5
+
+    # === DATOS BANCARIOS ===
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(50, y, "DATOS BANCARIOS:")
     y -= 10
+
+    can.setFont("Carlito", 8)
+    can.drawString(60, y, "CUENTA: JAVIER ENRIQUE ALCOCER BERNES")
+    y -= 10
+    can.drawString(60, y, "• BANCO: BANORTE")
+    y -= 10
+    can.drawString(60, y, "• CTA: 0659076153")
+    y -= 10
+    can.drawString(60, y, "• CLABE: 072050006590761530")
+    y -= 10
+    can.drawString(60, y, "• R.F.C: AOBJ650602UE1")
+    y -= 10
+    can.drawString(60, y, "• EMAIL: puntalesyandamioscolosio@hotmail.com")
+
+    y -= 24
 
 
 

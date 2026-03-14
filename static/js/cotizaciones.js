@@ -13,9 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const agregarTrasladoBtn = document.getElementById('agregar_traslado');
     const productoSelect = document.getElementById('producto_select');
     const cantidadInput = document.getElementById('cantidad_input');
-    const precioUnitarioInput = document.getElementById('precio_unitario');
-    const subtotalProductoInput = document.getElementById('subtotal_producto');
-    const agregarProductoBtn = document.getElementById('agregar_producto');
+    const agregarProductoBtn = document.getElementById('agregar_producto_btn');
     const productosTableBody = document.getElementById('productos_tbody');
     const mensajeSinProductos = document.getElementById('mensaje_sin_productos');
     const btnCrearCotizacion = document.getElementById('btn_crear_cotizacion');
@@ -159,21 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const productoId = this.value;
         const diasRenta = parseInt(diasRentaInput.value) || 1;
 
-        if (productoId && diasRenta) {
-            // Obtener precio automáticamente
-            fetch(`/cotizaciones/precios/${productoId}/${diasRenta}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.precio) {
-                        precioUnitarioInput.value = data.precio.toFixed(2);
-                        calcularSubtotalProducto();
-                    }
-                })
-                .catch(error => console.error('Error:', error));
-        } else {
-            precioUnitarioInput.value = '';
-            subtotalProductoInput.value = '';
-        }
+        // El precio se obtendrá automáticamente al agregar el producto
         validarFormularioProducto();
     });
 
@@ -206,9 +190,9 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
 
-        // Recalcular precio del producto seleccionado
+        // Recalcular precio del producto seleccionado si hay uno seleccionado
         if (productoSelect.value) {
-            productoSelect.dispatchEvent(new Event('change'));
+            // Se validará al agregar el producto
         }
 
         // Recalcular totales después de un pequeño delay
@@ -218,32 +202,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 100);
     });
 
-    // Cuando cambien los días de renta, también recalcular el subtotal del producto en selección
-    diasRentaInput.addEventListener('input', function () {
-        calcularSubtotalProducto();
-    });
-
     // Cuando cambie la cantidad
     cantidadInput.addEventListener('input', function () {
-        calcularSubtotalProducto();
         validarFormularioProducto();
     });
-
-    // Calcular subtotal del producto (PRECIO × CANTIDAD × DÍAS)
-    function calcularSubtotalProducto() {
-        const cantidad = parseFloat(cantidadInput.value) || 0;
-        const precio = parseFloat(precioUnitarioInput.value) || 0;
-        const dias = parseInt(diasRentaInput.value) || 1;
-        const subtotal = cantidad * precio * dias;
-        subtotalProductoInput.value = subtotal.toFixed(2);
-    }
 
     // Validar formulario de producto
     function validarFormularioProducto() {
         const valido = productoSelect.value &&
             cantidadInput.value &&
-            parseFloat(cantidadInput.value) > 0 &&
-            precioUnitarioInput.value;
+            parseFloat(cantidadInput.value) > 0;
 
         agregarProductoBtn.disabled = !valido;
     }
@@ -253,69 +221,79 @@ document.addEventListener('DOMContentLoaded', function () {
         const productoId = productoSelect.value;
         const productoNombre = productoSelect.options[productoSelect.selectedIndex].text;
         const cantidad = parseFloat(cantidadInput.value);
-        const precioUnitario = parseFloat(precioUnitarioInput.value);
         const diasRenta = parseInt(diasRentaInput.value) || 1;
-        const subtotal = cantidad * precioUnitario * diasRenta; // Incluir días en el cálculo
+        
+        // Obtener precio del servidor
+        fetch(`/cotizaciones/precios/${productoId}/${diasRenta}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.precio) {
+                    const precioUnitario = data.precio;
+                    const subtotal = cantidad * precioUnitario * diasRenta;
 
-        // Verificar si el producto ya existe
-        const productoExistente = productosAgregados.find(p => p.producto_id === productoId);
+                    // Verificar si el producto ya existe
+                    const productoExistente = productosAgregados.find(p => p.producto_id === productoId);
 
-        if (productoExistente) {
-            // Actualizar cantidad y subtotal
-            productoExistente.cantidad += cantidad;
-            productoExistente.subtotal = productoExistente.cantidad * productoExistente.precio_unitario * diasRenta;
+                    if (productoExistente) {
+                        // Actualizar cantidad y subtotal
+                        productoExistente.cantidad += cantidad;
+                        productoExistente.subtotal = productoExistente.cantidad * productoExistente.precio_unitario * diasRenta;
 
-            // Actualizar en la tabla
-            const fila = document.querySelector(`tr[data-producto-id="${productoId}"]`);
-            fila.querySelector('.cantidad').textContent = productoExistente.cantidad;
-            fila.querySelector('.subtotal').textContent = `$${productoExistente.subtotal.toFixed(2)}`;
-        } else {
-            // Agregar nuevo producto
-            const producto = {
-                tipo: 'producto',
-                producto_id: productoId,
-                nombre: productoNombre,
-                cantidad: cantidad,
-                precio_unitario: precioUnitario,
-                subtotal: subtotal,
-                dias: diasRenta,
-                index: productoCounter++
-            };
+                        // Actualizar en la tabla
+                        const fila = document.querySelector(`tr[data-producto-id="${productoId}"]`);
+                        fila.querySelector('.cantidad').textContent = productoExistente.cantidad;
+                        fila.querySelector('.subtotal').textContent = `$${productoExistente.subtotal.toFixed(2)}`;
+                    } else {
+                        // Agregar nuevo producto
+                        const producto = {
+                            tipo: 'producto',
+                            producto_id: productoId,
+                            nombre: productoNombre,
+                            cantidad: cantidad,
+                            precio_unitario: precioUnitario,
+                            subtotal: subtotal,
+                            dias: diasRenta,
+                            index: productoCounter++
+                        };
 
-            productosAgregados.push(producto);
+                        productosAgregados.push(producto);
 
-            // Agregar fila a la tabla
-            const fila = document.createElement('tr');
-            fila.setAttribute('data-producto-id', productoId);
-            fila.innerHTML = `
-                <td>${productoNombre}</td>
-                <td class="cantidad">${cantidad}</td>
-                <td class="dias">${diasRenta}</td>
-                <td class="precio-unitario">$${precioUnitario.toFixed(2)}</td>
-                <td class="subtotal">$${subtotal.toFixed(2)}</td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto('${productoId}')">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            `;
-            productosTableBody.appendChild(fila);
-        }
+                        // Agregar fila a la tabla
+                        const fila = document.createElement('tr');
+                        fila.setAttribute('data-producto-id', productoId);
+                        fila.innerHTML = `
+                            <td>${productoNombre}</td>
+                            <td class="cantidad">${cantidad}</td>
+                            <td class="dias">${diasRenta}</td>
+                            <td class="precio-unitario">$${precioUnitario.toFixed(2)}</td>
+                            <td class="subtotal">$${subtotal.toFixed(2)}</td>
+                            <td>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto('${productoId}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        `;
+                        productosTableBody.appendChild(fila);
+                    }
 
-        // Limpiar formulario
-        productoSelect.value = '';
-        cantidadInput.value = '';
-        precioUnitarioInput.value = '';
-        subtotalProductoInput.value = '';
-        agregarProductoBtn.disabled = true;
+                    // Limpiar formulario
+                    productoSelect.value = '';
+                    cantidadInput.value = '';
+                    agregarProductoBtn.disabled = true;
 
-        // Ocultar mensaje sin productos
-        mensajeSinProductos.style.display = 'none';
+                    // Ocultar mensaje sin productos
+                    mensajeSinProductos.style.display = 'none';
 
-        // Recalcular totales
-        calcularTotales();
-        actualizarHiddenInputs();
-        validarFormularioCompleto();
+                    // Recalcular totales
+                    calcularTotales();
+                    actualizarHiddenInputs();
+                    validarFormularioCompleto();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al obtener el precio del producto');
+            });
     });
 
     // Eliminar producto
@@ -383,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Manejar el envío del formulario de nueva cotización
-    document.getElementById('modalNuevaCotizacion').addEventListener('submit', function (e) {
+    document.getElementById('form-nueva-cotizacion').addEventListener('submit', function (e) {
         e.preventDefault(); // Prevenir el envío normal del formulario
 
         const form = e.target;
