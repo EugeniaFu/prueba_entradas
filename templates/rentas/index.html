@@ -76,19 +76,33 @@
 
 
     <!-- Filtros de búsqueda -->
-    <form method="get" class="d-flex flex-wrap align-items-center mb-3 gap-2">
-      <input type="text" class="search-rentas-box" name="busqueda" placeholder="Buscar renta...">
-      <select class="form-select" name="filtro" style="max-width:180px;">
-        <option value="">Filtrar rentas</option>
+    <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+      <input type="text" class="search-rentas-box" id="buscadorRentas" placeholder="Buscar por folio, cliente...">
+      <select class="form-select" id="filtroEstado" style="max-width:200px;">
+        <option value="">Todos los estados</option>
+        <option value="activo">Activas</option>
         <option value="en curso">En curso</option>
         <option value="programada">Programadas</option>
         <option value="finalizadas">Finalizadas</option>
+        <option value="cancelada">Canceladas</option>
+        <option value="en recolección">En recolección</option>
+        <option value="renta parcial">Renta parcial</option>
+        <option value="activa renovación">Activa renovación</option>
+        <option value="piezas pendientes">Piezas pendientes</option>
+        <option value="renta en renovación">Renta en renovación</option>
+        <option value="pago pendiente">Pago pendiente</option>
+        <option value="saldo pendiente">Saldo pendiente</option>
+        <option value="pago realizado">Pago realizado</option>
+        <option value="retraso pendiente">Retraso pendiente</option>
+        <option value="retraso pagado">Retraso pagado</option>
+        <option value="extra pendiente">Extra pendiente</option>
+        <option value="extra pagado">Extra pagado</option>
+        <option value="retrasadas">Retrasadas</option>
       </select>
-      <button type="submit" class="btn btn-rentas-filter">
-        <i class="bi bi-search"></i> Buscar
+      <button type="button" id="btnLimpiarFiltros" class="btn btn-rentas-filter">
+        <i class="bi bi-x-circle"></i> Limpiar
       </button>
-      <a href="#" class="btn btn-rentas-filter">Rentas canceladas</a>
-    </form>
+    </div>
 
     <!-- Tabla de rentas -->
     <div class="table-responsive">
