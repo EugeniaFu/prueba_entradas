@@ -266,7 +266,7 @@ def registrar_pago_prefactura(renta_id):
                 if es_primer_abono:
                     # Primer abono en efectivo
                     if float(monto) >= saldo_pendiente:
-                        # Es liquidación completa: redondear el saldo total
+                        # Es liquidación completa: redondear el saldo total, no el monto original
                         saldo_redondeado = redondear_efectivo(saldo_pendiente)
                         monto = saldo_redondeado
                         print(f"Liquidación completa - Saldo redondeado: {saldo_redondeado}")
@@ -274,26 +274,40 @@ def registrar_pago_prefactura(renta_id):
                         # Es abono parcial: redondear el monto del abono
                         monto_redondeado = redondear_efectivo(float(monto))
                         monto = monto_redondeado
-                        print(f"Abono parcial - Monto redondeado: {monto_redondeado}")
+                        print(f"Abono parcial - Monto abono redondeado: {monto_redondeado}")
                     
                     # Recalcular cambio si es necesario
                     if monto_recibido and float(monto_recibido) > float(monto):
                         cambio = float(monto_recibido) - float(monto)
                         
                 elif primer_metodo_abono == 'EFECTIVO':
-                    # Abono posterior cuando el primero fue efectivo: aplicar redondeo
-                    monto_redondeado = redondear_efectivo(float(monto))
-                    monto = monto_redondeado
-                    print(f"Abono posterior efectivo - Monto redondeado: {monto_redondeado}")
+                    # Abono posterior cuando el primero fue efectivo: aplicar redondeo al monto del abono
+                    if float(monto) >= saldo_pendiente:
+                        # Liquidación del saldo restante
+                        saldo_redondeado = redondear_efectivo(saldo_pendiente)
+                        monto = saldo_redondeado
+                        print(f"Liquidación saldo restante - Saldo redondeado: {saldo_redondeado}")
+                    else:
+                        # Abono parcial adicional
+                        monto_redondeado = redondear_efectivo(float(monto))
+                        monto = monto_redondeado
+                        print(f"Abono posterior parcial - Monto redondeado: {monto_redondeado}")
                     
                     # Recalcular cambio si es necesario
                     if monto_recibido and float(monto_recibido) > float(monto):
                         cambio = float(monto_recibido) - float(monto)
                 else:
-                    # Primer abono efectivo sin previos: aplicar redondeo normal
-                    monto_redondeado = redondear_efectivo(float(monto))
-                    monto = monto_redondeado
-                    print(f"Primer efectivo sin previos - Monto redondeado: {monto_redondeado}")
+                    # Primer abono efectivo sin previos: aplicar redondeo según el tipo
+                    if float(monto) >= saldo_pendiente:
+                        # Es liquidación completa del saldo
+                        saldo_redondeado = redondear_efectivo(saldo_pendiente)
+                        monto = saldo_redondeado
+                        print(f"Primer efectivo - Liquidación completa - Saldo redondeado: {saldo_redondeado}")
+                    else:
+                        # Es abono parcial
+                        monto_redondeado = redondear_efectivo(float(monto))
+                        monto = monto_redondeado  
+                        print(f"Primer efectivo - Abono parcial - Monto redondeado: {monto_redondeado}")
                     
                     # Recalcular cambio si es necesario
                     if monto_recibido and float(monto_recibido) > float(monto):

@@ -412,6 +412,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         const metodo = this.value;
                         const pagoTotalElement = document.getElementById('pago-total-pago');
                         const total = pagoTotalElement ? parseFloat(pagoTotalElement.textContent) || 0 : 0;
+                        const tipoSelect = document.getElementById('tipo_prefactura_pago');
+                        const tipo = tipoSelect ? tipoSelect.value : 'inicial';
+                        
+                        // Obtener elementos de abono
+                        const montoExactoInput = document.getElementById('monto-exacto-input');
+                        const montoExactoDisplay = document.getElementById('monto-exacto-display');
+                        const montoExactoHelp = document.getElementById('monto-exacto-help');
 
                         if (metodo === 'EFECTIVO') {
                             // Para efectivo: aplicar redondeo, mostrar campos de efectivo, ocultar seguimiento
@@ -426,6 +433,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (efectivo) efectivo.style.display = '';
                             if (seguimiento) seguimiento.style.display = 'none';
                             if (numSeguimiento) numSeguimiento.value = '';
+                            
+                            // Para efectivo, ocultar el campo de monto exacto para abonos
+                            if (tipo === 'abono') {
+                                if (montoExactoInput) montoExactoInput.style.display = 'none';
+                                if (montoExactoDisplay) montoExactoDisplay.style.display = '';
+                                if (montoExactoHelp) montoExactoHelp.style.display = 'none';
+                            }
                         } else {
                             // Para otros métodos: usar total exacto, poner readonly en recibido, mostrar seguimiento
                             if (pagoTotalElement) {
@@ -438,6 +452,24 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (cambio) cambio.textContent = '0.00';
                             if (efectivo) efectivo.style.display = 'none';
                             if (seguimiento) seguimiento.style.display = '';
+                            
+                            // Para métodos no-efectivo con abonos, mostrar el campo de monto exacto
+                            if (tipo === 'abono') {
+                                if (montoExactoInput) {
+                                    montoExactoInput.style.display = '';
+                                    const saldoPendiente = document.getElementById('saldo-pendiente-display');
+                                    const saldoVal = saldoPendiente ? parseFloat(saldoPendiente.textContent) || 0 : total;
+                                    montoExactoInput.value = saldoVal.toFixed(2);
+                                    montoExactoInput.max = saldoVal.toFixed(2);
+                                }
+                                if (montoExactoDisplay) montoExactoDisplay.style.display = 'none';
+                                if (montoExactoHelp) montoExactoHelp.style.display = '';
+                            } else {
+                                // Para pagos iniciales, ocultar el campo editable
+                                if (montoExactoInput) montoExactoInput.style.display = 'none';
+                                if (montoExactoDisplay) montoExactoDisplay.style.display = '';
+                                if (montoExactoHelp) montoExactoHelp.style.display = 'none';
+                            }
                         }
                     });
                 }
@@ -453,6 +485,32 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (cambio) {
                                 cambio.textContent = cambioCalculado.toFixed(2);
                             }
+                        }
+                    });
+                }
+                
+                // Event listener para cambio de tipo de prefactura
+                const tipoSelect = document.getElementById('tipo_prefactura_pago');
+                if (tipoSelect) {
+                    tipoSelect.addEventListener('change', function () {
+                        // Reinicializar al cambiar el tipo
+                        actualizarMontoPagar();
+                        
+                        // Reconfigurar campos según método de pago actual
+                        if (metodoPago && metodoPago.value) {
+                            metodoPago.dispatchEvent(new Event('change'));
+                        }
+                    });
+                }
+                
+                // Event listener para campo monto exacto (abonos con métodos no-efectivo)
+                const montoExactoInput = document.getElementById('monto-exacto-input');
+                if (montoExactoInput) {
+                    montoExactoInput.addEventListener('input', function () {
+                        const pagoTotalElement = document.getElementById('pago-total-pago');
+                        const montoAbono = parseFloat(this.value) || 0;
+                        if (pagoTotalElement) {
+                            pagoTotalElement.textContent = montoAbono.toFixed(2);
                         }
                     });
                 }
@@ -509,11 +567,28 @@ document.addEventListener('DOMContentLoaded', function () {
             if (metodo.value === 'EFECTIVO') {
                 const montoRecibido = document.getElementById('monto-recibido-pago');
                 const pagoTotal = document.getElementById('pago-total-pago');
+                const tipoSelect = document.getElementById('tipo_prefactura_pago');
+                const tipo = tipoSelect ? tipoSelect.value : 'inicial';
+                
                 const montoRecibidoVal = montoRecibido ? parseFloat(montoRecibido.value) || 0 : 0;
                 const totalPagar = pagoTotal ? parseFloat(pagoTotal.textContent) || 0 : 0;
-                if (montoRecibidoVal < totalPagar) {
+                
+                // Para pagos iniciales, validar que el monto sea suficiente
+                // Para abonos, solo validar que sea mayor que 0
+                if (tipo === 'inicial' && montoRecibidoVal < totalPagar) {
                     Swal.fire('Error', 'El monto recibido debe ser mayor o igual al total a pagar', 'error');
                     return;
+                } else if (tipo === 'abono' && montoRecibidoVal <= 0) {
+                    Swal.fire('Error', 'El monto del abono debe ser mayor que cero', 'error');
+                    return;
+                } else if (tipo === 'abono') {
+                    // Para abonos, verificar que no exceda el saldo pendiente
+                    const saldoPendiente = document.getElementById('saldo-pendiente-display');
+                    const saldoPendienteVal = saldoPendiente ? parseFloat(saldoPendiente.textContent) || 0 : totalPagar;
+                    if (montoRecibidoVal > saldoPendienteVal) {
+                        Swal.fire('Error', `El abono no puede ser mayor que el saldo pendiente ($${saldoPendienteVal.toFixed(2)})`, 'error');
+                        return;
+                    }
                 }
             } else {
                 const numSeguimiento = document.getElementById('numero-seguimiento-pago');
@@ -521,6 +596,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!numSeguimientoVal) {
                     Swal.fire('Error', 'Debes ingresar el número de seguimiento', 'error');
                     return;
+                }
+                
+                // Para abonos con métodos no-efectivo, validar el monto exacto
+                const tipoSelect = document.getElementById('tipo_prefactura_pago');
+                const tipo = tipoSelect ? tipoSelect.value : 'inicial';
+                if (tipo === 'abono') {
+                    const montoExactoInput = document.getElementById('monto-exacto-input');
+                    const montoAbono = montoExactoInput ? parseFloat(montoExactoInput.value) || 0 : 0;
+                    
+                    if (montoAbono <= 0) {
+                        Swal.fire('Error', 'El monto del abono debe ser mayor que cero', 'error');
+                        return;
+                    }
+                    
+                    // Verificar que no exceda el saldo pendiente
+                    const saldoPendiente = document.getElementById('saldo-pendiente-display');
+                    const saldoPendienteVal = saldoPendiente ? parseFloat(saldoPendiente.textContent) || 0 : 0;
+                    if (montoAbono > saldoPendienteVal) {
+                        Swal.fire('Error', `El abono no puede ser mayor que el saldo pendiente ($${saldoPendienteVal.toFixed(2)})`, 'error');
+                        return;
+                    }
                 }
             }
 
@@ -534,16 +630,35 @@ document.addEventListener('DOMContentLoaded', function () {
             const tipoSelect = document.getElementById('tipo_prefactura_pago');
             const tipo = tipoSelect ? tipoSelect.value : 'inicial';
             const pagoTotalElement = document.getElementById('pago-total-pago');
-            const monto = pagoTotalElement ? parseFloat(pagoTotalElement.textContent) || 0 : 0;
+            
+            // Determinar el monto correcto según el tipo de pago
+            let monto;
+            if (tipo === 'abono') {
+                // Para abonos, usar el monto específico del abono
+                if (metodo.value === 'EFECTIVO') {
+                    // Abono en efectivo: usar monto recibido
+                    const montoRecibidoElement = document.getElementById('monto-recibido-pago');
+                    monto = montoRecibidoElement ? parseFloat(montoRecibidoElement.value) || 0 : 0;
+                } else {
+                    // Abono no-efectivo: usar monto exacto
+                    const montoExactoInput = document.getElementById('monto-exacto-input');
+                    monto = montoExactoInput ? parseFloat(montoExactoInput.value) || 0 : 0;
+                }
+            } else {
+                // Para pagos iniciales, usar el total completo
+                monto = pagoTotalElement ? parseFloat(pagoTotalElement.textContent) || 0 : 0;
+            }
 
             let montoRecibido, cambio, seguimiento;
             if (metodo.value === 'EFECTIVO') {
                 const montoRecibidoElement = document.getElementById('monto-recibido-pago');
-                const cambioElement = document.getElementById('cambio-pago');
-                montoRecibido = montoRecibidoElement ? parseFloat(montoRecibidoElement.value) : 0;
-                cambio = cambioElement ? parseFloat(cambioElement.textContent) : 0;
+                montoRecibido = montoRecibidoElement ? parseFloat(montoRecibidoElement.value) || 0 : 0;
+                
+                // Recalcular cambio correctamente basado en el monto del abono
+                cambio = montoRecibido > monto ? (montoRecibido - monto) : 0;
                 seguimiento = null;
             } else {
+                // Para métodos no-efectivo, el monto recibido es igual al monto
                 montoRecibido = monto;
                 cambio = null;
                 const seguimientoElement = document.getElementById('numero-seguimiento-pago');
