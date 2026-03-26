@@ -65,44 +65,27 @@ document.addEventListener('DOMContentLoaded', function () {
         const estado = data.estado;
         const diasRetraso = data.dias_retraso;
 
+        // Sin importar el tipo de traslado, si hay retraso, mostrar opción de cobro
         if (estado === 'Retrasada' && diasRetraso > 0) {
-            if (traslado === 'ninguno') {
-                const opcion = document.getElementById('opcion-retraso-ninguno');
-                if (opcion) opcion.classList.remove('d-none');
-                const checkbox = document.getElementById('checkbox-cobrar-retraso-ninguno');
-                if (checkbox) {
-                    checkbox.checked = false;
-                    checkbox.addEventListener('change', function () {
-                        const aviso = document.getElementById('aviso-retraso-ninguno-decision');
-                        if (aviso) {
-                            if (checkbox.checked) {
-                                aviso.classList.remove('d-none');
-                            } else {
-                                aviso.classList.add('d-none');
-                            }
+            const opcion = document.getElementById('opcion-retraso-ninguno');
+            if (opcion) opcion.classList.remove('d-none');
+            const checkbox = document.getElementById('checkbox-cobrar-retraso-ninguno');
+            if (checkbox) {
+                checkbox.checked = false;
+                // Remover event listeners anteriores para evitar duplicados
+                checkbox.removeEventListener('change', checkbox.changeHandler);
+                // Crear nuevo handler y guardarlo para poder removerlo después
+                checkbox.changeHandler = function () {
+                    const aviso = document.getElementById('aviso-retraso-ninguno-decision');
+                    if (aviso) {
+                        if (checkbox.checked) {
+                            aviso.classList.remove('d-none');
+                        } else {
+                            aviso.classList.add('d-none');
                         }
-                    });
-                }
-            } else if (traslado === 'medio') {
-                const opcion = document.getElementById('opcion-retraso-medio');
-                if (opcion) opcion.classList.remove('d-none');
-                const checkbox = document.getElementById('checkbox-cobrar-retraso-medio');
-                if (checkbox) {
-                    checkbox.checked = false;
-                    checkbox.addEventListener('change', function () {
-                        const avisoMedio = document.getElementById('aviso-retraso-medio');
-                        if (avisoMedio) {
-                            if (checkbox.checked) {
-                                avisoMedio.classList.remove('d-none');
-                            } else {
-                                avisoMedio.classList.add('d-none');
-                            }
-                        }
-                    });
-                }
-            } else if (traslado === 'redondo') {
-                const avisoRedondo = document.getElementById('aviso-retraso-redondo');
-                if (avisoRedondo) avisoRedondo.classList.remove('d-none');
+                    }
+                };
+                checkbox.addEventListener('change', checkbox.changeHandler);
             }
         }
     }
@@ -419,16 +402,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
             const cobrarRetraso = (() => {
-                const trasladoOriginal = document.getElementById('traslado-original').textContent.trim().toLowerCase();
-                // Para traslado MEDIO y NINGUNO: preguntar al usuario si se cobra
-                if (trasladoOriginal === 'medio') {
-                    return document.getElementById('checkbox-cobrar-retraso-medio')?.checked ? true : false;
-                }
-                if (trasladoOriginal === 'ninguno') {
-                    return document.getElementById('checkbox-cobrar-retraso-ninguno')?.checked ? true : false;
-                }
-                // En redondo nunca se cobra retraso
-                return false;
+                // Sin importar el tipo de traslado, usar el mismo checkbox
+                return document.getElementById('checkbox-cobrar-retraso-ninguno')?.checked ? true : false;
             })();
 
             const payload = {

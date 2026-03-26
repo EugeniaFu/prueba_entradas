@@ -84,15 +84,8 @@ def preview_cobro_retraso(renta_id):
         # VALIDACIÓN DE REGLAS DE NEGOCIO
         tipo_traslado = (nota['traslado'] or 'ninguno').lower()
         
-        # Si es traslado redondo, NO se permite cobrar retraso
-        if tipo_traslado == 'redondo':
-            cursor.close()
-            conn.close()
-            return jsonify({
-                'error': 'No se cobra retraso con traslado REDONDO. La empresa es responsable de recoger el equipo.'
-            }), 400
-        
-        # Para traslado MEDIO y NINGUNO, se permite pero debe preguntarse desde el frontend
+        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
+        # (El checkbox del frontend controla si se cobra o no)
 
         # Calcular días de retraso
         dias_retraso = 0
@@ -194,14 +187,8 @@ def guardar_cobro_retraso(renta_id):
         
         tipo_traslado = (renta_info['traslado'] or 'ninguno').lower()
         
-        # Bloquear cobro si es traslado redondo
-        if tipo_traslado == 'redondo':
-            cursor.close()
-            conn.close()
-            return jsonify({
-                'success': False, 
-                'error': 'No se puede cobrar retraso con traslado REDONDO'
-            }), 400
+        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
+        # (El checkbox del frontend controla si se cobra o no)
 
         # Función para redondear según reglas de efectivo
         def redondear_efectivo(monto):
@@ -363,13 +350,12 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         conn.close()
         return "Cobro de retraso no encontrado", 404
     
-    # Obtener detalles originales de la renta (no del cobro de retraso)
+    # Obtener detalles del cobro de retraso (no de la renta original)
     cursor.execute("""
-        SELECT prod.nombre, rd.cantidad, rd.dias_renta, rd.costo_unitario, rd.subtotal
-        FROM renta_detalle rd
-        JOIN productos prod ON rd.id_producto = prod.id_producto
-        WHERE rd.renta_id = %s
-    """, (cobro['renta_id'],))
+        SELECT nombre_producto, cantidad, dias_retraso, precio_unitario, subtotal
+        FROM notas_cobro_retraso_detalle
+        WHERE cobro_retraso_id = %s
+    """, (cobro_retraso_id,))
     detalles = cursor.fetchall()
     
     # Obtener datos del usuario actual
@@ -442,12 +428,12 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         y_cliente -= 13
     
     # Estado y Municipio
-    can.drawString(36, y_cliente, f"ESTADO: {cobro['estado'] or 'NO REGISTRADO'.upper()}")
-    can.drawString(290, y_cliente, f"MUNICIPIO: {cobro['municipio'] or 'NO REGISTRADO'.upper()}")
+    can.drawString(36, y_cliente, f"ESTADO: {(cobro['estado'] or 'NO REGISTRADO').upper()}")
+    can.drawString(290, y_cliente, f"MUNICIPIO: {(cobro['municipio'] or 'NO REGISTRADO').upper()}")
     y_cliente -= 13
     
     # RFC y Facturable
-    can.drawString(36, y_cliente, f"RFC: {cobro['rfc'] or 'NO REGISTRADO'.upper()}")
+    can.drawString(36, y_cliente, f"RFC: {(cobro['rfc'] or 'NO REGISTRADO').upper()}")
     facturable_texto = "SÍ" if cobro['facturable'] else "NO"
     can.drawString(290, y_cliente, f"FACTURABLE: {facturable_texto}")
     y_cliente -= 20
@@ -485,10 +471,10 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     subtotal_general = 0
     
     for item in detalles:
-        can.drawString(36, y_tabla + 5, item['nombre'][:35].upper())
+        can.drawString(36, y_tabla + 5, item['nombre_producto'][:35].upper())
         can.drawRightString(350, y_tabla + 5, str(item['cantidad']))
-        can.drawRightString(400, y_tabla + 5, str(item['dias_renta'] or 'N/A'))
-        can.drawRightString(490, y_tabla + 5, f"${item['costo_unitario']:.2f}")
+        can.drawRightString(400, y_tabla + 5, str(item['dias_retraso']))
+        can.drawRightString(490, y_tabla + 5, f"${item['precio_unitario']:.2f}")
         can.drawRightString(570, y_tabla + 5, f"${item['subtotal']:.2f}")
         
         subtotal_general += float(item['subtotal'])
@@ -500,49 +486,53 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     y_tabla -= 5
 
     # === LÍNEA DIVISORA Y TOTALES ===
-    can.line(28, y_tabla + 15, 585, y_tabla + 15)
-    
+    can.line(28, y_tabla + 15, 585, y_tabla + 15)  # Línea separadora
+
     espacio_3mm = 10
     can.setFont("Carlito", 11)
-    y_totales = y_tabla + 10 - espacio_3mm
+    y_totales = y_tabla + 10 - espacio_3mm  # 3mm debajo de la línea
 
-# PERÍODO DE RENTA (AL LADO IZQUIERDO DEL SUBTOTAL)
-    periodo_renta = f"{cobro['fecha_salida'].strftime('%d/%m/%Y')}"
-    if cobro['fecha_entrada']:
-        periodo_renta += f" - {cobro['fecha_entrada'].strftime('%d/%m/%Y')}"
-    else:
-        periodo_renta += " - Indefinido"
-    can.setFont("Helvetica-Bold", 10)
-    can.drawString(36, y_totales, f"PERIODO DE RENTA: {periodo_renta}")
+    # Obtener días de retraso del primer detalle (todos tienen los mismos días)
+    dias_retraso = detalles[0]['dias_retraso'] if detalles else 0
+    
+    # PERÍODO DE RETRASO (AL LADO IZQUIERDO DEL SUBTOTAL)
+    if cobro['fecha_entrada'] and dias_retraso > 0:
+        # Calcular período de retraso real
+        inicio_retraso = cobro['fecha_entrada'] + timedelta(days=1)  # Primer día de retraso
+        fin_retraso = inicio_retraso + timedelta(days=dias_retraso - 1)  # Último día de retraso
+        periodo_retraso = f"{inicio_retraso.strftime('%d/%m/%Y')} - {fin_retraso.strftime('%d/%m/%Y')}"
+        
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(36, y_totales, f"PERÍODO DE RENTA: {periodo_retraso}")
 
-    # Subtotal de productos (AL LADO DERECHO)
+    # Subtotal de productos (AL LADO DERECHO) - usar subtotal del cobro retraso
     can.setFont("Carlito", 10)
     can.drawString(400, y_totales, "SUBTOTAL:")
-    can.drawRightString(570, y_totales, f"${subtotal_general:.2f}")
+    can.drawRightString(570, y_totales, f"${cobro['subtotal']:.2f}")
     y_totales -= 12
 
-    # Traslado
-    traslado_tipo = cobro.get('traslado', 'ninguno')
-    costo_traslado = cobro.get('costo_traslado', 0)
-    can.setFont("Carlito", 10)
-    can.drawString(400, y_totales, f"TRASLADO ({traslado_tipo}):")
-    can.drawRightString(570, y_totales, f"${costo_traslado:.2f}")
-    y_totales -= 12
+    # Traslado extra (si aplica)
+    if cobro.get('traslado_extra') and cobro.get('traslado_extra') != 'ninguno':
+        can.setFont("Carlito", 10)
+        can.drawString(400, y_totales, f"TRASLADO EXTRA ({cobro['traslado_extra']}):")
+        can.drawRightString(570, y_totales, f"${cobro.get('costo_traslado_extra', 0):.2f}")
+        y_totales -= 12
 
     # IVA
+    can.setFont("Carlito", 10)
     can.drawString(400, y_totales, "IVA (16%):")
     can.drawRightString(570, y_totales, f"${cobro['iva']:.2f}")
     y_totales -= 12
 
-    # Total de la renta
+    # Total del cobro retraso
     can.setFont("Helvetica-Bold", 9)
-    can.drawString(400, y_totales, "TOTAL RENTA:")
+    can.drawString(400, y_totales, "TOTAL COBRO RETRASO:")
     can.drawRightString(570, y_totales, f"${cobro['total']:.2f}")
     
-    # === TOTAL EN LETRAS (AL LADO IZQUIERDO DEL TOTAL RENTA) ===
-    total_renta = float(cobro['total'])
-    monto_entero = int(total_renta)
-    monto_centavos = int(round((total_renta - monto_entero) * 100))
+    # === TOTAL EN LETRAS (AL LADO IZQUIERDO DEL TOTAL COBRO RETRASO) ===
+    total_cobro_retraso = float(cobro['total'])
+    monto_entero = int(total_cobro_retraso)
+    monto_centavos = int(round((total_cobro_retraso - monto_entero) * 100))
     monto_letras = num2words(monto_entero, lang='es').upper()
     if monto_centavos > 0:
         monto_letras = f"SON: {monto_letras} PESOS CON {monto_centavos:02d}/100 M.N."
@@ -551,7 +541,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
 
     # Usar simpleSplit para manejar texto multilínea si es muy largo
     can.setFont("Carlito", 9)
-    monto_letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)  # Ancho máximo hasta donde empieza TOTAL RENTA
+    monto_letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)  # Ancho máximo hasta donde empieza TOTAL COBRO RETRASO
     y_letras = y_totales
     for line in monto_letras_lines:
         can.drawString(36, y_letras, line)
@@ -579,13 +569,13 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         
         can.drawString(400, y_totales, f"CAMBIO:")
         can.drawRightString(570, y_totales, f"${float(cobro['cambio']):.2f}")
-        y_totales -= 12
+        y_totales -= 13
 
     # === AVISOS IMPORTANTES PARA EL CLIENTE ===
-    y_avisos = y_totales - 5  
+    y_avisos = y_totales - 5
 
     # Línea separadora para los avisos
-    can.line(28, y_avisos + 20, 585, y_avisos + 20)
+    can.line(28, y_avisos + 16, 585, y_avisos + 16)
     y_avisos -= 5
 
     # REQUISITOS DE CLIENTE

@@ -642,12 +642,12 @@ def generar_pdf_prefactura(prefactura_id):
         y_cliente -= 13
     
     # Estado y Municipio en la misma línea
-    can.drawString(36, y_cliente, f"ESTADO: {prefactura['estado'] or 'NO REGISTRADO'.upper()}")
-    can.drawString(290, y_cliente, f"MUNICIPIO: {prefactura['municipio'] or 'NO REGISTRADO'.upper()}")
+    can.drawString(36, y_cliente, f"ESTADO: {(prefactura['estado'] or 'NO REGISTRADO').upper()}")
+    can.drawString(290, y_cliente, f"MUNICIPIO: {(prefactura['municipio'] or 'NO REGISTRADO').upper()}")
     y_cliente -= 13
     
     # RFC y Facturable en la misma línea
-    can.drawString(36, y_cliente, f"RFC: {prefactura['rfc'] or 'NO REGISTRADO'.upper()}")
+    can.drawString(36, y_cliente, f"RFC: {(prefactura['rfc'] or 'NO REGISTRADO').upper()}")
     facturable_texto = "SÍ" if prefactura['facturable'] else "NO"
     can.drawString(290, y_cliente, f"FACTURABLE: {facturable_texto}")
     y_cliente -= 20
@@ -863,10 +863,10 @@ def generar_pdf_prefactura(prefactura_id):
             y_totales -= 12
 
     # === AVISOS IMPORTANTES PARA EL CLIENTE ===
-    y_avisos = y_totales - 15  
+    y_avisos = y_totales - 6  
 
     # Línea separadora para los avisos
-    can.line(28, y_avisos + 20, 585, y_avisos + 20)
+    can.line(28, y_avisos + 16, 585, y_avisos + 16)
     y_avisos -= 5
 
     # REQUISITOS DE CLIENTE
