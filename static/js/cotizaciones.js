@@ -46,6 +46,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 var texto = row.innerText.toLowerCase();
                 row.style.display = texto.includes(filtro) ? '' : 'none';
             });
+            
+            // Recalcular paginación después del filtro
+            if (window.recalcularPaginacion) {
+                window.recalcularPaginacion();
+            }
+        });
+    }
+
+    // Filtro por select (opcional para filtrado en tiempo real)
+    const filtroSelect = document.querySelector('select[name="filtro"]');
+    if (filtroSelect) {
+        filtroSelect.addEventListener('change', function () {
+            const filtroValue = this.value.toLowerCase();
+            if (filtroValue === '') {
+                // Mostrar todas las filas
+                document.querySelectorAll('#tablaCotizaciones tbody tr').forEach(function (row) {
+                    row.style.display = '';
+                });
+            } else {
+                // Filtrar por estado
+                document.querySelectorAll('#tablaCotizaciones tbody tr').forEach(function (row) {
+                    const estadoCell = row.querySelector('td:nth-child(8)'); // Columna de estado
+                    if (estadoCell) {
+                        const estadoTexto = estadoCell.innerText.toLowerCase();
+                        row.style.display = estadoTexto.includes(filtroValue) ? '' : 'none';
+                    }
+                });
+            }
+            
+            // Recalcular paginación después del filtro
+            if (window.recalcularPaginacion) {
+                window.recalcularPaginacion();
+            }
         });
     }
 
@@ -394,19 +427,19 @@ document.addEventListener('DOMContentLoaded', function () {
                         icon: 'success',
                         showCancelButton: true,
                         confirmButtonText: 'Sí, ver PDF',
-                        cancelButtonText: 'Cerrar'
+                        cancelButtonText: 'Cerrar',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
                     }).then((result) => {
                         if (result.isConfirmed) {
                             // Abrir PDF en nueva pestaña usando la URL del servidor
                             console.log('PDF URL:', data.pdf_url); // Para debug
                             window.open(data.pdf_url, '_blank');
                         }
-                    });
-
-                    // Recargar la página para mostrar la nueva cotización
-                    setTimeout(() => {
+                        
+                        // Recargar la página solo después de que el usuario tome una decisión
                         location.reload();
-                    }, 1000);
+                    });
                 } else {
                     Swal.fire('Error', data.error || 'Error al crear cotización', 'error');
                 }

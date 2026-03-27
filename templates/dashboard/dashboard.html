@@ -107,7 +107,7 @@
             </div>
 
             <!-- PAGOS PENDIENTES UNIFICADOS -->
-            <div class="col-lg-12 col-md-12 mb-4">
+            <div class="col-lg-4 col-md-6 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-exclamation-diamond"></i>Pagos Pendientes</span>
@@ -166,7 +166,7 @@
             </div>
 
             <!-- BLOC DE NOTAS -->
-            <div class="col-lg-6 col-md-12 mb-4">
+            <div class="col-lg-12 col-md-12 mb-4">
                 <div class="bloc-notas-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-journal-text"></i>Bloc de Notas</span>
@@ -187,19 +187,19 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="bloc-notas-content">
-                            <div id="listadoNotas">
-                                {% for nota in notas_usuario %}
-                                <div class="nota-item" data-id="{{ nota.id }}">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1">
-                                            <p class="mb-2">{{ nota.contenido }}</p>
-                                            <small class="text-muted">
-                                                <i class="bi bi-clock me-1"></i>{{
-                                                nota.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}
-                                            </small>
-                                        </div>
-                                        <button class="btn btn-outline-danger btn-sm"
+                        <div class="bloc-notas-grid">
+                            <div id="listadoNotas" class="notas-grid-container">
+                                {% for nota in notas_bloc %}
+                                <div class="nota-card" data-id="{{ nota.id }}">
+                                    <div class="nota-content-scroll">
+                                        <p class="nota-texto">{{ nota.nota }}</p>
+                                    </div>
+                                    <div class="nota-footer">
+                                        <small class="text-muted nota-fecha">
+                                            <i class="bi bi-clock me-1"></i>{{
+                                            nota.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                        </small>
+                                        <button class="btn btn-outline-danger btn-sm nota-delete-btn"
                                             onclick="eliminarNota({{ nota.id }})" title="Eliminar nota">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -213,7 +213,7 @@
             </div>
 
             <!-- CALENDARIO MINI -->
-            <div class="col-lg-6 col-md-12 mb-4">
+            <div class="col-lg-12 col-md-12 mb-4">
                 <div class="calendario-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-calendar3"></i>Febrero 2026</span>

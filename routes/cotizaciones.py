@@ -814,7 +814,7 @@ def crear_cotizacion():
             return jsonify({
                 'success': True,
                 'cotizacion_id': cotizacion_id,
-                'pdf_url': url_for('cotizaciones.generar_pdf_cotizacion', cotizacion_id=cotizacion_id)
+                'pdf_url': f'/cotizaciones/pdf/{cotizacion_id}'
             })
         else:
             return redirect(url_for('cotizaciones.generar_pdf_cotizacion', cotizacion_id=cotizacion_id))
