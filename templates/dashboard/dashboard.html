@@ -5,6 +5,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/rentas2.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -23,11 +24,11 @@
 
         <!-- Grid de cards -->
         <div class="row">
-            <!-- RENTAS A VENCER HOY -->
+            <!-- ÚLTIMO DÍA DE RENTA -->
             <div class="col-lg-4 col-md-6 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
-                        <span><i class="bi bi-clock-history"></i>Rentas a Vencer Hoy</span>
+                        <span><i class="bi bi-clock-history"></i>Último Día de Renta</span>
                         <span class="badge-count">{{ rentas_a_vencer|length }}</span>
                     </div>
                     <div class="card-content">
@@ -47,8 +48,8 @@
                                         </div>
                                     </div>
                                     <div class="mt-2">
-                                        <a href="/rentas/detalle/{{ renta.id }}"
-                                            class="btn btn-outline-primary btn-sm">Ver detalle</a>
+                                        <button class="btn btn-outline-primary btn-sm btn-ver-detalle" 
+                                                data-renta-id="{{ renta.id }}">Ver detalle</button>
                                     </div>
                                 </div>
                             </div>
@@ -88,8 +89,8 @@
                                         </div>
                                     </div>
                                     <div class="mt-2">
-                                        <a href="/rentas/detalle/{{ renta.id }}"
-                                            class="btn btn-outline-danger btn-sm">Ver detalle</a>
+                                        <button class="btn btn-outline-danger btn-sm btn-ver-detalle" 
+                                                data-renta-id="{{ renta.id }}">Ver detalle</button>
                                     </div>
                                 </div>
                             </div>
@@ -105,76 +106,50 @@
                 </div>
             </div>
 
-            <!-- RENTAS PROGRAMADAS -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <!-- PAGOS PENDIENTES UNIFICADOS -->
+            <div class="col-lg-12 col-md-12 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
-                        <span><i class="bi bi-calendar-event"></i>Próximas a Vencer</span>
-                        <span class="badge-count">{{ rentas_programadas|length }}</span>
+                        <span><i class="bi bi-exclamation-diamond"></i>Pagos Pendientes</span>
+                        <span class="badge-count">{{ pagos_pendientes|length }}</span>
                     </div>
                     <div class="card-content">
-                        {% if rentas_programadas %}
-                        {% for renta in rentas_programadas %}
+                        {% if pagos_pendientes %}
+                        {% for pago in pagos_pendientes %}
                         <div class="list-group-item-sistema">
-                            <div class="d-flex justify-content-between align-items-start">
+                            <div class="d-flex justify-content-between align-items-center">
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ renta.cliente_nombre }}</h6>
+                                    <div class="d-flex align-items-center mb-1">
+                                        <h6 class="mb-0 me-2">{{ pago.cliente_nombre }}</h6>
+                                    </div>
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted">
-                                            <i class="bi bi-calendar-event me-1"></i>Vence: {{
-                                            renta.fecha_entrada.strftime('%d/%m/%Y') }}
-                                        </small>
                                         <div>
-                                            <span class="badge badge-warning">{{ renta.dias_hasta_vencimiento }} días</span>
+                                            <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>{{ pago.direccion_obra[:45] }}{% if pago.direccion_obra|length > 45 %}...{% endif %}</small><br>
+                                            <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ pago.telefono }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            {% if pago.tipo_pago == 'retraso' %}
+                                                <div class="mb-1"><span class="badge bg-danger">Retraso Pendiente</span></div>
+                                            {% elif pago.tipo_pago == 'extra' %}
+                                                <div class="mb-1"><span class="badge bg-warning">Extra Pendiente</span></div>
+                                            {% elif pago.tipo_pago == 'saldo' %}
+                                                <div class="mb-1"><span class="badge bg-info">Saldo Pendiente</span></div>
+                                            {% else %}
+                                                <div class="mb-1"><span class="badge bg-secondary">Pago Pendiente</span></div>
+                                            {% endif %}
+                                            {% if pago.monto_pendiente and pago.monto_pendiente > 0 %}
+                                                <strong class="text-warning">${{ "%.2f"|format(pago.monto_pendiente) }}</strong>
+                                            {% elif pago.total and pago.total > 0 %}
+                                                <strong class="text-warning">${{ "%.2f"|format(pago.total) }}</strong>
+                                            {% else %}
+                                                <strong class="text-warning">Por definir</strong>
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="mt-2">
-                                        <a href="/rentas/detalle/{{ renta.id }}" class="btn btn-outline-info btn-sm">Ver
-                                            detalle</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="bi bi-calendar-x"></i>
-                            <p>No hay rentas programadas</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- COBROS PENDIENTES -->
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="dashboard-card">
-                    <div class="card-header-sistema">
-                        <span><i class="bi bi-currency-dollar"></i>Cobros de Retraso</span>
-                        <span class="badge-count">{{ cobros_pendientes|length }}</span>
-                    </div>
-                    <div class="card-content">
-                        {% if cobros_pendientes %}
-                        {% for cobro in cobros_pendientes %}
-                        <div class="list-group-item-sistema">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ cobro.cliente_nombre }}</h6>
-                                    <small class="text-muted">
-                                        <i class="bi bi-geo-alt me-1"></i>{{ cobro.direccion_obra[:45] }}{% if cobro.direccion_obra|length > 45 %}...{% endif %}
-                                    </small>
-                                    <div class="mt-1">
-                                        <small class="text-muted">
-                                            <i class="bi bi-calendar me-1"></i>{{ cobro.fecha.strftime('%d/%m/%Y') }}
-                                            <span class="ms-2"><i class="bi bi-currency-dollar me-1"></i>${{ "%.2f"|format(cobro.total) }}</span>
-                                        </small>
-                                    </div>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge badge-warning">Pendiente</span>
-                                    <div class="mt-1">
-                                        <a href="/rentas/detalle/{{ cobro.renta_id }}"
-                                            class="btn btn-outline-primary btn-sm">Gestionar</a>
+                                        <button class="btn btn-sm btn-ver-detalle btn-outline-primary" data-renta-id="{{ pago.renta_id }}">
+                                            <i class="bi bi-eye"></i> Ver detalle
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -183,45 +158,7 @@
                         {% else %}
                         <div class="empty-state">
                             <i class="bi bi-check-circle text-success"></i>
-                            <p>No hay cobros de retraso pendientes</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- EXTRAS PENDIENTES -->
-            <div class="col-lg-6 col-md-6 mb-4">
-                <div class="dashboard-card">
-                    <div class="card-header-sistema">
-                        <span><i class="bi bi-plus-circle"></i>Cobros Extra</span>
-                        <span class="badge-count">{{ extras_pendientes|length }}</span>
-                    </div>
-                    <div class="card-content">
-                        {% if extras_pendientes %}
-                        {% for renta in extras_pendientes %}
-                        <div class="list-group-item-sistema">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ renta.cliente_nombre }}</h6>
-                                    <small class="text-muted">
-                                        <i class="bi bi-plus-circle me-1"></i>Cobro extra pendiente
-                                    </small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge badge-info">Extra</span>
-                                    <div class="mt-1">
-                                        <a href="/rentas/detalle/{{ renta.id }}"
-                                            class="btn btn-outline-primary btn-sm">Gestionar</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        {% else %}
-                        <div class="empty-state">
-                            <i class="bi bi-check-circle text-success"></i>
-                            <p>No hay cobros extra pendientes</p>
+                            <p>No hay pagos pendientes</p>
                         </div>
                         {% endif %}
                     </div>
@@ -290,6 +227,9 @@
     </div>
 </div>
 
+<!-- Modal de Detalle de Renta -->
+{% include 'rentas/_modal_detalle_renta.html' %}
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
 {% endblock %}

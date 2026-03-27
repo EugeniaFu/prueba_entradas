@@ -55,7 +55,7 @@ def eliminar_renta(renta_id):
     nota_salida = cursor.fetchone()
     cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
     nota_entrada = cursor.fetchone()
-    # Eliminación de cobros pendiente removida
+
     # Si hay nota de salida pero no de entrada, descontar equipo del inventario
     if nota_salida and not nota_entrada:
         # Obtener productos y cantidades de la renta
@@ -248,7 +248,31 @@ def modulo_rentas():
     LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
     LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
     {where_sucursal}
-    ORDER BY r.fecha_registro DESC
+    ORDER BY 
+        CASE 
+            -- Prioridad 1: Rentas activas (Activo, En curso, Programada) + casos no contemplados
+            WHEN r.estado_renta IN ('Activo', 'En curso', 'Programada', 'en curso', 'programada', 'activo') THEN 1
+            
+            -- Prioridad 2: Rentas FINALIZADAS con ALGÚN pago pendiente
+            WHEN r.estado_renta = 'Finalizada' AND (
+                r.estado_pago IN ('Pago pendiente', 'Saldo pendiente') OR
+                ne.estado_retraso = 'Retraso Pendiente' OR
+                r.estado_cobro_extra = 'Extra Pendiente'
+            ) THEN 2
+            
+            -- Prioridad 3: Rentas FINALIZADAS con TODOS los pagos completos
+            WHEN r.estado_renta = 'Finalizada' AND 
+                 r.estado_pago = 'Pago Realizado' AND
+                 (ne.estado_retraso IS NULL OR ne.estado_retraso = 'Retraso Pagado') AND
+                 (r.estado_cobro_extra IS NULL OR r.estado_cobro_extra = 'Extra Pagado') THEN 3
+            
+            -- Prioridad 4: Rentas CANCELADAS (al final)
+            WHEN r.estado_renta = 'Cancelada' OR r.estado_renta = 'cancelada' THEN 4
+            
+            -- Default: Casos no contemplados van con las activas por seguridad
+            ELSE 1
+        END,
+        r.fecha_registro DESC
     """, params_sucursal)
     
     rentas = cursor.fetchall()

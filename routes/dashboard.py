@@ -30,93 +30,140 @@ def dashboard():
     
     try:
         # 1. RENTAS A VENCER (el equipo debe regresar HOY)
+        # Incluye: rentas originales sin renovaciones activas + renovaciones activas que vencen hoy
         cursor.execute(f"""
-            SELECT r.id, r.fecha_entrada, r.direccion_obra,
-                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
-                   c.telefono, s.nombre as sucursal_nombre,
-                   r.fecha_salida, r.estado_renta
-            FROM rentas r
-            JOIN clientes c ON r.cliente_id = c.id
-            JOIN sucursales s ON r.id_sucursal = s.id
-            {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('Activo', 'en curso')
-            AND DATE(r.fecha_entrada) = CURDATE()
-            ORDER BY r.fecha_entrada ASC
+            (
+                SELECT r.id, r.fecha_entrada, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       r.fecha_salida, r.estado_renta, 'original' as tipo_renta
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('Activo', 'en curso')
+                AND DATE(r.fecha_entrada) = CURDATE()
+                AND r.renta_asociada_id IS NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM rentas rn 
+                    WHERE rn.renta_asociada_id = r.id 
+                    AND rn.estado_renta IN ('activa renovación', 'activo')
+                )
+            )
+            UNION ALL
+            (
+                SELECT r.id, r.fecha_entrada, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       r.fecha_salida, r.estado_renta, 'renovacion' as tipo_renta
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovación', 'activo')
+                AND DATE(r.fecha_entrada) = CURDATE()
+                AND r.renta_asociada_id IS NOT NULL
+            )
+            ORDER BY fecha_entrada ASC
             LIMIT 10
-        """, params)
+        """, params + params)
         rentas_a_vencer = cursor.fetchall()
         
         # 2. RENTAS VENCIDAS (el equipo ya debía haber regresado)
+        # Incluye: rentas originales sin renovaciones activas + renovaciones activas vencidas
         cursor.execute(f"""
-            SELECT r.id, r.fecha_entrada, r.direccion_obra,
-                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
-                   c.telefono, s.nombre as sucursal_nombre,
-                   DATEDIFF(CURDATE(), DATE(r.fecha_entrada)) as dias_vencida,
-                   r.fecha_salida, r.estado_renta
-            FROM rentas r
-            JOIN clientes c ON r.cliente_id = c.id
-            JOIN sucursales s ON r.id_sucursal = s.id
-            {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('Activo', 'en curso')
-            AND DATE(r.fecha_entrada) < CURDATE()
-            ORDER BY r.fecha_entrada ASC
+            (
+                SELECT r.id, r.fecha_entrada, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       DATEDIFF(CURDATE(), DATE(r.fecha_entrada)) as dias_vencida,
+                       r.fecha_salida, r.estado_renta, 'original' as tipo_renta
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('Activo', 'en curso')
+                AND DATE(r.fecha_entrada) < CURDATE()
+                AND r.renta_asociada_id IS NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM rentas rn 
+                    WHERE rn.renta_asociada_id = r.id 
+                    AND rn.estado_renta IN ('activa renovación', 'activo')
+                )
+            )
+            UNION ALL
+            (
+                SELECT r.id, r.fecha_entrada, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       DATEDIFF(CURDATE(), DATE(r.fecha_entrada)) as dias_vencida,
+                       r.fecha_salida, r.estado_renta, 'renovacion' as tipo_renta
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovación', 'activo')
+                AND DATE(r.fecha_entrada) < CURDATE()
+                AND r.renta_asociada_id IS NOT NULL
+            )
+            ORDER BY dias_vencida DESC, fecha_entrada ASC
             LIMIT 10
-        """, params)
+        """, params + params)
         rentas_vencidas = cursor.fetchall()
         
-        # 3. RENTAS PROGRAMADAS (próximas a vencer en los siguientes días)
+        # 3. PAGOS PENDIENTES UNIFICADOS (retrasos, extras, saldos, pagos)
         cursor.execute(f"""
-            SELECT r.id, r.fecha_salida, r.fecha_entrada, r.direccion_obra,
-                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
-                   c.telefono, s.nombre as sucursal_nombre,
-                   DATEDIFF(DATE(r.fecha_entrada), CURDATE()) as dias_hasta_vencimiento,
-                   r.estado_renta
-            FROM rentas r
-            JOIN clientes c ON r.cliente_id = c.id
-            JOIN sucursales s ON r.id_sucursal = s.id
-            {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('Activo', 'en curso')
-            AND DATE(r.fecha_entrada) > CURDATE()
-            AND DATE(r.fecha_entrada) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-            ORDER BY r.fecha_entrada ASC
-            LIMIT 10
-        """, params)
-        rentas_programadas = cursor.fetchall()
-        
-        # 4. COBROS PENDIENTES DE RETRASO (tabla notas_cobro_retraso)
-        cursor.execute(f"""
-            SELECT ncr.id as cobro_id, ncr.fecha, ncr.total, ncr.estado_pago,
-                   r.id as renta_id, r.direccion_obra,
-                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
-                   c.telefono, s.nombre as sucursal_nombre,
-                   ncr.observaciones
-            FROM notas_cobro_retraso ncr
-            JOIN notas_entrada ne ON ncr.nota_entrada_id = ne.id
-            JOIN rentas r ON ne.renta_id = r.id
-            JOIN clientes c ON r.cliente_id = c.id
-            JOIN sucursales s ON r.id_sucursal = s.id
-            {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} ncr.estado_pago = 'Retraso Pendiente'
-            ORDER BY ncr.fecha ASC
-            LIMIT 10
-        """, params)
-        cobros_pendientes = cursor.fetchall()
-        
-        # 5. EXTRAS PENDIENTES (rentas con estado_cobro_extra)
-        cursor.execute(f"""
-            SELECT r.id, r.fecha_entrada, r.direccion_obra,
-                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
-                   c.telefono, s.nombre as sucursal_nombre,
-                   r.estado_cobro_extra
-            FROM rentas r
-            JOIN clientes c ON r.cliente_id = c.id
-            JOIN sucursales s ON r.id_sucursal = s.id
-            {where_sucursal}
-            {"AND" if where_sucursal else "WHERE"} r.estado_cobro_extra = 'Extra Pendiente'
-            ORDER BY r.fecha_entrada ASC
-            LIMIT 10
-        """, params)
-        extras_pendientes = cursor.fetchall()
+            (
+                SELECT 'retraso' as tipo_pago, ncr.id as pago_id, ncr.fecha as fecha_pago, 
+                       ncr.total, ncr.estado_pago,
+                       r.id as renta_id, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       ncr.observaciones, ncr.total as monto_pendiente
+                FROM notas_cobro_retraso ncr
+                JOIN notas_entrada ne ON ncr.nota_entrada_id = ne.id
+                JOIN rentas r ON ne.renta_id = r.id
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} ncr.estado_pago = 'Retraso Pendiente'
+            )
+            UNION ALL
+            (
+                SELECT 'extra' as tipo_pago, r.id as pago_id, r.fecha_entrada as fecha_pago,
+                       0 as total, r.estado_cobro_extra as estado_pago,
+                       r.id as renta_id, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       'Cobro extra pendiente' as observaciones, 0 as monto_pendiente
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_cobro_extra = 'Extra Pendiente'
+            )
+            UNION ALL
+            (
+                SELECT 'saldo' as tipo_pago, r.id as pago_id, r.fecha_salida as fecha_pago,
+                       r.total_con_iva, r.estado_pago,
+                       r.id as renta_id, r.direccion_obra,
+                       CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                       c.telefono, s.nombre as sucursal_nombre,
+                       'Saldo pendiente de renta' as observaciones,
+                       (r.total_con_iva - COALESCE(SUM(p.monto), 0)) as monto_pendiente
+                FROM rentas r
+                JOIN clientes c ON r.cliente_id = c.id
+                JOIN sucursales s ON r.id_sucursal = s.id
+                LEFT JOIN prefacturas p ON p.renta_id = r.id AND p.pagada = 1
+                {where_sucursal}
+                {"AND" if where_sucursal else "WHERE"} r.estado_pago IN ('Pago Pendiente', 'Saldo Pendiente')
+                GROUP BY r.id, r.total_con_iva, c.nombre, c.apellido1, c.apellido2, c.telefono, s.nombre, r.direccion_obra, r.fecha_salida, r.estado_pago
+                HAVING monto_pendiente > 0
+            )
+            ORDER BY fecha_pago ASC
+            LIMIT 15
+        """, params * 3)
+        pagos_pendientes = cursor.fetchall()
         
         # 6. OBTENER NOTAS DEL BLOC (crear tabla si no existe)
         try:
@@ -142,9 +189,7 @@ def dashboard():
         return render_template('dashboard/dashboard.html',
                              rentas_a_vencer=rentas_a_vencer,
                              rentas_vencidas=rentas_vencidas,
-                             rentas_programadas=rentas_programadas,
-                             cobros_pendientes=cobros_pendientes,
-                             extras_pendientes=extras_pendientes,
+                             pagos_pendientes=pagos_pendientes,
                              notas_bloc=notas_bloc)
     except Exception as e:
         cursor.close()
