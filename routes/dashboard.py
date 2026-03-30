@@ -111,7 +111,26 @@ def dashboard():
         """, params + params)
         rentas_vencidas = cursor.fetchall()
         
-        # 3. PAGOS PENDIENTES UNIFICADOS (retrasos, extras, saldos, pagos)
+        # 3. RENTAS PROGRAMADAS (rentas con fecha futura programada)
+        cursor.execute(f"""
+            SELECT r.id, r.fecha_programada as fecha_entrada, r.direccion_obra,
+                   CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) as cliente_nombre,
+                   c.telefono, s.nombre as sucursal_nombre,
+                   r.fecha_salida, r.estado_renta,
+                   DATEDIFF(DATE(r.fecha_programada), CURDATE()) as dias_para_inicio
+            FROM rentas r
+            JOIN clientes c ON r.cliente_id = c.id
+            JOIN sucursales s ON r.id_sucursal = s.id
+            {where_sucursal}
+            {"AND" if where_sucursal else "WHERE"} r.estado_renta = 'programada'
+            AND r.fecha_programada IS NOT NULL
+            AND DATE(r.fecha_programada) >= CURDATE()
+            ORDER BY r.fecha_programada ASC
+            LIMIT 10
+        """, params)
+        rentas_programadas = cursor.fetchall()
+        
+        # 4. PAGOS PENDIENTES UNIFICADOS (retrasos, extras, saldos, pagos)
         cursor.execute(f"""
             (
                 SELECT 'retraso' as tipo_pago, ncr.id as pago_id, ncr.fecha as fecha_pago, 
@@ -189,6 +208,7 @@ def dashboard():
         return render_template('dashboard/dashboard.html',
                              rentas_a_vencer=rentas_a_vencer,
                              rentas_vencidas=rentas_vencidas,
+                             rentas_programadas=rentas_programadas,
                              pagos_pendientes=pagos_pendientes,
                              notas_bloc=notas_bloc)
     except Exception as e:

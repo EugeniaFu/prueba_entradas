@@ -25,7 +25,7 @@
         <!-- Grid de cards -->
         <div class="row">
             <!-- ÚLTIMO DÍA DE RENTA -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-3 col-md-6 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-clock-history"></i>Último Día de Renta</span>
@@ -66,7 +66,7 @@
             </div>
 
             <!-- RENTAS VENCIDAS -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-3 col-md-6 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-exclamation-triangle"></i>Vencidas</span>
@@ -106,8 +106,57 @@
                 </div>
             </div>
 
+            <!-- RENTAS PROGRAMADAS -->
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="dashboard-card">
+                    <div class="card-header-sistema">
+                        <span><i class="bi bi-calendar-plus"></i>Programadas</span>
+                        <span class="badge-count">{{ rentas_programadas|length }}</span>
+                    </div>
+                    <div class="card-content">
+                        {% if rentas_programadas %}
+                        {% for renta in rentas_programadas %}
+                        <div class="list-group-item-sistema">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ renta.cliente_nombre }}</h6>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar-event me-1"></i>Inicia: {{
+                                            renta.fecha_entrada.strftime('%d/%m/%Y') }}
+                                        </small>
+                                        <div>
+                                            {% if renta.dias_para_inicio == 0 %}
+                                                <span class="badge badge-urgente">HOY</span>
+                                            {% elif renta.dias_para_inicio == 1 %}
+                                                <span class="badge bg-warning">Mañana</span>
+                                            {% elif renta.dias_para_inicio <= 3 %}
+                                                <span class="badge bg-info">{{ renta.dias_para_inicio }} días</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ renta.dias_para_inicio }} días</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button class="btn btn-outline-info btn-sm btn-ver-detalle" 
+                                                data-renta-id="{{ renta.id }}">Ver detalle</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="empty-state">
+                            <i class="bi bi-check-circle text-success"></i>
+                            <p>No hay rentas programadas</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
             <!-- PAGOS PENDIENTES UNIFICADOS -->
-            <div class="col-lg-4 col-md-6 mb-4">
+            <div class="col-lg-3 col-md-6 mb-4">
                 <div class="dashboard-card">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-exclamation-diamond"></i>Pagos Pendientes</span>
