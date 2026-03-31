@@ -248,31 +248,7 @@ def modulo_rentas():
     LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
     LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
     {where_sucursal}
-    ORDER BY 
-        CASE 
-            -- Prioridad 1: Rentas activas (Activo, En curso, Programada) + casos no contemplados
-            WHEN r.estado_renta IN ('Activo', 'En curso', 'Programada', 'en curso', 'programada', 'activo') THEN 1
-            
-            -- Prioridad 2: Rentas FINALIZADAS con ALGÚN pago pendiente
-            WHEN r.estado_renta = 'Finalizada' AND (
-                r.estado_pago IN ('Pago pendiente', 'Saldo pendiente') OR
-                ne.estado_retraso = 'Retraso Pendiente' OR
-                r.estado_cobro_extra = 'Extra Pendiente'
-            ) THEN 2
-            
-            -- Prioridad 3: Rentas FINALIZADAS con TODOS los pagos completos
-            WHEN r.estado_renta = 'Finalizada' AND 
-                 r.estado_pago = 'Pago Realizado' AND
-                 (ne.estado_retraso IS NULL OR ne.estado_retraso = 'Retraso Pagado') AND
-                 (r.estado_cobro_extra IS NULL OR r.estado_cobro_extra = 'Extra Pagado') THEN 3
-            
-            -- Prioridad 4: Rentas CANCELADAS (al final)
-            WHEN r.estado_renta = 'Cancelada' OR r.estado_renta = 'cancelada' THEN 4
-            
-            -- Default: Casos no contemplados van con las activas por seguridad
-            ELSE 1
-        END,
-        r.fecha_registro DESC
+    ORDER BY r.id DESC
     """, params_sucursal)
     
     rentas = cursor.fetchall()
@@ -302,7 +278,7 @@ def modulo_rentas():
     # Productos y precios (JOIN con producto_precios)
     cursor.execute("""
         SELECT p.id_producto, p.nombre, 
-               pp.precio_dia, pp.precio_7dias, pp.precio_15dias, pp.precio_30dias, pp.precio_31mas, p.precio_unico
+               pp.precio_dia, pp.precio_14_dias, pp.precio_29_dias, pp.precio_30_dias, p.precio_unico
         FROM productos p
         JOIN producto_precios pp ON p.id_producto = pp.id_producto
         WHERE p.estatus = 'activo'
@@ -315,11 +291,10 @@ def modulo_rentas():
     for prod in productos:
         precios_productos[prod[0]] = {
             "precio_dia": float(prod[2]),
-            "precio_7dias": float(prod[3]),
-            "precio_15dias": float(prod[4]),
-            "precio_30dias": float(prod[5]),
-            "precio_31mas": float(prod[6]),
-            "precio_unico": int(prod[7])
+            "precio_14_dias": float(prod[3]),
+            "precio_29_dias": float(prod[4]),
+            "precio_30_dias": float(prod[5]),
+            "precio_unico": int(prod[6])
         }
 
             # Sucursal actual
@@ -524,7 +499,7 @@ def crear_renta():
                     dias_renta = 1
 
             # Obtener precios y si es precio_unico
-            cursor.execute("SELECT precio_dia, precio_7dias, precio_15dias, precio_30dias, precio_31mas FROM producto_precios WHERE id_producto = %s", (prod_id,))
+            cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (prod_id,))
             precios = cursor.fetchone()
             cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (prod_id,))
             precio_unico = cursor.fetchone()[0]
@@ -534,15 +509,13 @@ def crear_renta():
                 costo_unitario = float(precios[0])
             else:
                 if dias_renta <= 2:
-                    costo_unitario = float(precios[0])
-                elif dias_renta <= 7:
-                    costo_unitario = float(precios[1])
-                elif dias_renta <= 15:
-                    costo_unitario = float(precios[2])
-                elif dias_renta <= 30:
-                    costo_unitario = float(precios[3])
+                    costo_unitario = float(precios[0])  # precio_dia (1-2 días)
+                elif dias_renta <= 14:
+                    costo_unitario = float(precios[1])  # precio_14_dias (3-14 días)
+                elif dias_renta <= 29:
+                    costo_unitario = float(precios[2])  # precio_29_dias (15-29 días)
                 else:
-                    costo_unitario = float(precios[4])
+                    costo_unitario = float(precios[3])  # precio_30_dias (30+ días)
 
             subtotal = cant * dias_renta * costo_unitario
             total += subtotal

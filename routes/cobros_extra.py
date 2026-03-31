@@ -663,3 +663,76 @@ def generar_pdf_cobro_extra(cobro_extra_id):
     response.headers['Expires'] = '0'
     
     return response
+
+
+@bp_extras.route('/pendientes/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
+def obtener_cobros_extra_pendientes(renta_id):
+    """Obtiene todos los cobros extra pendientes para una renta"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Buscar cobros extra no pagados o parcialmente pagados
+        cursor.execute("""
+            SELECT 
+                nce.id,
+                nce.folio,
+                nce.subtotal,
+                nce.iva,
+                nce.total as monto_total,
+                nce.fecha,
+                nce.estado_pago as estado,
+                ne.renta_id
+            FROM notas_cobro_extra nce
+            JOIN notas_entrada ne ON nce.nota_entrada_id = ne.id
+            WHERE ne.renta_id = %s 
+            AND nce.estado_pago IN ('pendiente', 'Extra Pendiente', 'parcial')
+            ORDER BY nce.fecha DESC
+        """, (renta_id,))
+        
+        extras = cursor.fetchall()
+        
+        # Obtener detalles de cada cobro extra para el concepto
+        for extra in extras:
+            cursor.execute("""
+                SELECT 
+                    nombre_pieza,
+                    tipo_afectacion,
+                    cantidad,
+                    costo_unitario
+                FROM notas_cobro_extra_detalle
+                WHERE cobro_extra_id = %s
+            """, (extra['id'],))
+            detalles = cursor.fetchall()
+            
+            # Construir concepto y descripción
+            conceptos = []
+            descripciones = []
+            for detalle in detalles:
+                if detalle['nombre_pieza']:
+                    conceptos.append(f"{detalle['nombre_pieza']} ({detalle['tipo_afectacion']})")
+                else:
+                    conceptos.append("Traslado Extra")
+                descripciones.append(f"Cant: {detalle['cantidad']} - ${detalle['costo_unitario']}")
+            
+            extra['concepto'] = ', '.join(conceptos)[:50] + ('...' if len(', '.join(conceptos)) > 50 else '')
+            extra['descripcion'] = ', '.join(descripciones)[:50] + ('...' if len(', '.join(descripciones)) > 50 else '')
+        
+        # Convertir fechas para JSON
+        for extra in extras:
+            if extra['fecha']:
+                extra['fecha_emision'] = extra['fecha'].isoformat()
+        
+        return jsonify({
+            'extras': extras,
+            'total_pendiente': sum(float(e['monto_total']) for e in extras if e['estado'] == 'pendiente'),
+            'hay_pendientes': len(extras) > 0
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener cobros extra pendientes: {str(e)}'}), 500
+    finally:
+        cursor.close()
+        conn.close()

@@ -495,3 +495,35 @@ def generar_pdf_nota_salida_por_renta(renta_id):
         return f"No hay nota de salida para la renta {renta_id}", 404
 
     return redirect(url_for('notas_salida.generar_pdf_nota_salida', nota_salida_id=nota['id']))
+
+
+@notas_salida_bp.route('/historial/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
+def historial_notas_salida(renta_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("""
+            SELECT id, folio, fecha
+            FROM notas_salida
+            WHERE renta_id = %s
+            ORDER BY fecha DESC
+        """, (renta_id,))
+        notas = cursor.fetchall()
+        
+        # Convert datetime to string for JSON
+        for nota in notas:
+            if nota['fecha']:
+                nota['fecha_salida_real'] = nota['fecha'].isoformat()
+                # Mantener campo original para compatibilidad
+                nota['fecha'] = nota['fecha'].isoformat()
+        
+        return jsonify(notas)
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener historial: {str(e)}'}), 500
+    finally:
+        cursor.close()
+        conn.close()

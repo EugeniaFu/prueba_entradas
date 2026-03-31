@@ -77,9 +77,9 @@
               <span class="badge badge-productos bg-primary">Precio único por día</span>
             </div>
             {% else %}
-            <div><strong>3-14 días:</strong> ${{ producto.precio_7dias }}</div>
-            <div><strong>15-29 días:</strong> ${{ producto.precio_15dias }}</div>
-            <div><strong>30+ días:</strong> ${{ producto.precio_30dias }}</div>
+            <div><strong>3-14 días:</strong> ${{ producto.precio_14_dias }}</div>
+            <div><strong>15-29 días:</strong> ${{ producto.precio_29_dias }}</div>
+            <div><strong>30+ días:</strong> ${{ producto.precio_30_dias }}</div>
             {% endif %}
           </td>
           <td>
@@ -196,19 +196,15 @@
                   <div class="row" id="camposRangosEditar{{ producto.id_producto }}">
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 3-14 días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_7dias" value="{{ producto.precio_7dias or '' }}">
+                      <input type="number" step="0.01" class="form-control" name="precio_14_dias" value="{{ producto.precio_14_dias or '' }}">
                     </div>
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 15-29 días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_15dias" value="{{ producto.precio_15dias or '' }}">
+                      <input type="number" step="0.01" class="form-control" name="precio_29_dias" value="{{ producto.precio_29_dias or '' }}">
                     </div>
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 30+ días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_30dias" value="{{ producto.precio_30dias or '' }}">
-                    </div>
-                    <div class="col-md-3 mb-2" style="display: none;">
-                      <!-- Campo oculto para mantener compatibilidad con BD -->
-                      <input type="hidden" class="form-control" name="precio_31mas" value="{{ producto.precio_30dias or 0 }}">
+                      <input type="number" step="0.01" class="form-control" name="precio_30_dias" value="{{ producto.precio_30_dias or '' }}">
                     </div>
                   </div>
                 </div>
@@ -338,19 +334,15 @@
                   <div class="row" id="camposRangosNuevo">
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 3-14 días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_7dias" required>
+                      <input type="number" step="0.01" class="form-control" name="precio_14_dias" required>
                     </div>
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 15-29 días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_15dias" required>
+                      <input type="number" step="0.01" class="form-control" name="precio_29_dias" required>
                     </div>
                     <div class="col-md-3 mb-2">
                       <label class="form-label">Precio 30+ días</label>
-                      <input type="number" step="0.01" class="form-control" name="precio_30dias" required>
-                    </div>
-                    <div class="col-md-3 mb-2" style="display: none;">
-                      <!-- Campo oculto para mantener compatibilidad con BD -->
-                      <input type="hidden" name="precio_31mas" value="0">
+                      <input type="number" step="0.01" class="form-control" name="precio_30_dias" required>
                     </div>
                   </div>
                 </div>

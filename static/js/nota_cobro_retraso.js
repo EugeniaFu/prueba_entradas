@@ -78,7 +78,12 @@ function cargarCobroRetraso(rentaId) {
             detallesCobroRetraso = data.detalles || [];
 
             // Mostrar días de retraso
-            document.getElementById('dias-retraso').textContent = diasRetraso;
+            const diasRetrasoElement = document.getElementById('dias-retraso');
+            if (diasRetrasoElement) {
+                diasRetrasoElement.textContent = diasRetraso;
+            } else {
+                console.warn('Elemento dias-retraso no encontrado en el DOM');
+            }
 
             // Llenar tabla
             const tbody = document.querySelector('#tabla-cobro-retraso tbody');
@@ -107,9 +112,17 @@ function cargarCobroRetraso(rentaId) {
 
             calcularTotalesCobroRetraso();
 
-            // Mostrar modal
+            // Mostrar modal después de procesar todos los datos
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCobroRetraso'));
             modal.show();
+            
+            // Asegurar que el elemento existe después de mostrar el modal
+            setTimeout(() => {
+                const diasRetrasoElement = document.getElementById('dias-retraso');
+                if (diasRetrasoElement && !diasRetrasoElement.textContent) {
+                    diasRetrasoElement.textContent = diasRetraso;
+                }
+            }, 100);
         })
         .catch(err => {
             Swal.fire({
@@ -285,3 +298,8 @@ function guardarCobroRetraso() {
             }
         });
 }
+
+// Función global para abrir modal de cobro retraso desde otros lugares
+window.abrirModalCobroRetraso = function(rentaId) {
+    cargarCobroRetraso(rentaId);
+};

@@ -15,7 +15,7 @@ def productos():
     cursor = conn.cursor(dictionary=True)
     # Traer productos y precios (incluye precio_dia)
     cursor.execute("""
-        SELECT p.*, pr.precio_dia, pr.precio_7dias, pr.precio_15dias, pr.precio_30dias, pr.precio_31mas
+        SELECT p.*, pr.precio_dia, pr.precio_14_dias, pr.precio_29_dias, pr.precio_30_dias
         FROM productos p
         LEFT JOIN producto_precios pr ON p.id_producto = pr.id_producto
         ORDER BY p.estatus DESC, p.nombre
@@ -51,16 +51,14 @@ def crear_producto():
     
     # Si es precio único, usar precio_dia para todos los rangos
     if precio_unico:
-        precio_7dias = precio_dia
-        precio_15dias = precio_dia
-        precio_30dias = precio_dia
-        precio_31mas = precio_dia
+        precio_14_dias = precio_dia
+        precio_29_dias = precio_dia
+        precio_30_dias = precio_dia
     else:
         # Si no es precio único, usar los valores del formulario o 0
-        precio_7dias = request.form.get('precio_7dias') or 0
-        precio_15dias = request.form.get('precio_15dias') or 0
-        precio_30dias = request.form.get('precio_30dias') or 0
-        precio_31mas = precio_30dias  # Mantener compatibilidad BD - mismo valor que 30dias
+        precio_14_dias = request.form.get('precio_14_dias') or 0
+        precio_29_dias = request.form.get('precio_29_dias') or 0
+        precio_30_dias = request.form.get('precio_30_dias') or 0
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -70,9 +68,9 @@ def crear_producto():
                    """, (nombre, descripcion, tipo, precio_unico))
     id_producto = cursor.lastrowid
     cursor.execute("""
-                   INSERT INTO producto_precios (id_producto, precio_dia, precio_7dias, precio_15dias, precio_30dias, precio_31mas)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   """, (id_producto, precio_dia, precio_7dias, precio_15dias, precio_30dias, precio_31mas))
+                   INSERT INTO producto_precios (id_producto, precio_dia, precio_14_dias, precio_29_dias, precio_30_dias)
+                   VALUES (%s, %s, %s, %s, %s)
+                   """, (id_producto, precio_dia, precio_14_dias, precio_29_dias, precio_30_dias))
 
     # Insertar piezas asociadas
     if tipo == 'individual':
@@ -112,16 +110,14 @@ def editar_producto(id_producto):
     
     # Si es precio único, usar precio_dia para todos los rangos
     if precio_unico:
-        precio_7dias = precio_dia
-        precio_15dias = precio_dia
-        precio_30dias = precio_dia
-        precio_31mas = precio_dia
+        precio_14_dias = precio_dia
+        precio_29_dias = precio_dia
+        precio_30_dias = precio_dia
     else:
         # Si no es precio único, usar los valores del formulario o 0
-        precio_7dias = request.form.get('precio_7dias') or 0
-        precio_15dias = request.form.get('precio_15dias') or 0
-        precio_30dias = request.form.get('precio_30dias') or 0
-        precio_31mas = precio_30dias  # Mantener compatibilidad BD - mismo valor que 30dias
+        precio_14_dias = request.form.get('precio_14_dias') or 0
+        precio_29_dias = request.form.get('precio_29_dias') or 0
+        precio_30_dias = request.form.get('precio_30_dias') or 0
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -129,9 +125,9 @@ def editar_producto(id_producto):
                    UPDATE productos SET nombre=%s, descripcion=%s, tipo=%s, precio_unico=%s WHERE id_producto=%s
                    """, (nombre, descripcion, tipo, precio_unico, id_producto))
     cursor.execute("""
-                   UPDATE producto_precios SET precio_dia=%s, precio_7dias=%s, precio_15dias=%s, precio_30dias=%s, precio_31mas=%s
+                   UPDATE producto_precios SET precio_dia=%s, precio_14_dias=%s, precio_29_dias=%s, precio_30_dias=%s
                    WHERE id_producto=%s
-                   """, (precio_dia, precio_7dias, precio_15dias, precio_30dias, precio_31mas, id_producto))
+                   """, (precio_dia, precio_14_dias, precio_29_dias, precio_30_dias, id_producto))
     # Elimina piezas asociadas actuales
     cursor.execute("DELETE FROM producto_piezas WHERE id_producto=%s", (id_producto,))
     # Inserta nuevas piezas asociadas según el tipo actualizado

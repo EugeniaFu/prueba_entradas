@@ -276,3 +276,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
+// Función global para abrir modal de cobro extra desde otros lugares
+window.abrirModalCobroExtra = function(rentaId) {
+    if (window.llenarModalCobroExtra) {
+        window.llenarModalCobroExtra(rentaId);
+    }
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCobroExtra'));
+    modal.show();
+};

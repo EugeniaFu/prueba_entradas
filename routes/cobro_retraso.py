@@ -66,10 +66,10 @@ def preview_cobro_retraso(renta_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Obtener nota de entrada, días de retraso Y tipo de traslado
+        # Obtener nota de entrada más reciente y datos de la renta
         cursor.execute("""
             SELECT ne.id AS nota_entrada_id, ne.estado_retraso, ne.fecha_entrada_real, 
-                   r.fecha_entrada, r.traslado
+                   r.fecha_entrada, r.traslado, r.id as renta_original_id
             FROM notas_entrada ne
             JOIN rentas r ON ne.renta_id = r.id
             WHERE r.id = %s
@@ -84,13 +84,28 @@ def preview_cobro_retraso(renta_id):
         # VALIDACIÓN DE REGLAS DE NEGOCIO
         tipo_traslado = (nota['traslado'] or 'ninguno').lower()
         
-        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
-        # (El checkbox del frontend controla si se cobra o no)
-
-        # Calcular días de retraso
+        # Buscar renovaciones activas para esta renta
+        cursor.execute("""
+            SELECT r.fecha_entrada, r.id
+            FROM rentas r
+            WHERE r.renta_asociada_id = %s 
+            AND r.estado_renta IN ('activa renovación', 'activo')
+            ORDER BY r.fecha_entrada DESC LIMIT 1
+        """, (renta_id,))
+        renovacion = cursor.fetchone()
+        
+        # Usar fecha de renovación si existe, sino la original
+        fecha_limite_base = renovacion['fecha_entrada'] if renovacion else nota['fecha_entrada']
+        renta_para_productos = renovacion['id'] if renovacion else renta_id
+        
+        # Calcular días de retraso correctamente
         dias_retraso = 0
-        if nota['fecha_entrada'] and nota['fecha_entrada_real']:
-            fecha_limite_dt = datetime.combine(nota['fecha_entrada'] + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
+        if fecha_limite_base and nota['fecha_entrada_real']:
+            # Fecha límite: día siguiente a las 10:00 AM
+            fecha_limite_dt = datetime.combine(
+                fecha_limite_base + timedelta(days=1), 
+                datetime.strptime('10:00', '%H:%M').time()
+            )
             if nota['fecha_entrada_real'] > fecha_limite_dt:
                 delta = nota['fecha_entrada_real'] - fecha_limite_dt
                 dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
@@ -101,14 +116,25 @@ def preview_cobro_retraso(renta_id):
             conn.close()
             return jsonify({'error': 'No hay días de retraso para cobrar'}), 400
 
-        # Obtener productos de la renta con precio original
+        # Obtener productos de la renta correcta (renovación o original)
+        # Si es renovación, usar productos de la renovación; sino, de la original
         cursor.execute("""
             SELECT rd.id_producto, p.nombre, rd.cantidad, rd.costo_unitario
             FROM renta_detalle rd
             JOIN productos p ON rd.id_producto = p.id_producto
             WHERE rd.renta_id = %s
-        """, (renta_id,))
+        """, (renta_para_productos,))
         productos = cursor.fetchall()
+        
+        # Si no hay productos en la renovación, usar los de la renta original
+        if not productos and renovacion:
+            cursor.execute("""
+                SELECT rd.id_producto, p.nombre, rd.cantidad, rd.costo_unitario
+                FROM renta_detalle rd
+                JOIN productos p ON rd.id_producto = p.id_producto
+                WHERE rd.renta_id = %s
+            """, (renta_id,))
+            productos = cursor.fetchall()
 
         # Calcular subtotales por producto
         detalles = []
@@ -688,3 +714,66 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     response.headers['Expires'] = '0'
     
     return response
+
+
+@cobro_retraso_bp.route('/pendientes/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_rentas')
+def obtener_retrasos_pendientes(renta_id):
+    """Obtiene todos los cobros de retraso pendientes para una renta"""
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Buscar cobros de retraso no pagados o parcialmente pagados
+        cursor.execute("""
+            SELECT 
+                ncr.id,
+                ncr.folio,
+                0 as dias_retraso,
+                ncr.subtotal,
+                ncr.iva,
+                ncr.total as monto_total,
+                ncr.fecha,
+                ncr.estado_pago as estado,
+                ne.renta_id
+            FROM notas_cobro_retraso ncr
+            JOIN notas_entrada ne ON ncr.nota_entrada_id = ne.id
+            WHERE ne.renta_id = %s 
+            AND ncr.estado_pago IN ('pendiente', 'Retraso Pendiente', 'parcial')
+            ORDER BY ncr.fecha DESC
+        """, (renta_id,))
+        
+        retrasos = cursor.fetchall()
+        
+        # Convertir fechas para JSON
+        for retraso in retrasos:
+            if retraso['fecha']:
+                retraso['fecha_emision'] = retraso['fecha'].isoformat()
+            # Agregar días de retraso calculado basándose en los detalles
+            try:
+                cursor.execute("""
+                    SELECT dias_retraso 
+                    FROM notas_cobro_retraso_detalle 
+                    WHERE cobro_retraso_id = %s 
+                    LIMIT 1
+                """, (retraso['id'],))
+                detalle = cursor.fetchone()
+                if detalle:
+                    retraso['dias_retraso'] = detalle['dias_retraso']
+                else:
+                    retraso['dias_retraso'] = 0
+            except:
+                retraso['dias_retraso'] = 0
+        
+        return jsonify({
+            'retrasos': retrasos,
+            'total_pendiente': sum(float(r['monto_total']) for r in retrasos if r['estado'] == 'pendiente'),
+            'hay_pendientes': len(retrasos) > 0
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener retrasos pendientes: {str(e)}'}), 500
+    finally:
+        cursor.close()
+        conn.close()

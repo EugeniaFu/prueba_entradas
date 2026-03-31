@@ -7,6 +7,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDetalleRenta'));
             modal.show();
 
+            // Debug: Verificar que todos los elementos existan
+            console.log('Verificando elementos del modal:');
+            console.log('detalle-notas-salida-tabla:', !!document.getElementById('detalle-notas-salida-tabla'));
+            console.log('cobros-pendientes-section:', !!document.getElementById('cobros-pendientes-section'));
+            console.log('retrasos-pendientes:', !!document.getElementById('retrasos-pendientes'));
+            console.log('extras-pendientes:', !!document.getElementById('extras-pendientes'));
+            console.log('btn-cobrar-retraso:', !!document.getElementById('btn-cobrar-retraso'));
+            console.log('btn-cobrar-extra:', !!document.getElementById('btn-cobrar-extra'));
+
             // Limpiar datos previos
             document.getElementById('detalle-renta-id').textContent = rentaId;
             document.getElementById('detalle-productos-tabla').innerHTML =
@@ -57,6 +66,95 @@ document.addEventListener('DOMContentLoaded', function () {
                                     </td>
                                 </tr>
                             `).join('');
+                        })
+                        .catch(err => {
+                            console.error('Error al cargar notas de entrada:', err);
+                            document.getElementById('detalle-notas-entrada-tabla').innerHTML = 
+                                '<tr><td colspan="3" class="text-center text-danger">Error al cargar notas de entrada</td></tr>';
+                        });
+
+                    // Cargar historial de notas de salida
+                    fetch(`/notas_salida/historial/${rentaId}`)
+                        .then(resp => {
+                            console.log('Respuesta notas de salida:', resp.status);
+                            if (!resp.ok) {
+                                throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+                            }
+                            return resp.json();
+                        })
+                        .then(notas => {
+                            console.log('Notas de salida recibidas:', notas);
+                            const tbody = document.getElementById('detalle-notas-salida-tabla');
+                            if (!tbody) {
+                                console.error('Elemento detalle-notas-salida-tabla no encontrado');
+                                return;
+                            }
+                            if (!notas.length) {
+                                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin notas de salida</td></tr>';
+                                return;
+                            }
+                            tbody.innerHTML = notas.map(nota => `
+                                <tr>
+                                    <td>${nota.folio}</td>
+                                    <td>${new Date(nota.fecha_salida_real).toLocaleString()}</td>
+                                    <td>
+                                        <a href="/notas_salida/pdf/${nota.id}" target="_blank" class="btn btn-sm btn-success">
+                                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                                        </a>
+                                    </td>
+                                </tr>
+                            `).join('');
+                        })
+                        .catch(err => {
+                            console.error('Error al cargar notas de salida:', err);
+                            const tbody = document.getElementById('detalle-notas-salida-tabla');
+                            if (tbody) {
+                                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Error: ${err.message}</td></tr>`;
+                            }
+                        });
+
+                    // Cargar cobros por retraso pendientes
+                    fetch(`/cobros_retraso/pendientes/${rentaId}`)
+                        .then(resp => {
+                            console.log('Respuesta cobros retraso:', resp.status);
+                            if (!resp.ok) {
+                                throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+                            }
+                            return resp.json();
+                        })
+                        .then(data => {
+                            console.log('Cobros retraso recibidos:', data);
+                            cargarRetrasosPendientes(data, rentaId);
+                        })
+                        .catch(err => {
+                            console.error('Error al cargar retrasos pendientes:', err);
+                            // Mostrar mensaje de error en la sección
+                            const tbody = document.getElementById('retrasos-pendientes-tabla');
+                            if (tbody) {
+                                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Error: ${err.message}</td></tr>`;
+                            }
+                        });
+
+                    // Cargar cobros extra pendientes
+                    fetch(`/cobros_extra/pendientes/${rentaId}`)
+                        .then(resp => {
+                            console.log('Respuesta cobros extra:', resp.status);
+                            if (!resp.ok) {
+                                throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+                            }
+                            return resp.json();
+                        })
+                        .then(data => {
+                            console.log('Cobros extra recibidos:', data);
+                            cargarExtrasPendientes(data, rentaId);
+                        })
+                        .catch(err => {
+                            console.error('Error al cargar cobros extra pendientes:', err);
+                            // Mostrar mensaje de error en la sección
+                            const tbody = document.getElementById('extras-pendientes-tabla');
+                            if (tbody) {
+                                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error: ${err.message}</td></tr>`;
+                            }
                         });
                 })
                 .catch(err => {
@@ -230,6 +328,119 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         tbody.innerHTML = html;
+    }
+
+    function cargarRetrasosPendientes(data, rentaId) {
+        console.log('Cargando retrasos pendientes:', data);
+        const seccionRetrasos = document.getElementById('retrasos-pendientes');
+        const tbody = document.getElementById('retrasos-pendientes-tabla');
+        const btnCobrarRetraso = document.getElementById('btn-cobrar-retraso');
+        const seccionPadre = document.getElementById('cobros-pendientes-section');
+        
+        if (!seccionRetrasos || !tbody || !btnCobrarRetraso || !seccionPadre) {
+            console.error('Elementos de retrasos pendientes no encontrados:', {
+                seccionRetrasos: !!seccionRetrasos,
+                tbody: !!tbody,
+                btnCobrarRetraso: !!btnCobrarRetraso,
+                seccionPadre: !!seccionPadre
+            });
+            return;
+        }
+        
+        if (!data || !data.retrasos || data.retrasos.length === 0) {
+            console.log('Sin retrasos pendientes');
+            seccionRetrasos.style.display = 'none';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin retrasos pendientes</td></tr>';
+            return;
+        }
+        
+        console.log('Mostrando retrasos pendientes:', data.retrasos.length);
+        // Mostrar sección
+        seccionRetrasos.style.display = 'block';
+        seccionPadre.style.display = 'block';
+        btnCobrarRetraso.style.display = 'inline-block';
+        
+        // Configurar botón
+        btnCobrarRetraso.onclick = () => {
+            console.log('Abriendo modal cobro retraso para renta:', rentaId);
+            // Abrir modal de cobro retraso con datos
+            if (window.abrirModalCobroRetraso) {
+                window.abrirModalCobroRetraso(rentaId);
+            } else {
+                console.error('Función abrirModalCobroRetraso no disponible');
+            }
+        };
+        
+        // Llenar tabla
+        tbody.innerHTML = data.retrasos.map(retraso => `
+            <tr>
+                <td>
+                    <span class="badge bg-danger">${retraso.dias_retraso} día${retraso.dias_retraso > 1 ? 's' : ''}</span>
+                </td>
+                <td>$${parseFloat(retraso.monto_total || 0).toFixed(2)}</td>
+                <td>
+                    <span class="badge ${retraso.estado === 'pendiente' ? 'bg-warning' : 'bg-success'}">
+                        ${retraso.estado === 'pendiente' ? 'Pendiente' : 'Pagado'}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    function cargarExtrasPendientes(data, rentaId) {
+        console.log('Cargando extras pendientes:', data);
+        const seccionExtras = document.getElementById('extras-pendientes');
+        const tbody = document.getElementById('extras-pendientes-tabla');
+        const btnCobrarExtra = document.getElementById('btn-cobrar-extra');
+        const seccionPadre = document.getElementById('cobros-pendientes-section');
+        
+        if (!seccionExtras || !tbody || !btnCobrarExtra || !seccionPadre) {
+            console.error('Elementos de extras pendientes no encontrados:', {
+                seccionExtras: !!seccionExtras,
+                tbody: !!tbody,
+                btnCobrarExtra: !!btnCobrarExtra,
+                seccionPadre: !!seccionPadre
+            });
+            return;
+        }
+        
+        if (!data || !data.extras || data.extras.length === 0) {
+            console.log('Sin cobros extra pendientes');
+            seccionExtras.style.display = 'none';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin cobros extra pendientes</td></tr>';
+            return;
+        }
+        
+        console.log('Mostrando cobros extra pendientes:', data.extras.length);
+        // Mostrar sección
+        seccionExtras.style.display = 'block';
+        seccionPadre.style.display = 'block';
+        btnCobrarExtra.style.display = 'inline-block';
+        
+        // Configurar botón
+        btnCobrarExtra.onclick = () => {
+            console.log('Abriendo modal cobro extra para renta:', rentaId);
+            // Abrir modal de cobro extra con datos
+            if (window.abrirModalCobroExtra) {
+                window.abrirModalCobroExtra(rentaId);
+            } else {
+                console.error('Función abrirModalCobroExtra no disponible');
+            }
+        };
+        
+        // Llenar tabla
+        tbody.innerHTML = data.extras.map(extra => `
+            <tr>
+                <td>${extra.concepto}</td>
+                <td>${extra.descripcion || 'N/A'}</td>
+                <td>$${parseFloat(extra.monto_total || 0).toFixed(2)}</td>
+                <td>
+                    <span class="badge ${extra.estado === 'pendiente' ? 'bg-warning' : 'bg-success'}">
+                        ${extra.estado === 'pendiente' ? 'Pendiente' : 'Pagado'}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
     }
 
 });
