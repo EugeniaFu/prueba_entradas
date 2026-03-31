@@ -271,6 +271,163 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ===============================================
+    // FUNCIONALIDAD DE FILTROS Y BÚSQUEDA
+    // ===============================================
+    const buscadorRentas = document.getElementById('buscadorRentas');
+    const filtroEstado = document.getElementById('filtroEstado');
+    const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
+    const tablaRentas = document.getElementById('tablaRentas');
+    const tbodyRentas = tablaRentas ? tablaRentas.querySelector('tbody') : null;
+
+    // Función para filtrar tabla
+    function filtrarTabla() {
+        if (!tbodyRentas) return;
+
+        const textoBusqueda = (buscadorRentas.value || '').toLowerCase().trim();
+        const estadoSeleccionado = (filtroEstado.value || '').toLowerCase().trim();
+        const filas = tbodyRentas.querySelectorAll('tr');
+        let filasVisibles = 0;
+
+        filas.forEach(fila => {
+            const celdas = fila.querySelectorAll('td');
+            if (celdas.length === 0) return;
+
+            // Detectar si existe la columna de sucursal para ajustar índices
+            const tieneSucursal = celdas.length > 13; // Si hay más de 13 columnas, incluye sucursal
+            
+            // Definir índices de columnas según si tiene sucursal o no
+            const indices = {
+                folio: 0,
+                fechaRegistro: tieneSucursal ? 2 : 1,
+                nombreCliente: tieneSucursal ? 3 : 2,
+                fechaSalida: tieneSucursal ? 5 : 4,
+                fechaEntrada: tieneSucursal ? 6 : 5,
+                direccionObra: tieneSucursal ? 7 : 6
+            };
+
+            // Extraer texto solo de las columnas específicas para búsqueda
+            const textosBusqueda = [
+                celdas[indices.folio]?.textContent || '',          // Folio
+                celdas[indices.fechaRegistro]?.textContent || '',  // Fecha de registro
+                celdas[indices.nombreCliente]?.textContent || '',  // Nombre del cliente
+                celdas[indices.fechaSalida]?.textContent || '',    // Fecha de salida
+                celdas[indices.fechaEntrada]?.textContent || '',   // Fecha de entrada
+                celdas[indices.direccionObra]?.textContent || ''   // Dirección de obra
+            ];
+            
+            const textoFila = textosBusqueda.join(' ').toLowerCase().trim();
+
+            // Verificar búsqueda por texto
+            const coincideTexto = !textoBusqueda || textoFila.includes(textoBusqueda);
+
+            // Verificar filtro por estado
+            let coincideEstado = true;
+            if (estadoSeleccionado) {
+                const estadoRenta = celdas[8] ? celdas[8].textContent.toLowerCase().trim() : '';
+                const estadoPago = celdas[9] ? celdas[9].textContent.toLowerCase().trim() : '';
+                
+                // Estados específicos que requieren lógica especial
+                if (estadoSeleccionado === 'activo') {
+                    coincideEstado = estadoRenta.includes('activo');
+                } else if (estadoSeleccionado === 'en curso') {
+                    coincideEstado = estadoRenta.includes('en curso');
+                } else if (estadoSeleccionado === 'programada') {
+                    coincideEstado = estadoRenta.includes('programada');
+                } else if (estadoSeleccionado === 'finalizadas') {
+                    coincideEstado = estadoRenta.includes('finalizada');
+                } else if (estadoSeleccionado === 'cancelada') {
+                    coincideEstado = estadoRenta.includes('cancelada');
+                } else if (estadoSeleccionado === 'en recolección') {
+                    coincideEstado = estadoRenta.includes('en recolección');
+                } else if (estadoSeleccionado === 'renta parcial') {
+                    coincideEstado = estadoRenta.includes('renta parcial');
+                } else if (estadoSeleccionado === 'activa renovación') {
+                    coincideEstado = estadoRenta.includes('activa renovación');
+                } else if (estadoSeleccionado === 'renta en renovación') {
+                    coincideEstado = textoFila.includes('renta en renovación');
+                } else if (estadoSeleccionado === 'piezas pendientes') {
+                    coincideEstado = textoFila.includes('piezas pendientes');
+                } else if (estadoSeleccionado === 'pago pendiente') {
+                    coincideEstado = estadoPago.includes('pago pendiente');
+                } else if (estadoSeleccionado === 'saldo pendiente') {
+                    coincideEstado = estadoPago.includes('saldo pendiente');
+                } else if (estadoSeleccionado === 'pago realizado') {
+                    coincideEstado = estadoPago.includes('pago realizado');
+                } else if (estadoSeleccionado === 'retraso pendiente') {
+                    coincideEstado = textoFila.includes('retraso pendiente');
+                } else if (estadoSeleccionado === 'retraso pagado') {
+                    coincideEstado = textoFila.includes('retraso pagado');
+                } else if (estadoSeleccionado === 'extra pendiente') {
+                    coincideEstado = textoFila.includes('extra pendiente');
+                } else if (estadoSeleccionado === 'extra pagado') {
+                    coincideEstado = textoFila.includes('extra pagado');
+                } else if (estadoSeleccionado === 'retrasadas') {
+                    // Buscar indicadores de retraso
+                    coincideEstado = textoFila.includes('vence hoy') || 
+                                   textoFila.includes('días de retraso') ||
+                                   textoFila.includes('retraso');
+                } else {
+                    // Para cualquier otro estado, buscar en ambas columnas de estado
+                    coincideEstado = estadoRenta.includes(estadoSeleccionado) || 
+                                   estadoPago.includes(estadoSeleccionado);
+                }
+            }
+
+            // Mostrar/ocultar fila
+            if (coincideTexto && coincideEstado) {
+                fila.style.display = '';
+                filasVisibles++;
+            } else {
+                fila.style.display = 'none';
+            }
+        });
+
+        // Actualizar indicador de resultados
+        actualizarContadorResultados(filasVisibles, filas.length);
+    }
+
+    // Función para actualizar contador de resultados
+    function actualizarContadorResultados(visibles, total) {
+        let contador = document.getElementById('contadorResultados');
+        if (!contador) {
+            contador = document.createElement('div');
+            contador.id = 'contadorResultados';
+            contador.className = 'text-muted mb-2 small';
+            if (tablaRentas && tablaRentas.parentNode) {
+                tablaRentas.parentNode.insertBefore(contador, tablaRentas);
+            }
+        }
+        
+        if (visibles === total) {
+            contador.textContent = `Mostrando ${total} renta${total !== 1 ? 's' : ''}`;
+        } else {
+            contador.textContent = `Mostrando ${visibles} de ${total} renta${total !== 1 ? 's' : ''}`;
+        }
+    }
+
+    // Event listeners para filtros
+    if (buscadorRentas) {
+        buscadorRentas.addEventListener('input', filtrarTabla);
+        buscadorRentas.addEventListener('keyup', filtrarTabla);
+    }
+
+    if (filtroEstado) {
+        filtroEstado.addEventListener('change', filtrarTabla);
+    }
+
+    // Botón limpiar: recargar página
+    if (btnLimpiarFiltros) {
+        btnLimpiarFiltros.addEventListener('click', function() {
+            window.location.reload();
+        });
+    }
+
+    // Inicializar contador al cargar
+    if (tbodyRentas) {
+        const totalFilas = tbodyRentas.querySelectorAll('tr').length;
+        actualizarContadorResultados(totalFilas, totalFilas);
+    }
 
 
 })

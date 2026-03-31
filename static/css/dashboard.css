@@ -79,7 +79,11 @@
      border-top-left-radius: 14px;
      border-top-right-radius: 14px;
  }
-
+ /* Header específico para bloc de notas con separación */
+ .bloc-notas-card .card-header-sistema {
+     justify-content: flex-start;
+     gap: 1.5rem;
+ }
  .card-header-sistema i {
      margin-right: 0.5rem;
      font-size: 1.1rem;
