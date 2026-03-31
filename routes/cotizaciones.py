@@ -138,30 +138,41 @@ def calcular_estado_vigencia(cotizacion):
 def calcular_precio_por_dias(producto_id, dias_renta):
     """Calcula el precio según los días de renta"""
     conexion = get_db_connection()
-    cursor = conexion.cursor()
+    cursor = conexion.cursor(dictionary=True)
     
+    # Obtener precios actualizados de la BD
     cursor.execute("""
-        SELECT precio_dia, precio_7dias, precio_15dias, precio_30dias, precio_31mas
+        SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias
         FROM producto_precios 
         WHERE id_producto = %s
     """, (producto_id,))
     
     precios = cursor.fetchone()
+    
+    # Obtener si es precio único
+    cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (producto_id,))
+    precio_unico_result = cursor.fetchone()
+    precio_unico = precio_unico_result['precio_unico'] if precio_unico_result else 0
+    
     cursor.close()
     conexion.close()
     
     if not precios:
         return 0.00
     
-    # Lógica para determinar precio según días
-    if dias_renta <= 2:
-        return float(precios[0])  # precio_dia (1-2 días)
-    elif dias_renta <= 14:
-        return float(precios[1])  # precio_7dias (3-14 días)
-    elif dias_renta <= 29:
-        return float(precios[2])  # precio_15dias (15-29 días)
-    else:  # 30+ días
-        return float(precios[3])  # precio_30dias (30+ días)
+    # Nueva lógica de precios igual que en rentas y prefactura
+    if precio_unico == 1:
+        return float(precios['precio_dia'])  # Precio único por día
+    else:
+        # Lógica para determinar precio según días
+        if dias_renta <= 2:
+            return float(precios['precio_dia'])          # 1-2 días
+        elif dias_renta <= 14:
+            return float(precios['precio_14_dias'])      # 3-14 días
+        elif dias_renta <= 29:
+            return float(precios['precio_29_dias'])      # 15-29 días
+        else:  # 30+ días
+            return float(precios['precio_30_dias'])      # 30+ días
 
 
 

@@ -66,25 +66,15 @@ def preview_cobro_retraso(renta_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Verificar si es una renovación para buscar la nota de entrada en la renta original
-        cursor.execute("SELECT renta_asociada_id, traslado, fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
-        renta_actual = cursor.fetchone()
-        if not renta_actual:
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'Renta no encontrada'}), 404
-
-        # Determinar en qué renta buscar la nota de entrada
-        renta_id_para_nota = renta_actual['renta_asociada_id'] if renta_actual['renta_asociada_id'] else renta_id
-        
-        # Obtener nota de entrada (siempre de la renta original)
+        # Obtener nota de entrada, días de retraso Y tipo de traslado
         cursor.execute("""
-            SELECT ne.id AS nota_entrada_id, ne.estado_retraso, ne.fecha_entrada_real
+            SELECT ne.id AS nota_entrada_id, ne.estado_retraso, ne.fecha_entrada_real, 
+                   r.fecha_entrada, r.traslado
             FROM notas_entrada ne
             JOIN rentas r ON ne.renta_id = r.id
             WHERE r.id = %s
             ORDER BY ne.id DESC LIMIT 1
-        """, (renta_id_para_nota,))
+        """, (renta_id,))
         nota = cursor.fetchone()
         if not nota:
             cursor.close()
@@ -92,46 +82,30 @@ def preview_cobro_retraso(renta_id):
             return jsonify({'error': 'No hay nota de entrada para esta renta'}), 404
 
         # VALIDACIÓN DE REGLAS DE NEGOCIO
-        tipo_traslado = (renta_actual['traslado'] or 'ninguno').lower()
+        tipo_traslado = (nota['traslado'] or 'ninguno').lower()
         
-        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
-        # (El checkbox del frontend controla si se cobra o no)
+        # Si es traslado redondo, NO se permite cobrar retraso
+        if tipo_traslado == 'redondo':
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'error': 'No se cobra retraso con traslado REDONDO. La empresa es responsable de recoger el equipo.'
+            }), 400
+        
+        # Para traslado MEDIO y NINGUNO, se permite pero debe preguntarse desde el frontend
 
-        # Determinar fecha base correcta para calcular retraso
-        # SIEMPRE usar la fecha de la renta original, no de renovaciones
-        cursor.execute("SELECT fecha_entrada FROM rentas WHERE id = %s", (renta_id_para_nota,))
-        renta_original = cursor.fetchone()
-        fecha_base = renta_original['fecha_entrada'] if renta_original else None
-
-        # Calcular días de retraso usando la fecha base correcta
+        # Calcular días de retraso
         dias_retraso = 0
-        if fecha_base and nota['fecha_entrada_real']:
-            if isinstance(fecha_base, datetime):
-                fecha_base = fecha_base.date()
-            fecha_limite_dt = datetime.combine(fecha_base + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
-            
-            # DEBUG: Imprimir valores para troubleshooting
-            print(f"DEBUG - Renta ID: {renta_id}")
-            print(f"DEBUG - Renta original para nota: {renta_id_para_nota}")
-            print(f"DEBUG - Fecha base (renta original): {fecha_base}")
-            print(f"DEBUG - Fecha límite calculada: {fecha_limite_dt}")
-            print(f"DEBUG - Fecha entrada real: {nota['fecha_entrada_real']}")
-            print(f"DEBUG - Es renovación: {renta_actual['renta_asociada_id'] is not None}")
-            
+        if nota['fecha_entrada'] and nota['fecha_entrada_real']:
+            fecha_limite_dt = datetime.combine(nota['fecha_entrada'] + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
             if nota['fecha_entrada_real'] > fecha_limite_dt:
                 delta = nota['fecha_entrada_real'] - fecha_limite_dt
                 dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
-                print(f"DEBUG - Días de retraso calculados: {dias_retraso}")
-            else:
-                print(f"DEBUG - Sin retraso: {nota['fecha_entrada_real']} <= {fecha_limite_dt}")
-        else:
-            print(f"DEBUG - Faltan datos: fecha_base={fecha_base}, fecha_entrada_real={nota.get('fecha_entrada_real')}")
         
         # Si no hay retraso, no hay nada que cobrar
         if dias_retraso <= 0:
             cursor.close()
             conn.close()
-            print(f"DEBUG - Retornando error: días_retraso = {dias_retraso}")
             return jsonify({'error': 'No hay días de retraso para cobrar'}), 400
 
         # Obtener productos de la renta con precio original
@@ -220,8 +194,14 @@ def guardar_cobro_retraso(renta_id):
         
         tipo_traslado = (renta_info['traslado'] or 'ninguno').lower()
         
-        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
-        # (El checkbox del frontend controla si se cobra o no)
+        # Bloquear cobro si es traslado redondo
+        if tipo_traslado == 'redondo':
+            cursor.close()
+            conn.close()
+            return jsonify({
+                'success': False, 
+                'error': 'No se puede cobrar retraso con traslado REDONDO'
+            }), 400
 
         # Función para redondear según reglas de efectivo
         def redondear_efectivo(monto):
@@ -383,12 +363,13 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         conn.close()
         return "Cobro de retraso no encontrado", 404
     
-    # Obtener detalles del cobro de retraso (no de la renta original)
+    # Obtener detalles originales de la renta (no del cobro de retraso)
     cursor.execute("""
-        SELECT nombre_producto, cantidad, dias_retraso, precio_unitario, subtotal
-        FROM notas_cobro_retraso_detalle
-        WHERE cobro_retraso_id = %s
-    """, (cobro_retraso_id,))
+        SELECT prod.nombre, rd.cantidad, rd.dias_renta, rd.costo_unitario, rd.subtotal
+        FROM renta_detalle rd
+        JOIN productos prod ON rd.id_producto = prod.id_producto
+        WHERE rd.renta_id = %s
+    """, (cobro['renta_id'],))
     detalles = cursor.fetchall()
     
     # Obtener datos del usuario actual
@@ -461,12 +442,12 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         y_cliente -= 13
     
     # Estado y Municipio
-    can.drawString(36, y_cliente, f"ESTADO: {(cobro['estado'] or 'NO REGISTRADO').upper()}")
-    can.drawString(290, y_cliente, f"MUNICIPIO: {(cobro['municipio'] or 'NO REGISTRADO').upper()}")
+    can.drawString(36, y_cliente, f"ESTADO: {cobro['estado'] or 'NO REGISTRADO'.upper()}")
+    can.drawString(290, y_cliente, f"MUNICIPIO: {cobro['municipio'] or 'NO REGISTRADO'.upper()}")
     y_cliente -= 13
     
     # RFC y Facturable
-    can.drawString(36, y_cliente, f"RFC: {(cobro['rfc'] or 'NO REGISTRADO').upper()}")
+    can.drawString(36, y_cliente, f"RFC: {cobro['rfc'] or 'NO REGISTRADO'.upper()}")
     facturable_texto = "SÍ" if cobro['facturable'] else "NO"
     can.drawString(290, y_cliente, f"FACTURABLE: {facturable_texto}")
     y_cliente -= 20
@@ -504,10 +485,10 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     subtotal_general = 0
     
     for item in detalles:
-        can.drawString(36, y_tabla + 5, item['nombre_producto'][:35].upper())
+        can.drawString(36, y_tabla + 5, item['nombre'][:35].upper())
         can.drawRightString(350, y_tabla + 5, str(item['cantidad']))
-        can.drawRightString(400, y_tabla + 5, str(item['dias_retraso']))
-        can.drawRightString(490, y_tabla + 5, f"${item['precio_unitario']:.2f}")
+        can.drawRightString(400, y_tabla + 5, str(item['dias_renta'] or 'N/A'))
+        can.drawRightString(490, y_tabla + 5, f"${item['costo_unitario']:.2f}")
         can.drawRightString(570, y_tabla + 5, f"${item['subtotal']:.2f}")
         
         subtotal_general += float(item['subtotal'])
@@ -519,53 +500,49 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     y_tabla -= 5
 
     # === LÍNEA DIVISORA Y TOTALES ===
-    can.line(28, y_tabla + 15, 585, y_tabla + 15)  # Línea separadora
-
+    can.line(28, y_tabla + 15, 585, y_tabla + 15)
+    
     espacio_3mm = 10
     can.setFont("Carlito", 11)
-    y_totales = y_tabla + 10 - espacio_3mm  # 3mm debajo de la línea
+    y_totales = y_tabla + 10 - espacio_3mm
 
-    # Obtener días de retraso del primer detalle (todos tienen los mismos días)
-    dias_retraso = detalles[0]['dias_retraso'] if detalles else 0
-    
-    # PERÍODO DE RETRASO (AL LADO IZQUIERDO DEL SUBTOTAL)
-    if cobro['fecha_entrada'] and dias_retraso > 0:
-        # Calcular período de retraso real
-        inicio_retraso = cobro['fecha_entrada'] + timedelta(days=1)  # Primer día de retraso
-        fin_retraso = inicio_retraso + timedelta(days=dias_retraso - 1)  # Último día de retraso
-        periodo_retraso = f"{inicio_retraso.strftime('%d/%m/%Y')} - {fin_retraso.strftime('%d/%m/%Y')}"
-        
-        can.setFont("Helvetica-Bold", 10)
-        can.drawString(36, y_totales, f"PERÍODO DE RENTA: {periodo_retraso}")
+# PERÍODO DE RENTA (AL LADO IZQUIERDO DEL SUBTOTAL)
+    periodo_renta = f"{cobro['fecha_salida'].strftime('%d/%m/%Y')}"
+    if cobro['fecha_entrada']:
+        periodo_renta += f" - {cobro['fecha_entrada'].strftime('%d/%m/%Y')}"
+    else:
+        periodo_renta += " - Indefinido"
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(36, y_totales, f"PERIODO DE RENTA: {periodo_renta}")
 
-    # Subtotal de productos (AL LADO DERECHO) - usar subtotal del cobro retraso
+    # Subtotal de productos (AL LADO DERECHO)
     can.setFont("Carlito", 10)
     can.drawString(400, y_totales, "SUBTOTAL:")
-    can.drawRightString(570, y_totales, f"${cobro['subtotal']:.2f}")
+    can.drawRightString(570, y_totales, f"${subtotal_general:.2f}")
     y_totales -= 12
 
-    # Traslado extra (si aplica)
-    if cobro.get('traslado_extra') and cobro.get('traslado_extra') != 'ninguno':
-        can.setFont("Carlito", 10)
-        can.drawString(400, y_totales, f"TRASLADO EXTRA ({cobro['traslado_extra']}):")
-        can.drawRightString(570, y_totales, f"${cobro.get('costo_traslado_extra', 0):.2f}")
-        y_totales -= 12
+    # Traslado
+    traslado_tipo = cobro.get('traslado', 'ninguno')
+    costo_traslado = cobro.get('costo_traslado', 0)
+    can.setFont("Carlito", 10)
+    can.drawString(400, y_totales, f"TRASLADO ({traslado_tipo}):")
+    can.drawRightString(570, y_totales, f"${costo_traslado:.2f}")
+    y_totales -= 12
 
     # IVA
-    can.setFont("Carlito", 10)
     can.drawString(400, y_totales, "IVA (16%):")
     can.drawRightString(570, y_totales, f"${cobro['iva']:.2f}")
     y_totales -= 12
 
-    # Total del cobro retraso
+    # Total de la renta
     can.setFont("Helvetica-Bold", 9)
-    can.drawString(400, y_totales, "TOTAL COBRO RETRASO:")
+    can.drawString(400, y_totales, "TOTAL RENTA:")
     can.drawRightString(570, y_totales, f"${cobro['total']:.2f}")
     
-    # === TOTAL EN LETRAS (AL LADO IZQUIERDO DEL TOTAL COBRO RETRASO) ===
-    total_cobro_retraso = float(cobro['total'])
-    monto_entero = int(total_cobro_retraso)
-    monto_centavos = int(round((total_cobro_retraso - monto_entero) * 100))
+    # === TOTAL EN LETRAS (AL LADO IZQUIERDO DEL TOTAL RENTA) ===
+    total_renta = float(cobro['total'])
+    monto_entero = int(total_renta)
+    monto_centavos = int(round((total_renta - monto_entero) * 100))
     monto_letras = num2words(monto_entero, lang='es').upper()
     if monto_centavos > 0:
         monto_letras = f"SON: {monto_letras} PESOS CON {monto_centavos:02d}/100 M.N."
@@ -574,7 +551,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
 
     # Usar simpleSplit para manejar texto multilínea si es muy largo
     can.setFont("Carlito", 9)
-    monto_letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)  # Ancho máximo hasta donde empieza TOTAL COBRO RETRASO
+    monto_letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)  # Ancho máximo hasta donde empieza TOTAL RENTA
     y_letras = y_totales
     for line in monto_letras_lines:
         can.drawString(36, y_letras, line)
@@ -602,13 +579,13 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         
         can.drawString(400, y_totales, f"CAMBIO:")
         can.drawRightString(570, y_totales, f"${float(cobro['cambio']):.2f}")
-        y_totales -= 13
+        y_totales -= 12
 
     # === AVISOS IMPORTANTES PARA EL CLIENTE ===
-    y_avisos = y_totales - 5
+    y_avisos = y_totales - 5  
 
     # Línea separadora para los avisos
-    can.line(28, y_avisos + 16, 585, y_avisos + 16)
+    can.line(28, y_avisos + 20, 585, y_avisos + 20)
     y_avisos -= 5
 
     # REQUISITOS DE CLIENTE

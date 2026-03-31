@@ -249,11 +249,8 @@ def crear_nota_entrada(renta_id):
         total_piezas_salida = sum([p['cantidad_salida'] for p in piezas_salida])
         total_piezas_recibidas = sum([int(p.get('cantidad_recibida', 0)) for p in piezas])
 
-        # Si hay una renovación activa y todas las piezas están siendo renovadas (total), no cobrar retraso
-        if total_renovaciones > 0 and total_piezas_recibidas == total_piezas_salida:
-            cobrar_retraso = False
-        else:
-            cobrar_retraso = data.get('cobrar_retraso', False)
+        # Respetar la decisión del usuario sobre cobrar retraso, independientemente de renovaciones
+        cobrar_retraso = data.get('cobrar_retraso', False)
         estado_retraso = 'Retraso Pendiente' if cobrar_retraso else 'Sin Retraso'
 
         # Buscar si ya existe una nota de entrada en recolección para esta renta
