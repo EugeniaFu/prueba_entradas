@@ -67,41 +67,64 @@ def preview_cobro_retraso(renta_id):
 
     try:
         # Verificar si es una renovación para buscar la nota de entrada en la renta original
-        cursor.execute("SELECT renta_asociada_id, traslado, fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
+        # Obtener datos de la renta actual
+        cursor.execute("SELECT id_sucursal, renta_asociada_id, traslado, fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
         renta_actual = cursor.fetchone()
         if not renta_actual:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Renta no encontrada'}), 404
 
-        # Determinar en qué renta buscar la nota de entrada
-        renta_id_para_nota = renta_actual['renta_asociada_id'] if renta_actual['renta_asociada_id'] else renta_id
+        print(f"DEBUG: renta_id llamado: {renta_id}")
+        print(f"DEBUG: renta_actual: {renta_actual}")
+
+        # Si es una renta asociada (renovación), obtener la renta padre
+        renta_padre_id = renta_actual['renta_asociada_id'] if renta_actual['renta_asociada_id'] else renta_id
+        print(f"DEBUG: renta_padre_id calculado: {renta_padre_id}")
         
-        # Obtener nota de entrada (siempre de la renta original)
+        # Obtener datos de la renta padre para fechas y demás
+        cursor.execute("SELECT id, fecha_entrada, traslado FROM rentas WHERE id = %s", (renta_padre_id,))
+        renta_padre = cursor.fetchone()
+        if not renta_padre:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Renta padre no encontrada'}), 404
+        print(f"DEBUG: renta_padre: {renta_padre}")
+        
+        # Obtener nota de entrada (siempre de la renta padre/original)
         cursor.execute("""
             SELECT ne.id AS nota_entrada_id, ne.estado_retraso, ne.fecha_entrada_real
             FROM notas_entrada ne
-            JOIN rentas r ON ne.renta_id = r.id
-            WHERE r.id = %s
+            WHERE ne.renta_id = %s
             ORDER BY ne.id DESC LIMIT 1
-        """, (renta_id_para_nota,))
+        """, (renta_padre_id,))
         nota = cursor.fetchone()
         if not nota:
             cursor.close()
             conn.close()
             return jsonify({'error': 'No hay nota de entrada para esta renta'}), 404
 
-        # VALIDACIÓN DE REGLAS DE NEGOCIO
-        tipo_traslado = (renta_actual['traslado'] or 'ninguno').lower()
-        
-        # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
-        # (El checkbox del frontend controla si se cobra o no)
+        # LÓGICA CORREGIDA: Para cálculo de retraso, usar la renovación más reciente SIN importar estado
+        # porque si hubo renovación, esa fecha extiende el límite aunque ya esté finalizada
+        print(f"DEBUG: Buscando renovaciones para renta_padre_id: {renta_padre_id}")
+        cursor.execute("""
+            SELECT r.id, r.fecha_entrada, r.estado_renta
+            FROM rentas r
+            WHERE r.renta_asociada_id = %s
+            ORDER BY r.fecha_entrada DESC LIMIT 1
+        """, (renta_padre_id,))
+        renovacion = cursor.fetchone()
+        print(f"DEBUG: Renovacion encontrada: {renovacion}")
 
-        # Determinar fecha base correcta para calcular retraso
-        # SIEMPRE usar la fecha de la renta original, no de renovaciones
-        cursor.execute("SELECT fecha_entrada FROM rentas WHERE id = %s", (renta_id_para_nota,))
-        renta_original = cursor.fetchone()
-        fecha_base = renta_original['fecha_entrada'] if renta_original else None
+        fecha_base = None
+        if renovacion and renovacion['fecha_entrada']:
+            fecha_base = renovacion['fecha_entrada']  # Usa la fecha de la renovación más reciente
+            print(f"DEBUG: Usando fecha de renovación: {fecha_base}")
+        elif renta_padre['fecha_entrada']:
+            fecha_base = renta_padre['fecha_entrada']  # Usa la fecha original
+            print(f"DEBUG: Usando fecha original: {fecha_base}")
+
+        tipo_traslado = (renta_padre['traslado'] or 'ninguno').lower()
 
         # Calcular días de retraso usando la fecha base correcta
         dias_retraso = 0
@@ -110,31 +133,24 @@ def preview_cobro_retraso(renta_id):
                 fecha_base = fecha_base.date()
             fecha_limite_dt = datetime.combine(fecha_base + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
             
-            # DEBUG: Imprimir valores para troubleshooting
-            print(f"DEBUG - Renta ID: {renta_id}")
-            print(f"DEBUG - Renta original para nota: {renta_id_para_nota}")
-            print(f"DEBUG - Fecha base (renta original): {fecha_base}")
-            print(f"DEBUG - Fecha límite calculada: {fecha_limite_dt}")
-            print(f"DEBUG - Fecha entrada real: {nota['fecha_entrada_real']}")
-            print(f"DEBUG - Es renovación: {renta_actual['renta_asociada_id'] is not None}")
+            print(f"DEBUG: fecha_limite_dt calculada: {fecha_limite_dt}")
+            print(f"DEBUG: nota fecha_entrada_real: {nota['fecha_entrada_real']}")
             
             if nota['fecha_entrada_real'] > fecha_limite_dt:
                 delta = nota['fecha_entrada_real'] - fecha_limite_dt
                 dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
-                print(f"DEBUG - Días de retraso calculados: {dias_retraso}")
-            else:
-                print(f"DEBUG - Sin retraso: {nota['fecha_entrada_real']} <= {fecha_limite_dt}")
-        else:
-            print(f"DEBUG - Faltan datos: fecha_base={fecha_base}, fecha_entrada_real={nota.get('fecha_entrada_real')}")
+            
+            print(f"DEBUG: dias_retraso calculados: {dias_retraso}")
         
         # Si no hay retraso, no hay nada que cobrar
         if dias_retraso <= 0:
             cursor.close()
             conn.close()
-            print(f"DEBUG - Retornando error: días_retraso = {dias_retraso}")
             return jsonify({'error': 'No hay días de retraso para cobrar'}), 400
 
-        # Obtener productos de la renta con precio original
+        # Obtener productos de la renta correcta para el cobro
+        # Si la llamada viene de una renovación, usar productos de esa renovación
+        # Si viene de renta original, usar productos de esa renta
         cursor.execute("""
             SELECT rd.id_producto, p.nombre, rd.cantidad, rd.costo_unitario
             FROM renta_detalle rd
