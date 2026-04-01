@@ -119,19 +119,28 @@ def editar_cliente(id):
 
         # Subir nuevos documentos
         archivos = [f for f in request.files.getlist('documentos') if f and f.filename]
+        
         upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'clientes')
         os.makedirs(upload_folder, exist_ok=True)
+        
+        # CORREGIDO: Eliminar bucle anidado incorrecto
         for idx, archivo in enumerate(archivos):
             if archivo and archivo.filename:
-                filename = secure_filename(archivo.filename)
-                ruta = os.path.join(upload_folder, filename)
-                archivo.save(ruta)
-                for idx, archivo in enumerate(archivos):
+                try:
+                    filename = secure_filename(archivo.filename)
+                    ruta = os.path.join(upload_folder, filename)
+                    archivo.save(ruta)
+                    
+                    # Obtener tipo de documento correctamente
                     tipo_documento = request.form.get(f"tipo_documento_{idx}", "otro")
-                cursor.execute("""
-                    INSERT INTO documentos_cliente (cliente_id, tipo_documento, archivo)
-                    VALUES (%s, %s, %s)
-                """, (id, tipo_documento, filename))
+                    
+                    cursor.execute("""
+                        INSERT INTO documentos_cliente (cliente_id, tipo_documento, archivo)
+                        VALUES (%s, %s, %s)
+                    """, (id, tipo_documento, filename))
+                except Exception as e:
+                    print(f"Error al subir archivo {archivo.filename}: {e}")
+                    flash(f"Error al subir el archivo {archivo.filename}", "danger")
 
 
         conn.commit()
@@ -293,30 +302,125 @@ def buscar_clientes():
 @clientes_bp.route('/api/colonias/<codigo_postal>')
 @requiere_sesion()
 def obtener_colonias_por_cp(codigo_postal):
-    """API para obtener colonias por código postal"""
-    import requests
+    """API mejorada para obtener colonias por código postal - optimizada para Campeche"""
+    
+    # Token de CopomexAPI 
+    COPOMEX_TOKEN = "2f854429-cfdf-4cab-84c6-c0dfc80e5345"
     
     try:
-        # Usar API gratuita de SEPOMEX
-        url = f"https://api-sepomex.hckdrk.mx/query/info_cp/{codigo_postal}"
+        # Opción 1: CopomexAPI (PRINCIPAL - Excelente para Campeche)
+        url = f"https://api.copomex.com/query/info_cp/{codigo_postal}?token={COPOMEX_TOKEN}"
+        response = requests.get(url, timeout=8)
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                print(f"CopomexAPI respuesta para {codigo_postal}: {data}")
+                
+                # Validar que la respuesta no sea de error
+                if isinstance(data, dict) and data.get('error'):
+                    print(f"CopomexAPI devolvió error: {data.get('error')}")
+                    raise Exception("API devolvió error")
+                
+                # Manejar respuesta como diccionario O lista
+                if isinstance(data, dict):
+                    # Formato diccionario estándar (otros APIs)
+                    if data.get('neighborhoods') and data.get('state'):
+                        return jsonify({
+                            'success': True,
+                            'estado': data['state'],
+                            'municipio': data['municipality'], 
+                            'colonias': data['neighborhoods'],
+                            'fuente': 'CopomexAPI ✅'
+                        })
+                elif isinstance(data, list) and len(data) > 0:
+                    # Formato CopomexAPI específico: lista con objetos response
+                    primer_item = data[0]
+                    
+                    # Verificar si es el formato CopomexAPI (con response wrapper)
+                    if 'response' in primer_item and not primer_item.get('error'):
+                        todas_colonias = []
+                        estado = None
+                        municipio = None
+                        ciudad = None
+                        
+                        for item in data:
+                            if not item.get('error') and 'response' in item:
+                                response_data = item['response']
+                                colonia = response_data.get('asentamiento', '')
+                                if colonia:
+                                    todas_colonias.append(colonia)
+                                
+                                # Tomar datos del primer elemento válido
+                                if not estado:
+                                    estado = response_data.get('estado', '')
+                                    municipio = response_data.get('municipio', '')
+                                    ciudad = response_data.get('ciudad', '')
+                        
+                        if todas_colonias and estado:
+                            return jsonify({
+                                'success': True,
+                                'estado': estado,
+                                'municipio': municipio,
+                                'colonias': list(set(todas_colonias)),  # Eliminar duplicados
+                                'fuente': 'CopomexAPI ✅'
+                            })
+                    
+                    # Formato lista estándar (GitHub API, etc.)
+                    else:
+                        todas_colonias = list(set([item.get('colony', item.get('neighborhood', '')) for item in data 
+                                                  if item.get('colony') or item.get('neighborhood')]))
+                        
+                        if todas_colonias and data[0].get('state'):
+                            return jsonify({
+                                'success': True,
+                                'estado': data[0].get('state', ''),
+                                'municipio': data[0].get('municipality', data[0].get('city', '')),
+                                'colonias': todas_colonias,
+                                'fuente': 'CopomexAPI ✅'
+                            })
+                
+                # Si llega aquí, los datos no son válidos
+                print(f"CopomexAPI datos inválidos para {codigo_postal}: {data}")
+                
+            except Exception as parse_error:
+                print(f"Error procesando respuesta CopomexAPI: {parse_error}")
+        
+        print(f"CopomexAPI falló para CP {codigo_postal}, respuesta: {response.status_code}, intentando fallback...")
+        
+        # Opción 2: GitHub API (FALLBACK)  
+        url = f"https://jobs.github.io/mexican-postal-codes/zip-codes/{codigo_postal}.json"
         response = requests.get(url, timeout=5)
         
         if response.status_code == 200:
             data = response.json()
             
-            if data.get('response') and data['response'].get('cp_estado'):
-                return jsonify({
-                    'success': True,
-                    'estado': data['response']['estado'],
-                    'municipio': data['response']['municipio'],
-                    'colonias': data['response']['colonia']
-                })
+            if data and len(data) > 0:
+                # GitHub API siempre devuelve lista
+                primer_registro = data[0]
+                todas_colonias = [item.get('colony', '') for item in data if item.get('colony')]
+                
+                if todas_colonias:
+                    return jsonify({
+                        'success': True,
+                        'estado': primer_registro.get('state', ''),
+                        'municipio': primer_registro.get('municipality', ''),
+                        'colonias': list(set(todas_colonias)),  # Eliminar duplicados
+                        'fuente': 'GitHub API (Backup) ⚠️'
+                    })
         
-        return jsonify({'success': False, 'message': 'CP no encontrado'})
+        # Si ambas APIs fallan
+        return jsonify({
+            'success': False, 
+            'message': f'CP {codigo_postal} no encontrado. Llena los datos manualmente.'
+        })
         
     except Exception as e:
-        print(f"Error al consultar CP: {e}")
-        return jsonify({'success': False, 'message': 'Error al consultar CP'})
+        print(f"Error al consultar CP {codigo_postal}: {e}")
+        return jsonify({
+            'success': False, 
+            'message': 'Error de conexión. Intenta de nuevo o llena manualmente.'
+        })
 
 
 
@@ -400,6 +504,12 @@ def nuevo_cliente():
         try:
             cursor = conn.cursor()
             
+            # Procesar todos los archivos válidos (sin límite de tamaño)
+            archivos_validos = [archivo for archivo in archivos if archivo and archivo.filename]
+            
+            # INICIAR TRANSACCIÓN EXPLÍCITA
+            conn.start_transaction()
+            
             # OBTENER ID del rol cliente automáticamente
             cursor.execute("SELECT id FROM roles WHERE nombre = 'cliente'")
             rol_cliente = cursor.fetchone()
@@ -427,27 +537,59 @@ def nuevo_cliente():
             codigo_cliente = f"{prefijo}{consecutivo_str}"
             cursor.execute("UPDATE clientes SET codigo_cliente = %s WHERE id = %s", (codigo_cliente, cliente_id))
 
+            # PROCESAR ARCHIVOS
             upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'clientes')
             os.makedirs(upload_folder, exist_ok=True)
-            for idx, archivo in enumerate(archivos):
-                if archivo and archivo.filename:
+            
+            archivos_guardados = []  # Para rollback si falla alguno
+            
+            for idx, archivo in enumerate(archivos_validos):
+                try:
                     filename = secure_filename(archivo.filename)
+                    # Agregar timestamp para evitar colisiones
+                    import time
+                    timestamp = str(int(time.time()))
+                    name, ext = os.path.splitext(filename)
+                    filename = f"{name}_{timestamp}{ext}"
+                    
                     ruta = os.path.join(upload_folder, filename)
                     archivo.save(ruta)
+                    archivos_guardados.append(ruta)
+                    
                     tipo_documento = request.form.get(f"tipo_documento_{idx}", "otro")
                     cursor.execute("""
                         INSERT INTO documentos_cliente (cliente_id, tipo_documento, archivo)
                         VALUES (%s, %s, %s)
                     """, (cliente_id, tipo_documento, filename))
+                    
+                except Exception as file_error:
+                    print(f"Error al procesar archivo {archivo.filename}: {file_error}")
+                    # Limpiar archivos ya guardados
+                    for archivo_path in archivos_guardados:
+                        try:
+                            os.remove(archivo_path)
+                        except:
+                            pass
+                    raise file_error
+            
+            # CONFIRMAR TRANSACCIÓN
             conn.commit()
             cursor.close()
             conn.close()
             print("Cliente guardado correctamente.")
             flash("Cliente registrado exitosamente.", "success")
             return redirect(url_for('clientes.clientes'))
+            
         except Exception as e:
             print("Error al guardar en la base de datos:", e)
-            flash("Ocurrió un error al guardar el cliente.", "danger")
+            # ROLLBACK automático por el exception
+            try:
+                conn.rollback()
+                cursor.close()
+                conn.close()
+            except:
+                pass
+            flash(f"Ocurrió un error al guardar el cliente: {str(e)}", "danger")
             return render_template('clientes/nuevo_cliente.html')
 
     return render_template('clientes/nuevo_cliente.html')

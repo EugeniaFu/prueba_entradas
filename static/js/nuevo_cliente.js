@@ -144,11 +144,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const cp = this.value.replace(/\D/g, ''); // Solo números
             this.value = cp;
             
-            // Limpiar campos
-            modalColoniaSelect.innerHTML = '<option value="">Primero ingresa el CP</option>';
-            modalColoniaSelect.disabled = true;
+            // Limpiar campos - mantener siempre como SELECT por defecto
+            const coloniaElement = document.getElementById('modal_colonia');
+            if (coloniaElement && coloniaElement.tagName === 'INPUT') {
+                // Si es input, convertir de vuelta a select
+                const parent = coloniaElement.parentNode;
+                const select = document.createElement('select');
+                select.className = 'form-select';
+                select.id = 'modal_colonia';
+                select.required = true;
+                select.innerHTML = '<option value="">Primero ingresa el CP</option>';
+                select.disabled = true;
+                parent.replaceChild(select, coloniaElement);
+            } else if (modalColoniaSelect) {
+                modalColoniaSelect.innerHTML = '<option value="">Primero ingresa el CP</option>';
+                modalColoniaSelect.disabled = true;
+            }
+            
             modalMunicipioInput.value = '';
             modalEstadoInput.value = '';
+            modalMunicipioInput.setAttribute('readonly', true);
+            modalEstadoInput.setAttribute('readonly', true);
             modalCpStatus.textContent = 'Ingresa 5 dígitos';
             modalCpStatus.className = 'text-muted';
             
@@ -181,7 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Llenar select de colonias
                 modalColoniaSelect.innerHTML = '<option value="">Selecciona una colonia</option>';
                 
-                data.colonias.forEach(colonia => {
+                // Ordenar colonias alfabéticamente para mejor UX
+                const coloniasOrdenadas = data.colonias.sort();
+                
+                coloniasOrdenadas.forEach(colonia => {
                     const option = document.createElement('option');
                     option.value = colonia;
                     option.textContent = colonia;
@@ -189,11 +208,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 
                 modalColoniaSelect.disabled = false;
-                modalCpStatus.textContent = `${data.colonias.length} colonias encontradas`;
+                modalCpStatus.textContent = `${data.colonias.length} colonias encontradas - ${data.fuente || 'API'}`;
                 modalCpStatus.className = 'text-success';
                 
             } else {
-                modalCpStatus.textContent = 'CP no encontrado - Llena manualmente';
+                modalCpStatus.textContent = data.message || 'CP no encontrado - Llena manualmente';
                 modalCpStatus.className = 'text-warning';
                 habilitarLlenadoManual();
             }
@@ -210,18 +229,27 @@ document.addEventListener('DOMContentLoaded', function() {
     function habilitarLlenadoManual() {
         modalMunicipioInput.removeAttribute('readonly');
         modalEstadoInput.removeAttribute('readonly');
-        modalColoniaSelect.disabled = false;
         
-        // Convertir select a input para llenado manual
-        const parent = modalColoniaSelect.parentNode;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control';
-        input.id = 'modal_colonia';
-        input.required = true;
-        input.placeholder = 'Escribe el nombre de la colonia';
-        
-        parent.replaceChild(input, modalColoniaSelect);
+        // Solo convertir si aún es un select (prevenir error replaceChild)
+        const coloniaElement = document.getElementById('modal_colonia');
+        if (coloniaElement && coloniaElement.tagName === 'SELECT') {
+            const parent = coloniaElement.parentNode;
+            if (parent) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'form-control';
+                input.id = 'modal_colonia';
+                input.required = true;
+                input.placeholder = 'Escribe el nombre de la colonia';
+                
+                parent.replaceChild(input, coloniaElement);
+            }
+        } else {
+            // Si ya es input, solo habilitarlo
+            if (coloniaElement) {
+                coloniaElement.disabled = false;
+            }
+        }
     }
     
     // Guardar dirección desde el modal
@@ -289,14 +317,32 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
         return false;
     }
     
+    // Sin restricción de tamaño para documentos de clientes
+    // (Permitir archivos grandes para documentos e imágenes de alta calidad)
+    
     const form = e.target;
     
-    // Deshabilitar botón y mostrar spinner
+    // Deshabilitar botón y mostrar indicador de progreso
     const btn = document.getElementById('btn-guardar-cliente');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando cliente...';
     }
+    
+    // Mostrar mensaje de progreso global
+    const progressDiv = document.createElement('div');
+    progressDiv.id = 'upload-progress';
+    progressDiv.className = 'alert alert-info mt-3';
+    progressDiv.innerHTML = `
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-3"></div>
+            <div>
+                <strong>Procesando información del cliente...</strong><br>
+                <small>Subiendo archivos y guardando datos. Esto puede tomar unos momentos.</small>
+            </div>
+        </div>
+    `;
+    form.appendChild(progressDiv);
     
     // Preparar FormData
     const formData = new FormData(form);
@@ -305,13 +351,29 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
         formData.append(`tipo_documento_${idx}`, item.tipo);
     });
     
-    // Enviar formulario
+    // Enviar formulario con timeout extendido
     fetch(form.action, {
         method: 'POST',
-        body: formData
+        body: formData,
+        // Sin timeout para permitir subidas grandes
     }).then(response => {
         if (response.redirected) {
-            window.location.href = response.url;
+            // Mostrar éxito antes de redirigir
+            progressDiv.className = 'alert alert-success mt-3';
+            progressDiv.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-check-circle me-3" style="font-size: 1.5rem;"></i>
+                    <div>
+                        <strong>¡Cliente guardado exitosamente!</strong><br>
+                        <small>Redirigiendo...</small>
+                    </div>
+                </div>
+            `;
+            
+            // Esperar un poco antes de redirigir para que vea el mensaje
+            setTimeout(() => {
+                window.location.href = response.url;
+            }, 1500);
         } else {
             response.text().then(html => {
                 document.body.innerHTML = html;
@@ -319,7 +381,20 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
         }
     }).catch(error => {
         console.error('Error:', error);
-        alert('Error al enviar el formulario. Por favor, intenta de nuevo.');
+        
+        // Remover indicador de progreso
+        if (progressDiv) {
+            progressDiv.remove();
+        }
+        
+        // Mostrar error específico según el tipo
+        let errorMsg = 'Error de conexión. Por favor, verifica tu conexión a internet e intenta de nuevo.';
+        
+        if (error.name === 'TypeError') {
+            errorMsg = 'Error de red. Verifica tu conexión a internet.';
+        }
+        
+        alert(errorMsg);
         
         // Rehabilitar botón
         if (btn) {
