@@ -1,12 +1,20 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const rowsPerPage = 8;
     
-    // Buscar tabla de rentas o cotizaciones
+    // Buscar tabla de rentas, cotizaciones o clientes
     const tablaRentas = document.getElementById("tablaRentas");
     const tablaCotizaciones = document.getElementById("tablaCotizaciones");
-    const table = tablaRentas || tablaCotizaciones;
+    const tablaClientes = document.getElementById("tablaClientes");
+    const table = tablaRentas || tablaCotizaciones || tablaClientes;
     
     if (!table) return; // Si no hay ninguna tabla, salir
+    
+    // Definir filas por página según la tabla
+    let rowsPerPage;
+    if (tablaClientes) {
+        rowsPerPage = 10; // 10 clientes por página
+    } else {
+        rowsPerPage = 8; // 8 rentas/cotizaciones por página
+    }
     
     const tbody = table.querySelector("tbody");
     const rows = Array.from(tbody.querySelectorAll("tr"));
