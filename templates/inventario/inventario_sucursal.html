@@ -499,21 +499,11 @@
                                         <select id="selectorPieza" class="form-select">
                                             <option value="">Buscar y seleccionar pieza...</option>
                                             {% for pieza in piezas %}
-                                            {% if pieza.disponibles > 0 %}
                                             <option value="{{ pieza.id_pieza }}" data-nombre="{{ pieza.nombre_pieza }}"
                                                 data-categoria="{{ pieza.categoria or '' }}"
                                                 data-disponibles="{{ pieza.disponibles }}"
-                                                class="opcion-mandar">
-                                                {{ pieza.nombre_pieza }} {% if pieza.categoria %}({{ pieza.categoria }}){% endif %} - {{ pieza.disponibles }} disponibles
-                                            </option>
-                                            {% endif %}
-                                            {% endfor %}
-                                            {% for pieza in piezas %}
-                                            <option value="{{ pieza.id_pieza }}" data-nombre="{{ pieza.nombre_pieza }}"
-                                                data-categoria="{{ pieza.categoria or '' }}"
-                                                data-disponibles="100"
-                                                class="opcion-recibir" style="display: none;">
-                                                {{ pieza.nombre_pieza }} {% if pieza.categoria %}({{ pieza.categoria }}){% endif %} - Recibir equipos
+                                                data-todas-disponibles="999">
+                                                {{ pieza.nombre_pieza }} {% if pieza.categoria %}({{ pieza.categoria }}){% endif %} - <span class="texto-disponibles">{{ pieza.disponibles }} disponibles</span>
                                             </option>
                                             {% endfor %}
                                         </select>

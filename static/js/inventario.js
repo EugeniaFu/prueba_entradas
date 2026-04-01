@@ -368,10 +368,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const tituloListaPiezas = document.getElementById('tituloListaPiezas');
         const selectorPieza = document.getElementById('selectorPieza');
         
-        // Cambiar opciones del selector según operación
-        const opcionesMandar = selectorPieza.querySelectorAll('.opcion-mandar');
-        const opcionesRecibir = selectorPieza.querySelectorAll('.opcion-recibir');
-        
         if (radioMandar.checked) {
             contenidoMandar.style.display = 'block';
             contenidoRecibir.style.display = 'none';
@@ -381,9 +377,26 @@ document.addEventListener('DOMContentLoaded', function () {
             labelSelectorPieza.textContent = 'Seleccionar equipo disponible:';
             tituloListaPiezas.textContent = 'Equipos que se enviarán:';
             
-            // Mostrar solo opciones de mandar
-            opcionesMandar.forEach(opt => opt.style.display = 'block');
-            opcionesRecibir.forEach(opt => opt.style.display = 'none');
+            // Para MANDAR: filtrar solo piezas con disponibles > 0
+            const todasLasOpciones = selectorPieza.querySelectorAll('option');
+            todasLasOpciones.forEach(opt => {
+                if (opt.value === '') {
+                    opt.style.display = 'block'; // Mantener la opción vacía
+                    return;
+                }
+                
+                const disponibles = parseInt(opt.dataset.disponibles || '0');
+                if (disponibles > 0) {
+                    opt.style.display = 'block';
+                    // Actualizar texto para mostrar disponibles
+                    const textoSpan = opt.querySelector('.texto-disponibles');
+                    if (textoSpan) {
+                        textoSpan.textContent = `${disponibles} disponibles`;
+                    }
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
             
         } else {
             contenidoMandar.style.display = 'none';
@@ -394,9 +407,21 @@ document.addEventListener('DOMContentLoaded', function () {
             labelSelectorPieza.textContent = 'Seleccionar equipo a recibir:';
             tituloListaPiezas.textContent = 'Equipos que se recibirán:';
             
-            // Mostrar solo opciones de recibir
-            opcionesMandar.forEach(opt => opt.style.display = 'none');
-            opcionesRecibir.forEach(opt => opt.style.display = 'block');
+            // Para RECIBIR: mostrar todas las piezas
+            const todasLasOpciones = selectorPieza.querySelectorAll('option');
+            todasLasOpciones.forEach(opt => {
+                if (opt.value === '') {
+                    opt.style.display = 'block'; // Mantener la opción vacía
+                    return;
+                }
+                
+                opt.style.display = 'block';
+                // Actualizar texto para recibir
+                const textoSpan = opt.querySelector('.texto-disponibles');
+                if (textoSpan) {
+                    textoSpan.textContent = 'Recibir equipos';
+                }
+            });
         }
         
         // Resetear formulario
@@ -422,7 +447,16 @@ document.addEventListener('DOMContentLoaded', function () {
             const option = this.options[this.selectedIndex];
 
             if (this.value) {
-                const disponibles = parseInt(option.dataset.disponibles || '0');
+                // Determinar disponibles según el modo actual
+                let disponibles;
+                if (radioRecibir && radioRecibir.checked) {
+                    // Modo RECIBIR: permitir cualquier cantidad
+                    disponibles = parseInt(option.dataset.todasDisponibles || '999');
+                } else {
+                    // Modo MANDAR: usar disponibles reales
+                    disponibles = parseInt(option.dataset.disponibles || '0');
+                }
+                
                 infoDiv.innerHTML = `
                 <div class="alert alert-info">
                     <strong>${option.dataset.nombre}</strong><br>
@@ -451,7 +485,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const idPieza = selector.value;
             const nombrePieza = option.dataset.nombre;
-            const disponibles = parseInt(option.dataset.disponibles);
+            
+            // Determinar disponibles según el modo actual
+            let disponibles;
+            if (radioRecibir && radioRecibir.checked) {
+                // Modo RECIBIR: permitir cualquier cantidad
+                disponibles = parseInt(option.dataset.todasDisponibles || '999');
+            } else {
+                // Modo MANDAR: usar disponibles reales
+                disponibles = parseInt(option.dataset.disponibles || '0');
+            }
 
             // Verificar si ya está agregada
             const yaExiste = piezasAgregadas.find(p => p.id === idPieza);
