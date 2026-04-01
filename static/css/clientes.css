@@ -657,3 +657,275 @@
     background-color: #c62828 !important;
     border-color: #c62828 !important;
 }
+
+/* ===== MODAL DIRECCIÓN SIGUIENDO DISEÑO DE RENTAS ===== */
+#modalDireccion .modal-header {
+    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%) !important;
+    color: #fff !important;
+    border-bottom: none !important;
+    border-top-left-radius: 16px !important;
+    border-top-right-radius: 16px !important;
+    padding: 1.5rem 2rem !important;
+}
+
+#modalDireccion .modal-title {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+}
+
+#modalDireccion .modal-content {
+    border: 2px solid #23395d !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px rgba(35, 57, 93, 0.2) !important;
+}
+
+#modalDireccion .modal-footer {
+    background: linear-gradient(135deg, #f1f4fa 0%, #e8eef7 100%) !important;
+    border-bottom-left-radius: 14px !important;
+    border-bottom-right-radius: 14px !important;
+    border-top: 2px solid #23395d !important;
+    padding: 1.2rem 2rem !important;
+}
+
+#modalDireccion .modal-body {
+    padding: 2rem !important;
+    background: #f8f9fa !important;
+}
+
+#modalDireccion .form-label {
+    color: #23395d !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.6rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+}
+
+#modalDireccion .form-control,
+#modalDireccion .form-select {
+    border: 2px solid #dee2e6 !important;
+    border-radius: 8px !important;
+    padding: 0.75rem !important;
+    font-size: 1rem !important;
+    background: #fff !important;
+    transition: all 0.2s ease !important;
+}
+
+#modalDireccion .form-control:focus,
+#modalDireccion .form-select:focus {
+    border-color: #23395d !important;
+    box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25) !important;
+    background: #fff !important;
+    outline: none !important;
+}
+
+#modalDireccion .btn {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    padding: 0.75rem 1.5rem !important;
+    transition: all 0.2s ease !important;
+}
+
+#modalDireccion .btn-primary {
+    background: #23395d !important;
+    border-color: #23395d !important;
+    color: #fff !important;
+}
+
+#modalDireccion .btn-primary:hover {
+    background: #1a2d4a !important;
+    border-color: #1a2d4a !important;
+    transform: translateY(-1px) !important;
+    color: #fff !important;
+}
+
+#modalDireccion .btn-secondary {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #fff !important;
+}
+
+#modalDireccion .btn-secondary:hover {
+    background: #545b62 !important;
+    border-color: #545b62 !important;
+    transform: translateY(-1px) !important;
+    color: #fff !important;
+}
+
+#modalDireccion .text-muted {
+    color: #6c757d !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+}
+
+#modalDireccion .btn-close {
+    filter: invert(1) !important;
+}
+
+#modalDireccion .btn-close:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#modalDireccion .row {
+    margin-bottom: 0 !important;
+}
+
+#modalDireccion .mb-3 {
+    margin-bottom: 1.5rem !important;
+}
+
+/* Responsive adjustments para modal dirección */
+@media (max-width: 768px) {
+    #modalDireccion .modal-body {
+        padding: 1rem;
+    }
+    
+    #modalDireccion .modal-header,
+    #modalDireccion .modal-footer {
+        padding: 1rem;
+    }
+    
+    #modalDireccion .btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* ===== MODAL DIRECCIÓN EDITAR SIGUIENDO DISEÑO DE RENTAS ===== */
+#modalDireccionEditar .modal-header {
+    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%) !important;
+    color: #fff !important;
+    border-bottom: none !important;
+    border-top-left-radius: 16px !important;
+    border-top-right-radius: 16px !important;
+    padding: 1.5rem 2rem !important;
+}
+
+#modalDireccionEditar .modal-title {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+}
+
+#modalDireccionEditar .modal-content {
+    border: 2px solid #23395d !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px rgba(35, 57, 93, 0.2) !important;
+}
+
+#modalDireccionEditar .modal-footer {
+    background: linear-gradient(135deg, #f1f4fa 0%, #e8eef7 100%) !important;
+    border-bottom-left-radius: 14px !important;
+    border-bottom-right-radius: 14px !important;
+    border-top: 2px solid #23395d !important;
+    padding: 1.2rem 2rem !important;
+}
+
+#modalDireccionEditar .modal-body {
+    padding: 2rem !important;
+    background: #f8f9fa !important;
+}
+
+#modalDireccionEditar .form-label {
+    color: #23395d !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.6rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+}
+
+#modalDireccionEditar .form-control,
+#modalDireccionEditar .form-select {
+    border: 2px solid #dee2e6 !important;
+    border-radius: 8px !important;
+    padding: 0.75rem !important;
+    font-size: 1rem !important;
+    background: #fff !important;
+    transition: all 0.2s ease !important;
+}
+
+#modalDireccionEditar .form-control:focus,
+#modalDireccionEditar .form-select:focus {
+    border-color: #23395d !important;
+    box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25) !important;
+    background: #fff !important;
+    outline: none !important;
+}
+
+#modalDireccionEditar .btn {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    padding: 0.75rem 1.5rem !important;
+    transition: all 0.2s ease !important;
+}
+
+#modalDireccionEditar .btn-primary {
+    background: #23395d !important;
+    border-color: #23395d !important;
+    color: #fff !important;
+}
+
+#modalDireccionEditar .btn-primary:hover {
+    background: #1a2d4a !important;
+    border-color: #1a2d4a !important;
+    transform: translateY(-1px) !important;
+    color: #fff !important;
+}
+
+#modalDireccionEditar .btn-secondary {
+    background: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #fff !important;
+}
+
+#modalDireccionEditar .btn-secondary:hover {
+    background: #545b62 !important;
+    border-color: #545b62 !important;
+    transform: translateY(-1px) !important;
+    color: #fff !important;
+}
+
+#modalDireccionEditar .text-muted {
+    color: #6c757d !important;
+    font-size: 0.9rem !important;
+    font-weight: 500 !important;
+}
+
+#modalDireccionEditar .btn-close {
+    filter: invert(1) !important;
+}
+
+#modalDireccionEditar .btn-close:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#modalDireccionEditar .row {
+    margin-bottom: 0 !important;
+}
+
+#modalDireccionEditar .mb-3 {
+    margin-bottom: 1.5rem !important;
+}
+
+/* Responsive adjustments para modal dirección editar */
+@media (max-width: 768px) {
+    #modalDireccionEditar .modal-body {
+        padding: 1rem;
+    }
+    
+    #modalDireccionEditar .modal-header,
+    #modalDireccionEditar .modal-footer {
+        padding: 1rem;
+    }
+    
+    #modalDireccionEditar .btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+}
