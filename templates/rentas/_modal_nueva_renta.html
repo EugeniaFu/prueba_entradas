@@ -32,22 +32,41 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Sucursal</label>
-                                    {% if es_admin %}
-                                    <select class="form-select" name="id_sucursal" id="id_sucursal" required>
-                                        {% for sucursal in sucursales %}
-                                        <option value="{{ sucursal[0] }}" {% if sucursal_actual.id==sucursal[0] %}selected{%
-                                            endif %}>
-                                            {{ sucursal[1] }}
-                                        </option>
-                                        {% endfor %}
-                                    </select>
-                                    <small class="form-text text-muted">
-                                        Como administrador, puedes crear la renta en cualquier sucursal
-                                    </small>
+
+                                    {% if es_admin and session['sucursal_id'] == 1 %}
+                                        <!-- ADMIN MATRIZ: ve todas -->
+                                        <select class="form-select" name="id_sucursal" id="id_sucursal" required>
+                                            {% for sucursal in sucursales %}
+                                            <option value="{{ sucursal[0] }}" {% if sucursal_actual.id == sucursal[0] %}selected{% endif %}>
+                                                {{ sucursal[1] }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+
+                                        <small class="form-text text-muted">
+                                            Como administrador, puedes crear la renta en cualquier sucursal.
+                                        </small>
+
+                                    {% elif es_admin %}
+                                        <!-- ADMIN NORMAL: solo su sucursal -->
+                                        <select class="form-select" name="id_sucursal" id="id_sucursal" required>
+                                            {% for sucursal in sucursales %}
+                                                {% if sucursal[0] == session['sucursal_id'] %}
+                                                <option value="{{ sucursal[0] }}" selected>
+                                                    {{ sucursal[1] }}
+                                                </option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </select>
+
+                                        <small class="form-text text-muted">
+                                            Solo puedes crear rentas en tu sucursal asignada.
+                                        </small>
+
                                     {% else %}
-                                    <input type="text" class="form-control" value="{{ sucursal_nombre or 'No disponible' }}"
-                                        readonly>
-                                    <input type="hidden" name="id_sucursal" id="id_sucursal" value="{{ sucursal_id }}">
+                                        <!-- USUARIO NORMAL -->
+                                        <input type="text" class="form-control" value="{{ sucursal_nombre or 'No disponible' }}" readonly>
+                                        <input type="hidden" name="id_sucursal" id="id_sucursal" value="{{ sucursal_id }}">
                                     {% endif %}
                                 </div>
                                 <div class="row mb-3">

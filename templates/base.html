@@ -31,7 +31,7 @@
                     <!-- Menú desplegable por sucursal -->
                     <div class="accordion" id="sucursalesAccordion">
                         <!-- Matriz -->
-                        {% if session['rol_id'] == 2 or session['sucursal_id'] == 1 %}
+                        {% if session['sucursal_id'] == 1 %}
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingMatriz">
                                 <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -62,7 +62,7 @@
                         </div>
                         {% endif %}
                         <!-- Los Reyes -->
-                        {% if session['rol_id'] == 2 or session['sucursal_id'] == 2 %}
+                        {% if session['sucursal_id'] == 2 %}
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingReyes">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
@@ -95,7 +95,7 @@
 
 
                         <!-- Lerma -->
-                        {% if session['rol_id'] == 2 or session['sucursal_id'] == 3 %}
+                        {% if session['sucursal_id'] == 3 %}
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingLerma">
                                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
@@ -131,7 +131,7 @@
                         <hr>
                         <strong><i class="bi bi-grid"></i> General</strong>
                         <ul class="nav flex-column ms-3">
-                            {% if 'ver_inventario_general' in session['permisos'] %}
+                            {% if session['sucursal_id'] == 1 and 'ver_inventario_general' in session['permisos'] %}
                             <li class="nav-item"><a class="nav-link"
                                     href="{{ url_for('inventario.inventario_general') }}"><i class="bi bi-boxes"></i>
                                     Inventario General</a></li>
@@ -142,12 +142,12 @@
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('caja.movimientos_caja') }}"><i
                                         class="bi bi-cash-stack"></i>
                                     Caja</a></li>
-                            {% if session['rol_id'] == 2 %}
+                            {% if session['sucursal_id'] == 1 and 'ver_inventario_general' in session['permisos'] %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('empleados.empleados') }}"><i
                                         class="bi bi-person-badge"></i> Empleados</a></li>
+                            {% endif %}
                         </ul>
                     </div>
-                    {% endif %}
                     <!-- Perfil y cerrar sesión (siempre visibles) -->
                     <div class="mt-4">
                         <ul class="nav flex-column ms-3">

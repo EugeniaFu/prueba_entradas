@@ -65,7 +65,6 @@ def dashboard():
                 AND r.renta_asociada_id IS NOT NULL
             )
             ORDER BY fecha_entrada ASC
-            LIMIT 10
         """, params + params)
         rentas_a_vencer = cursor.fetchall()
         
@@ -107,7 +106,6 @@ def dashboard():
                 AND r.renta_asociada_id IS NOT NULL
             )
             ORDER BY dias_vencida DESC, fecha_entrada ASC
-            LIMIT 10
         """, params + params)
         rentas_vencidas = cursor.fetchall()
         
@@ -126,7 +124,6 @@ def dashboard():
             AND r.fecha_programada IS NOT NULL
             AND DATE(r.fecha_programada) >= CURDATE()
             ORDER BY r.fecha_programada ASC
-            LIMIT 10
         """, params)
         rentas_programadas = cursor.fetchall()
         
@@ -180,13 +177,17 @@ def dashboard():
                 HAVING monto_pendiente > 0
             )
             ORDER BY fecha_pago ASC
-            LIMIT 15
         """, params * 3)
         pagos_pendientes = cursor.fetchall()
         
         # 6. OBTENER NOTAS DEL BLOC (crear tabla si no existe)
         try:
-            cursor.execute("SELECT * FROM dashboard_notas ORDER BY created_at DESC LIMIT 10")
+            cursor.execute("""
+                SELECT id, nota, created_at
+                FROM dashboard_notas
+                WHERE sucursal_id = %s
+                ORDER BY created_at DESC
+            """, (sucursal_id,))
             notas_bloc = cursor.fetchall()
         except:
             # Crear tabla de notas si no existe
@@ -222,27 +223,34 @@ def dashboard():
 def agregar_nota():
     data = request.get_json()
     nota = data.get('nota', '').strip()
-    
+    sucursal_id = session.get('sucursal_id')
+    usuario_id = session.get('user_id')
+
     if not nota:
         return jsonify({'success': False, 'error': 'Nota vacía'})
     
+    if not sucursal_id:
+        return jsonify({'success': False, 'error': 'Sucursal no definida en sesión'})
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
         cursor.execute("""
-            INSERT INTO dashboard_notas (nota, usuario_id) 
-            VALUES (%s, %s)
-        """, (nota, session.get('user_id')))
+            INSERT INTO dashboard_notas (nota, usuario_id, sucursal_id) 
+            VALUES (%s, %s, %s)
+        """, (nota, usuario_id, sucursal_id))
+
         conn.commit()
-        
-        cursor.close()
-        conn.close()
         return jsonify({'success': True})
+
     except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+    finally:
         cursor.close()
         conn.close()
-        return jsonify({'success': False, 'error': str(e)})
 
 @dashboard_bp.route('/notas/<int:nota_id>', methods=['DELETE'])
 @requiere_sesion()

@@ -264,9 +264,17 @@
             <!-- CALENDARIO MINI -->
             <div class="col-lg-12 col-md-12 mb-4">
                 <div class="calendario-card">
-                    <div class="card-header-sistema">
-                        <span><i class="bi bi-calendar3"></i>Febrero 2026</span>
+                    <div class="card-header-sistema d-flex justify-content-between align-items-center">
+                        <button id="prevMes" class="btn btn-sm btn-light">←</button>
+                        
+                        <span>
+                            <i class="bi bi-calendar3"></i> 
+                            <span id="mesActual"></span> | <span id="horaActual"></span>
+                        </span>
+
+                        <button id="nextMes" class="btn btn-sm btn-light">→</button>
                     </div>
+
                     <div class="calendario-mini">
                         <div id="calendarioMini"></div>
                     </div>
@@ -281,4 +289,98 @@
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 <script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
+<script>
+let fechaActual = new Date();
+
+function generarCalendario() {
+    const calendario = document.getElementById('calendarioMini');
+    const mesActualTexto = document.getElementById('mesActual');
+
+    if (!calendario || !mesActualTexto) return;
+
+    const nombresMeses = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    const year = fechaActual.getFullYear();
+    const mes = fechaActual.getMonth();
+
+    // Actualizar título
+    mesActualTexto.textContent = `${nombresMeses[mes]} ${year}`;
+
+    // Primer y último día del mes
+    const primerDia = new Date(year, mes, 1);
+    const ultimoDia = new Date(year, mes + 1, 0); // ← aquí se manejan los bisiestos automáticamente
+
+    let html = '<table class="table table-sm mb-0"><thead><tr>';
+
+    diasSemana.forEach(dia => {
+        html += `<th class="text-center">${dia}</th>`;
+    });
+
+    html += '</tr></thead><tbody>';
+
+    let dia = 1;
+    const totalCeldas = 42; // 6 semanas * 7 días
+
+    for (let i = 0; i < totalCeldas; i++) {
+        if (i % 7 === 0) html += '<tr>';
+
+        if (i < primerDia.getDay() || dia > ultimoDia.getDate()) {
+            html += '<td></td>';
+        } else {
+            const hoy = new Date();
+            const esHoy =
+                dia === hoy.getDate() &&
+                mes === hoy.getMonth() &&
+                year === hoy.getFullYear();
+
+            html += `<td class="text-center ${esHoy ? 'bg-primary text-white rounded' : ''}">
+                        ${dia}
+                    </td>`;
+            dia++;
+        }
+
+        if (i % 7 === 6) html += '</tr>';
+    }
+
+    html += '</tbody></table>';
+
+    calendario.innerHTML = html;
+}
+
+// Navegación
+document.getElementById('prevMes').addEventListener('click', () => {
+    fechaActual.setMonth(fechaActual.getMonth() - 1);
+    generarCalendario();
+});
+
+document.getElementById('nextMes').addEventListener('click', () => {
+    fechaActual.setMonth(fechaActual.getMonth() + 1);
+    generarCalendario();
+});
+
+function actualizarHora() {
+    const horaElemento = document.getElementById('horaActual');
+    if (!horaElemento) return;
+
+    const ahora = new Date();
+
+    const horas = String(ahora.getHours()).padStart(2, '0');
+    const minutos = String(ahora.getMinutes()).padStart(2, '0');
+    const segundos = String(ahora.getSeconds()).padStart(2, '0');
+
+    horaElemento.textContent = `${horas}:${minutos}:${segundos}`;
+}
+
+
+
+// Inicializar
+generarCalendario();
+setInterval(actualizarHora, 1000);
+actualizarHora(); // ejecutar inmediatamente
+</script>
 {% endblock %}

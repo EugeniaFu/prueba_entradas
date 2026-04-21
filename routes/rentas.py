@@ -248,7 +248,12 @@ def modulo_rentas():
     LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
     LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
     {where_sucursal}
-    ORDER BY r.id DESC
+    ORDER BY 
+        CASE 
+            WHEN LOWER(r.estado_renta) = 'activo' || LOWER(r.estado_renta) = 'activa renovación' THEN 0
+            ELSE 1
+        END,
+        r.id DESC
     """, params_sucursal)
     
     rentas = cursor.fetchall()
@@ -439,7 +444,7 @@ def crear_renta():
 
         if not sucursal_para_renta:
             flash("Error: No se pudo determinar la sucursal.", "danger")
-            return redirect(url_for('rentas.modulo_rentas'))
+            return redirect(url_for('rentas.modulo_rentas', sucursal_id=sucursal_para_renta))
 
         # Resto del código usando sucursal_para_renta
         if request.form.get('renta_programada'):
@@ -549,7 +554,7 @@ def crear_renta():
         cursor.close()
         conn.close()
 
-    return redirect(url_for('rentas.modulo_rentas'))
+    return redirect(url_for('rentas.modulo_rentas', sucursal_id=sucursal_para_renta))
 
 
 

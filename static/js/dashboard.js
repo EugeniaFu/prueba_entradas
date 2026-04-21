@@ -150,60 +150,6 @@ function cerrarToast(toastId) {
     }
 }
 
-// Calendario mejorado
-function generarCalendario() {
-    const calendario = document.getElementById('calendarioMini');
-    if (!calendario) return;
-
-    const fechaActual = new Date();
-    const nombresMeses = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-    // Actualizar header del mes
-    const headerMes = document.querySelector('.card-header-custom span');
-    if (headerMes && headerMes.innerHTML.includes('Calendario')) {
-        headerMes.innerHTML = `<i class="bi bi-calendar3"></i> ${nombresMeses[fechaActual.getMonth()]} ${fechaActual.getFullYear()}`;
-    }
-
-    let calendarioHTML = '<table class="table table-sm mb-0"><thead><tr>';
-
-    diasSemana.forEach(dia => {
-        calendarioHTML += `<th class="text-center">${dia}</th>`;
-    });
-    calendarioHTML += '</tr></thead><tbody>';
-
-    const primerDia = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), 1);
-    const ultimoDia = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0);
-
-    let dia = 1;
-    let semanas = Math.ceil((ultimoDia.getDate() + primerDia.getDay()) / 7);
-
-    for (let semana = 0; semana < semanas; semana++) {
-        calendarioHTML += '<tr>';
-
-        for (let diaSemana = 0; diaSemana < 7; diaSemana++) {
-            if (semana === 0 && diaSemana < primerDia.getDay()) {
-                calendarioHTML += '<td></td>';
-            } else if (dia > ultimoDia.getDate()) {
-                calendarioHTML += '<td></td>';
-            } else {
-                const esHoy = dia === fechaActual.getDate();
-                const claseHoy = esHoy ? 'bg-primary text-white' : '';
-                calendarioHTML += `<td class="text-center ${claseHoy}">${dia}</td>`;
-                dia++;
-            }
-        }
-
-        calendarioHTML += '</tr>';
-    }
-
-    calendarioHTML += '</tbody></table>';
-    calendario.innerHTML = calendarioHTML;
-}
-
 // Función para actualizar contadores dinámicamente
 function actualizarContadores() {
     const contadores = document.querySelectorAll('.badge-count');

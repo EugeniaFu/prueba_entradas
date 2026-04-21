@@ -303,7 +303,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 nombreCliente: tieneSucursal ? 3 : 2,
                 fechaSalida: tieneSucursal ? 5 : 4,
                 fechaEntrada: tieneSucursal ? 6 : 5,
-                direccionObra: tieneSucursal ? 7 : 6
+                direccionObra: tieneSucursal ? 7 : 6,
+                estadoRenta: tieneSucursal ? 8 : 7,
+                estadoPago: tieneSucursal ? 9 : 8
             };
 
             // Extraer texto solo de las columnas específicas para búsqueda
@@ -324,8 +326,8 @@ document.addEventListener('DOMContentLoaded', function () {
             // Verificar filtro por estado
             let coincideEstado = true;
             if (estadoSeleccionado) {
-                const estadoRenta = celdas[8] ? celdas[8].textContent.toLowerCase().trim() : '';
-                const estadoPago = celdas[9] ? celdas[9].textContent.toLowerCase().trim() : '';
+                const estadoRenta = celdas[indices.estadoRenta]?.textContent.toLowerCase().trim() || '';
+                const estadoPago = celdas[indices.estadoPago]?.textContent.toLowerCase().trim() || '';
                 
                 // Estados específicos que requieren lógica especial
                 if (estadoSeleccionado === 'activo') {
