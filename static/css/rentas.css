@@ -1,9 +1,4 @@
-    
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    height: 1px !important;
-
-/* --- CONTENEDOR PRINCIPAL RENTAS --- */
+    /* --- CONTENEDOR PRINCIPAL RENTAS --- */
 .rentas-box-container {
     background: #fff;
     border-radius: 20px;
@@ -68,6 +63,11 @@
     width: 100%;
     max-width: 300px;
     font-size: 1rem;
+}
+
+.checkbox-grande {
+transform: scale(1.8);
+border: 2px solid #0d6efd;
 }
 
 

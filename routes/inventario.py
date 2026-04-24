@@ -266,7 +266,7 @@ def inventario_sucursal(sucursal_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
-    # Verificar que la sucursal existe
+    # Obtener sucursal
     cursor.execute("SELECT id as id_sucursal, nombre FROM sucursales WHERE id = %s", (sucursal_id,))
     sucursal = cursor.fetchone()
     
@@ -274,7 +274,17 @@ def inventario_sucursal(sucursal_id):
         flash('Sucursal no encontrada', 'error')
         return redirect(url_for('inventario.inventario_general'))
     
-    # Obtener piezas con inventario de esta sucursal específica
+    # 🔥 Crear sucursal_actual (ESTO ES LO QUE TE FALTA)
+    sucursal_actual = {
+        'id': sucursal['id_sucursal'],
+        'nombre': sucursal['nombre']
+    }
+
+    # 🔥 Obtener rol para saber si es admin
+    rol_id = session.get('rol_id')
+    es_admin = (rol_id == 2)
+
+    # Obtener piezas
     cursor.execute("""
         SELECT p.id_pieza, p.nombre_pieza, p.categoria, 
                IFNULL(i.total, 0) AS total, 
@@ -284,15 +294,23 @@ def inventario_sucursal(sucursal_id):
                IFNULL(i.en_reparacion, 0) AS en_reparacion, 
                IFNULL(i.stock_minimo, 0) AS stock_minimo
         FROM piezas p
-        LEFT JOIN inventario_sucursal i ON p.id_pieza = i.id_pieza AND i.id_sucursal = %s
+        LEFT JOIN inventario_sucursal i 
+            ON p.id_pieza = i.id_pieza AND i.id_sucursal = %s
         ORDER BY p.nombre_pieza
     """, (sucursal_id,))
     
     piezas = cursor.fetchall()
+
     cursor.close()
     conn.close()
     
-    return render_template('inventario/inventario_sucursal.html', piezas=piezas, sucursal=sucursal)
+    return render_template(
+        'inventario/inventario_sucursal.html',
+        piezas=piezas,
+        sucursal=sucursal,               # 👈 lo sigues usando en modales
+        sucursal_actual=sucursal_actual, # 👈 lo usa el header + tabs
+        es_admin=es_admin
+    )
 
 
 

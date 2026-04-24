@@ -60,7 +60,7 @@
 <div class="inventario-box-container">
     <div class="inventario-section-header">
         <div>
-            <h2 class="inventario-section-title"><i class="bi bi-boxes"></i> Inventario de {{ sucursal.nombre }}</h2>
+            <h2 class="inventario-section-title"><i class="bi bi-boxes"></i> Inventario de {{ sucursal_actual.nombre }}</h2>
         </div>
     </div>
 
@@ -71,21 +71,40 @@
     <!-- Navegación entre Sucursales -->
     <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
         <div class="btn-group" role="group">
-            <a href="{{ url_for('inventario.inventario_general') }}" class="btn btn-tab">
-                <i class="bi bi-grid-3x3-gap me-1"></i>General
-            </a>
-            <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=1) }}"
-               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 1 else '' }}">
-                <i class="bi bi-building me-1"></i>Matriz
-            </a>
-            <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
-               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 2 else '' }}">
-                <i class="bi bi-building me-1"></i>Reyes
-            </a>
-            <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
-               class="btn btn-tab {{ 'active' if sucursal.id_sucursal == 3 else '' }}">
-                <i class="bi bi-building me-1"></i>Lerma
-            </a>
+
+            {% if session['sucursal_id'] == 1 %}
+                <a href="{{ url_for('inventario.inventario_general') }}" class="btn btn-tab">
+                    <i class="bi bi-grid-3x3-gap me-1"></i>General
+                </a>
+
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=1) }}"
+                class="btn btn-tab {{ 'active' if sucursal_actual.id == 1 else '' }}">
+                    Matriz
+                </a>
+
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
+                class="btn btn-tab {{ 'active' if sucursal_actual.id == 2 else '' }}">
+                    Reyes
+                </a>
+
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
+                class="btn btn-tab {{ 'active' if sucursal_actual.id == 3 else '' }}">
+                    Lerma
+                </a>
+
+            {% elif session['sucursal_id'] == 2 %}
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
+                class="btn btn-tab active">
+                    Reyes
+                </a>
+
+            {% elif session['sucursal_id'] == 3 %}
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
+                class="btn btn-tab active">
+                    Lerma
+                </a>
+            {% endif %}
+
         </div>
     </div>
 

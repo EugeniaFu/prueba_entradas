@@ -2,7 +2,7 @@
 
 # ======================= IMPORTS =======================
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from utils.db import get_db_connection
 from utils.decorators import requiere_sesion, requiere_permiso
 from itertools import zip_longest
@@ -249,14 +249,22 @@ def modulo_rentas():
     LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
     {where_sucursal}
     ORDER BY 
-        CASE 
-            WHEN LOWER(r.estado_renta) = 'activo' || LOWER(r.estado_renta) = 'activa renovación' THEN 0
-            ELSE 1
-        END,
-        r.id DESC
+    CASE 
+        WHEN TRIM(LOWER(r.estado_renta)) = 'en curso' THEN 0
+        WHEN TRIM(LOWER(r.estado_renta)) = 'activo' THEN 1
+        WHEN TRIM(LOWER(r.estado_renta)) = 'activa renovación' THEN 2
+        ELSE 3
+    END,
+    r.id DESC
     """, params_sucursal)
     
     rentas = cursor.fetchall()
+
+    # Obtener IDs que son padres (tienen hijas)
+    ids_padre = set(r[23] for r in rentas if r[23])  # renta_asociada_id
+
+    # Filtrar solo rentas finales (las que NO son padres de otras)
+    rentas_finales = [r for r in rentas if r[0] not in ids_padre]
 
     # Modificar consulta de detalles para filtrar por rentas de la sucursal
     detalles = []
@@ -274,7 +282,7 @@ def modulo_rentas():
             productos_por_renta.setdefault(renta_id, []).append(f"{nombre} x{cantidad}")        
                 # Si no se especifica sucursal_id, redirigir a Matriz Colosio (id=1)
             if not sucursal_filtro:
-                return redirect(url_for('rentas.modulo_rentas', sucursal_id=1))
+                return redirect(url_for('rentas.modulo_rentas', sucursal_id=sucursal_id_usuario))
 
     # Clientes activos
     cursor.execute("SELECT id, nombre, apellido1 FROM clientes WHERE activo = 1")
@@ -322,7 +330,7 @@ def modulo_rentas():
             return None
         
         # Si el estado de la renta no es 'Activo', no mostrar indicador
-        if renta[4] != 'Activo':  
+        if renta[4] is None or renta[4].lower() not in ['activo', 'activa renovación']:
             return None
 
         
@@ -732,6 +740,40 @@ def cerrar_renta(renta_id):
 ###########################################################
 ###########################################################
 # ======================= DETALLE DE RENTA =======================
+def calcular_estado_entrega_modal(renta):
+    
+    # Validaciones igual que en tabla
+    if not renta['fecha_entrada']:
+        return None
+    
+    if renta['estado_renta'] is None:
+        return None
+    
+    if renta['estado_renta'].lower() != 'activo':
+        return None
+    
+    # Aquí deberías validar nota de entrada si aplica (opcional)
+    
+    fecha_entrada = renta['fecha_entrada']
+    fecha_limite = fecha_entrada + timedelta(days=1)
+    ahora = get_local_now_naive()  # usa la misma función que ya tienes
+    
+    fecha_limite_con_hora = datetime.combine(fecha_limite, time(10, 0))
+    
+    if ahora > fecha_limite_con_hora:
+        return {
+            'estado': 'vencida',
+            'texto': 'Vencida'
+        }
+    
+    elif ahora.date() >= fecha_entrada:
+        return {
+            'estado': 'por_regresar',
+            'texto': 'Por regresar'
+        }
+    
+    return None
+
 @rentas_bp.route('/detalle/<int:renta_id>')
 @requiere_sesion()
 @requiere_permiso('ver_rentas')
@@ -770,7 +812,7 @@ def obtener_detalle_renta(renta_id):
         if renta['fecha_entrada']:
             from datetime import timedelta
             fecha_limite_obj = renta['fecha_entrada'] + timedelta(days=1)
-            fecha_limite = f"{fecha_limite_obj.strftime('%d/%m/%Y')} antes de las 9:00 a.m."
+            fecha_limite = f"{fecha_limite_obj.strftime('%d/%m/%Y')} antes de las 10:00 a.m."
         
         # Formatear dirección completa del cliente
         direccion_cliente = renta['calle'] or ''
@@ -785,6 +827,8 @@ def obtener_detalle_renta(renta_id):
         if renta['codigo_postal']:
             direccion_cliente += f" - C.P. {renta['codigo_postal']}"
         
+        estado_entrega = calcular_estado_entrega_modal(renta)
+
         cursor.close()
         conn.close()
         
@@ -803,7 +847,8 @@ def obtener_detalle_renta(renta_id):
                 'iva': float(renta['iva'] or 0),
                 'total': float(renta['total_con_iva'] or 0),
                 'observaciones': renta['observaciones'],
-                'fecha_limite': fecha_limite
+                'fecha_limite': fecha_limite,
+                'estado_entrega': estado_entrega
             },
             'cliente': {
                 'codigo': renta['codigo_cliente'],
@@ -838,6 +883,12 @@ def obtener_detalle_renta(renta_id):
 def renovar_renta(renta_id):
     conn = None
     cursor = None
+    sucursal_id = None
+    renta_original = None
+
+    if renta_original:
+        sucursal_id = renta_original[2]
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -864,6 +915,9 @@ def renovar_renta(renta_id):
         if not renta_original:
             flash("La renta original no existe.", "danger")
             return redirect(url_for('rentas.modulo_rentas'))
+        
+        # Guardar sucursal
+        sucursal_id = renta_original[2]
         
         fecha_registro = get_local_now()
         costo_traslado = renta_original[3] or 0
@@ -951,7 +1005,10 @@ def renovar_renta(renta_id):
         if conn:
             conn.close()
 
-    return redirect(url_for('rentas.modulo_rentas'))
+    return redirect(url_for(
+        'rentas.modulo_rentas',
+        sucursal_id=sucursal_id or session.get('sucursal_id')
+    ))
 
 
 ###########################################################

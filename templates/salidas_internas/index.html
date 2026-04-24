@@ -30,13 +30,7 @@
     <div class="rentas-section-header d-flex justify-content-between align-items-center mb-3">
       <h2 class="rentas-section-title">
         <i class="bi bi-box-arrow-right"></i>
-        {% if es_admin and sucursal_actual.id != 'todas' %}
         Salidas Internas - {{ sucursal_actual.nombre }}
-        {% elif es_admin %}
-        Salidas Internas - Todas las Sucursales
-        {% else %}
-        Salidas Internas
-        {% endif %}
       </h2>
       <button class="btn btn-rentas-main" data-bs-toggle="modal" data-bs-target="#modalNuevaSalidaInterna">
         <i class="bi bi-box-arrow-right"></i> Nueva Salida Interna
@@ -46,13 +40,13 @@
     <!-- Navegación entre módulos -->
     <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
       <div class="btn-group" role="group">
-        <a href="{{ url_for('rentas.modulo_rentas') }}" class="btn btn-tab">
+        <a href="{{ url_for('rentas.modulo_rentas', sucursal_id=sucursal_actual.id) }}" class="btn btn-tab">
           <i class="bi bi-file-earmark-medical me-1"></i>Rentas
         </a>
-        <a href="{{ url_for('cotizaciones.index') }}" class="btn btn-tab">
+        <a href="{{ url_for('cotizaciones.index', sucursal_id=sucursal_actual.id) }}" class="btn btn-tab">
           <i class="bi bi-calculator me-1"></i>Cotizaciones
         </a>
-        <a href="{{ url_for('salidas_internas.index') }}" class="btn btn-tab active">
+        <a href="{{ url_for('salidas_internas.index', sucursal_id=sucursal_actual.id) }}" class="btn btn-tab active">
           <i class="bi bi-box-arrow-right me-1"></i>Salidas Internas
         </a>
       </div>

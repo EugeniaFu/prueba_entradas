@@ -94,6 +94,14 @@ def index():
     else:
         productos_disponibles = []
 
+    sucursal_nombre = None
+
+    if 'sucursal_id' in session:
+        cursor.execute("SELECT nombre FROM sucursales WHERE id = %s", (session['sucursal_id'],))
+        resultado = cursor.fetchone()
+        if resultado:
+            sucursal_nombre = resultado['nombre']
+
     cursor.close()
     conn.close()
 
@@ -104,7 +112,8 @@ def index():
         sucursal_actual=sucursal_actual,
         sucursales=sucursales if rol_id == 2 else [],
         es_admin=(rol_id == 2),
-        sucursal_id_usuario=sucursal_id_usuario
+        sucursal_id_usuario=sucursal_id_usuario,
+        sucursal_nombre=sucursal_nombre
     )
 
 # ======================= CREAR SALIDA INTERNA =======================

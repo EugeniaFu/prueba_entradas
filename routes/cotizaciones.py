@@ -642,53 +642,100 @@ def generar_pdf_cotizacion(cotizacion_id):
 @requiere_sesion()
 @requiere_permiso('ver_cotizaciones')
 def index():
-    """Página principal de cotizaciones"""
     try:
         verificar_cotizaciones_vencidas()
         
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
-        
-        # Obtener filtros
+
+        rol_id = session.get('rol_id')
+        sucursal_id = request.args.get('sucursal_id') or session.get('sucursal_id')
+
+        sucursal_actual = None
+        sucursales = []
+
+        if rol_id == 2:  # ADMIN
+            cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
+            sucursales = cursor.fetchall()
+
+            if sucursal_id:
+                try:
+                    sucursal_id = int(sucursal_id)
+                    where_sucursal = " AND c.sucursal_id = %s"
+                    params_sucursal = [sucursal_id]
+
+                    cursor.execute("SELECT nombre FROM sucursales WHERE id = %s", (sucursal_id,))
+                    row = cursor.fetchone()
+
+                    sucursal_actual = {
+                        'id': sucursal_id,
+                        'nombre': row['nombre'] if row else 'Desconocida'
+                    }
+                except:
+                    where_sucursal = ""
+                    params_sucursal = []
+                    sucursal_actual = {
+                        'id': 'todas',
+                        'nombre': 'Todas las Sucursales'
+                    }
+            else:
+                where_sucursal = ""
+                params_sucursal = []
+                sucursal_actual = {
+                    'id': 'todas',
+                    'nombre': 'Todas las Sucursales'
+                }
+
+        else:
+            # 👤 USUARIO NORMAL
+            where_sucursal = " AND c.sucursal_id = %s"
+            params_sucursal = [sucursal_id]
+
+            cursor.execute("SELECT nombre FROM sucursales WHERE id = %s", (sucursal_id,))
+            row = cursor.fetchone()
+
+            sucursal_actual = {
+                'id': sucursal_id,
+                'nombre': row['nombre'] if row else 'Mi Sucursal'
+            }
+
         busqueda = request.args.get('busqueda', '')
         filtro_estado = request.args.get('filtro', '')
-        
-        # Query base
-        query = """
-            SELECT c.*, u.nombre as usuario_nombre, u.apellido1 as usuario_apellido,
+
+        query = f"""
+            SELECT c.*, 
+                   u.nombre as usuario_nombre, 
+                   u.apellido1 as usuario_apellido,
                    s.nombre as sucursal_nombre,
                    DATEDIFF(c.fecha_vigencia, CURDATE()) as dias_para_vencer
             FROM cotizaciones c
             JOIN usuarios u ON c.usuario_id = u.id
             JOIN sucursales s ON c.sucursal_id = s.id
             WHERE 1=1
+            {where_sucursal}
         """
-        
-        params = []
-        
+
+        params = params_sucursal.copy()
+
         if busqueda:
             query += " AND (c.numero_cotizacion LIKE %s OR c.cliente_nombre LIKE %s OR c.cliente_empresa LIKE %s)"
             busqueda_param = f"%{busqueda}%"
             params.extend([busqueda_param, busqueda_param, busqueda_param])
-        
+
         if filtro_estado:
             query += " AND c.estado = %s"
             params.append(filtro_estado)
-        
+
         query += " ORDER BY c.fecha_creacion DESC"
-        
+
         cursor.execute(query, params)
         cotizaciones = cursor.fetchall()
-        
-        # Aplicar estado de vigencia
+
         cotizaciones_con_estado = []
         for cotizacion in cotizaciones:
-            estado_vigencia = calcular_estado_vigencia(cotizacion)
-            cotizacion_con_estado = dict(cotizacion)
-            cotizacion_con_estado['estado_vigencia'] = estado_vigencia
-            cotizaciones_con_estado.append(cotizacion_con_estado)
-        
-        # Obtener productos por cotización
+            cotizacion['estado_vigencia'] = calcular_estado_vigencia(cotizacion)
+            cotizaciones_con_estado.append(cotizacion)
+
         productos_por_cotizacion = {}
         for cotizacion in cotizaciones_con_estado:
             cursor.execute("""
@@ -698,27 +745,32 @@ def index():
                 WHERE cd.cotizacion_id = %s
             """, (cotizacion['id'],))
             productos_por_cotizacion[cotizacion['id']] = cursor.fetchall()
-        
-        # Obtener productos para el modal
+
         cursor.execute("SELECT id_producto, nombre FROM productos WHERE estatus = 'activo'")
         productos_disponibles = cursor.fetchall()
-        
+
         cursor.close()
         conexion.close()
-        
-        return render_template('cotizaciones/cotizacion.html', 
-                             cotizaciones=cotizaciones_con_estado,
-                             productos_por_cotizacion=productos_por_cotizacion,
-                             productos=productos_disponibles)
-    
+
+        return render_template(
+            'cotizaciones/cotizacion.html',
+            cotizaciones=cotizaciones_con_estado,
+            productos_por_cotizacion=productos_por_cotizacion,
+            productos=productos_disponibles,
+            sucursal_actual=sucursal_actual,
+            sucursales=sucursales,
+            es_admin=(rol_id == 2)
+        )
+
     except Exception as e:
         print(f"Error en cotizaciones index: {e}")
         flash('Error al cargar las cotizaciones', 'error')
-        return render_template('cotizaciones/cotizacion.html', 
-                             cotizaciones=[], 
-                             productos_por_cotizacion={},
-                             productos=[])
-
+        return render_template(
+            'cotizaciones/cotizacion.html',
+            cotizaciones=[],
+            productos_por_cotizacion={},
+            productos=[]
+        )
 
 
 
@@ -828,8 +880,11 @@ def crear_cotizacion():
                 'pdf_url': f'/cotizaciones/pdf/{cotizacion_id}'
             })
         else:
-            return redirect(url_for('cotizaciones.generar_pdf_cotizacion', cotizacion_id=cotizacion_id))
-        
+            return redirect(url_for(
+                'cotizaciones.index',
+                sucursal_id=sucursal_id
+            ))
+                    
     except Exception as e:
         print(f"Error al crear cotización: {e}")
 

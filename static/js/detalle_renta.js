@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'activo': 'bg-success',
             'programada': 'bg-warning',
             'finalizada': 'bg-secondary',
-            'cancelada': 'bg-danger'
+            'cancelada': 'bg-danger',
         };
 
         const estadoPagoClass = {
@@ -192,8 +192,33 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('detalle-direccion-obra').textContent = renta.direccion_obra;
         document.getElementById('detalle-periodo-renta').textContent =
             `${renta.fecha_salida} al ${renta.fecha_entrada}`;
-        document.getElementById('detalle-fecha-limite').textContent = renta.fecha_limite;
+        //document.getElementById('detalle-fecha-limite').textContent = renta.fecha_limite;
         document.getElementById('detalle-traslado').textContent = renta.traslado;
+        const contenedorFechaLimite = document.getElementById('detalle-fecha-limite');
+
+        // Texto base
+        let htmlFechaLimite = `${renta.fecha_limite}`;
+
+        // Agregar estado (Vencida / Por regresar)
+        if (renta.estado_entrega) {
+            let clase = '';
+            
+            if (renta.estado_entrega.estado === 'vencida') {
+                clase = 'bg-danger';
+            } else if (renta.estado_entrega.estado === 'por_regresar') {
+                clase = 'bg-warning text-dark';
+            }
+
+            htmlFechaLimite += `
+                <br>
+                <span class="badge ${clase} mt-1">
+                    ${renta.estado_entrega.texto}
+                </span>
+            `;
+        }
+
+        // Pintar en el modal
+        contenedorFechaLimite.innerHTML = htmlFechaLimite;
 
         // Totales - Cálculos corregidos siguiendo la lógica del backend
         // Backend: total_sin_iva = subtotal_productos + costo_traslado
