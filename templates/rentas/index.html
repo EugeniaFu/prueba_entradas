@@ -105,360 +105,767 @@
       </button>
     </div>
 
-    <!-- Tabla de rentas -->
-    <div class="table-responsive">
-      <table id="tablaRentas" class="table table-rentas align-middle">
-        <thead>
-          <tr>
-            <th>Folio</th>
-            {% if es_admin and sucursal_actual.id == 'todas' %}
-            <th>Sucursal</th>
-            {% endif %}
-            <th>Fecha de registro</th>
-            <th>Nombre del cliente</th>
-            <th>Kit/Producto</th>
-            <th>Fecha de salida</th>
-            <th>Fecha de entrada</th>
-            <th>Dirección de la obra</th>
-            <th>Estado de la renta</th>
-            <th>Estado de pago</th>
-            <th>Método de pago</th>
-            <th>Total en $</th>
-            <th>Renta asociada</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
+    <!-- Tablero de rutas de las tablas -->
+    <ul class="nav nav-tabs nav-justified mb-3" id="tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link active"
+          id="tab-1"
+          data-bs-toggle="tab"
+          data-bs-target="#content-1"
+          type="button"
+          role="tab"
+          aria-controls="content-1"
+          aria-selected="true"
+        >
+          Pagos pendientes
+        </button>
+      </li>
 
+      <li class="nav-item" role="presentation">
+        <button
+          class="nav-link"
+          id="tab-2"
+          data-bs-toggle="tab"
+          data-bs-target="#content-2"
+          type="button"
+          role="tab"
+          aria-controls="content-2"
+          aria-selected="false"
+        >
+          Pagos y rentas finalizadas
+        </button>
+      </li>
+    </ul>
 
-        <tbody>
-          {% for renta in rentas %}
-          <tr>
-
-            <!-- COLUMNA DE FOLIO -->
-            <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[25]) }}</strong></td>
-
-            <!-- COLUMNA DE SUCURSAL (solo si admin ve todas) -->
-            {% if es_admin and sucursal_actual.id == 'todas' %}
-            <td>
-              <span class="badge bg-info">{{ renta[26] }}</span>
-            </td>
-            {% endif %}
-
-            <!-- COLUMNA DE FECHA DE REGISTRO -->
-            <td><small>{{ renta[1].strftime('%d/%m/%Y %H:%M') }}</small></td>
-
-            <!-- COLUMNA DE NOMBRE DEL CLIENTE -->
-            <td><strong>{{ renta[12] }} {{ renta[13] }}</strong></td>
-
-
-            <!-- COLUMNA DE PRODUCTOS -->
-            <td>
-              <div class="productos-lista">
-                {% if productos_por_renta.get(renta[0]) %}
-                {% set productos_list = productos_por_renta[renta[0]] %}
-                {% if productos_list|length > 2 %}
-                <span class="tooltip-producto" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
-                  title="{% for item in productos_list %}<div class='mb-1'>• {{ item }}</div>{% endfor %}">
-                  <span class="producto-item">{{ productos_list[0] }}</span>
-                  <span class="producto-item">{{ productos_list[1] }}</span>
-                  <small class="text-muted">+{{ productos_list|length - 2 }} más...</small>
-                </span>
-                {% else %}
-                {% for item in productos_list %}
-                <span class="producto-item">{{ item }}</span>
-                {% endfor %}
+    <!-- Tabs content -->
+    <div class="tab-content" id="tabs-content">
+      <div
+        class="tab-pane fade show active"
+        id="content-1"
+        role="tabpanel"
+        aria-labelledby="tab-1"
+      >
+            <!-- Tabla de rentas con pendeintes de pago -->
+        <div class="table-responsive">
+          <table id="tablaRentas" class="table table-rentas align-middle">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                {% if es_admin and sucursal_actual.id == 'todas' %}
+                <th>Sucursal</th>
                 {% endif %}
-                {% else %}
-                <small class="text-muted">Sin productos</small>
+                <th>Fecha de registro</th>
+                <th>Nombre del cliente</th>
+                <th>Kit/Producto</th>
+                <th>Fecha de salida</th>
+                <th>Fecha de entrada</th>
+                <th>Dirección de la obra</th>
+                <th>Estado de la renta</th>
+                <th>Estado de pago</th>
+                <th>Método de pago</th>
+                <th>Total en $</th>
+                <th>Renta asociada</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+
+
+            <tbody>
+              {% for renta in rentas %}
+              <tr>
+
+                <!-- COLUMNA DE FOLIO -->
+                <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[25]) }}</strong></td>
+
+                <!-- COLUMNA DE SUCURSAL (solo si admin ve todas) -->
+                {% if es_admin and sucursal_actual.id == 'todas' %}
+                <td>
+                  <span class="badge bg-info">{{ renta[26] }}</span>
+                </td>
                 {% endif %}
-              </div>
-            </td>
+
+                <!-- COLUMNA DE FECHA DE REGISTRO -->
+                <td><small>{{ renta[1].strftime('%d/%m/%Y %H:%M') }}</small></td>
+
+                <!-- COLUMNA DE NOMBRE DEL CLIENTE -->
+                <td><strong>{{ renta[12] }} {{ renta[13] }}</strong></td>
 
 
-            <!-- COLUMNA DE FECHA DE SALIDA -->
-            <td>
-              {% if renta[2] %}
-              {{ renta[2].strftime('%d/%m/%Y') }}
-              {% else %}
-              <small class="text-muted">Sin fecha</small>
-              {% endif %}
-            </td>
+                <!-- COLUMNA DE PRODUCTOS -->
+                <td>
+                  <div class="productos-lista">
+                    {% if productos_por_renta.get(renta[0]) %}
+                    {% set productos_list = productos_por_renta[renta[0]] %}
+                    {% if productos_list|length > 2 %}
+                    <span class="tooltip-producto" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
+                      title="{% for item in productos_list %}<div class='mb-1'>• {{ item }}</div>{% endfor %}">
+                      <span class="producto-item">{{ productos_list[0] }}</span>
+                      <span class="producto-item">{{ productos_list[1] }}</span>
+                      <small class="text-muted">+{{ productos_list|length - 2 }} más...</small>
+                    </span>
+                    {% else %}
+                    {% for item in productos_list %}
+                    <span class="producto-item">{{ item }}</span>
+                    {% endfor %}
+                    {% endif %}
+                    {% else %}
+                    <small class="text-muted">Sin productos</small>
+                    {% endif %}
+                  </div>
+                </td>
 
 
-            <!-- COLUMNA DE FECHA DE ENTRADA -->
-            <td>
-              {% if renta[3] %}
-              <div class="d-flex flex-column">
-                <span>{{ renta[3].strftime('%d/%m/%Y') }}</span>
-                {% if renta[17] %}
-                <span class="badge {{ renta[17]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                  {{ renta[17]['texto'] }}
-                </span>
-                {% endif %}
-                {% if renta[28] %}
-                  <span class="badge {{ renta[28]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                    {{ renta[28]['texto'] }}
+                <!-- COLUMNA DE FECHA DE SALIDA -->
+                <td>
+                  {% if renta[2] %}
+                  {{ renta[2].strftime('%d/%m/%Y') }}
+                  {% else %}
+                  <small class="text-muted">Sin fecha</small>
+                  {% endif %}
+                </td>
+
+
+                <!-- COLUMNA DE FECHA DE ENTRADA -->
+                <td>
+                  {% if renta[3] %}
+                  <div class="d-flex flex-column">
+                    <span>{{ renta[3].strftime('%d/%m/%Y') }}</span>
+                    {% if renta[17] %}
+                    <span class="badge {{ renta[17]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                      {{ renta[17]['texto'] }}
+                    </span>
+                    {% endif %}
+                    {% if renta[28] %}
+                      <span class="badge {{ renta[28]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                        {{ renta[28]['texto'] }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  {% else %}
+                  <div class="d-flex flex-column">
+                    <small class="text-warning">Indefinido</small>
+                  </div>
+
+                  {% if not renta[3] %}
+                  <button class="btn btn-sm btn-outline-secondary btn-editar-fecha-entrada" data-renta-id="{{ renta[0] }}"
+                    title="Editar fecha de entrada">
+                    <i class="bi bi-calendar-check"></i>
+                  </button>
+                  {% endif %}
+                  {% endif %}
+                </td>
+
+
+                <!-- COLUMNA DIRECCIÓN DE OBRA -->
+                <td>
+                  {% if renta[11] and renta[11]|length > 25 %}
+                  <span class="tooltip-direccion" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ renta[11] }}">
+                    {{ renta[11][:25] }}...
                   </span>
-                {% endif %}
+                  {% else %}
+                  {{ renta[11] or '<small class="text-muted">Sin dirección</small>' }}
+                  {% endif %}
+                </td>
+
+
+                <!-- COLUMNA ESTADO DE LA RENTA -->
+                <td>
+                  <span class="badge
+                    {% if renta[4]|lower in ['activo', 'activa renovación'] %}bg-success
+                    {% elif renta[4]|lower == 'finalizada' %}bg-dark
+                    {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
+                    {% elif renta[4]|lower == 'en curso' %}bg-primary
+                    {% else %}bg-secondary
+                    {% endif %}">
+                    {{ renta[4].title() }}
+                  </span>
+
+                  {% if renta[21] and renta[21] > 0 %}
+                  <br>
+                  <span class="badge bg-warning text-dark">Piezas pendientes</span>
+                  {% endif %}
+                  {% if renta[22] and renta[22] > 0 and not renta[23] %}
+                  <br>
+                  <span class="badge bg-info text-white">
+                    <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
+                  </span>
+                  {% endif %}
+                </td>
+
+
+                <!-- COLUMNA ESTADO DE PAGO -->
+                <td>
+
+                  {# Estado de pago: mostrar 'Saldo pendiente' si corresponde #}
+                  <span class="badge
+                      {% if renta[4]|lower == 'cancelada' %}bg-info
+                      {% elif renta[5]|lower == 'pago realizado' %}bg-success
+                      {% elif renta[5]|lower == 'saldo pendiente' %}bg-warning
+                      {% elif renta[5]|lower == 'pago pendiente' %}bg-danger
+                      {% else %}bg-secondary
+                      {% endif %}">
+                    {% if renta[4]|lower == 'cancelada' %}Reembolsado{% elif renta[5]|lower == 'saldo pendiente' %}Saldo
+                    pendiente{% else %}{{ renta[5] }}{% endif %}
+                  </span>
+
+                  {% if renta[17] %}
+                  <br>
+                  <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17]
+                    }}</span>
+                  {% endif %}
+
+                  {% if renta[20] == 'Retraso Pendiente' %}
+                  <br>
+                  <span class="badge bg-warning">Retraso Pendiente</span>
+                  {% elif renta[20] == 'Retraso Pagado' %}
+                  <br>
+                  <span class="badge bg-success">Retraso Pagado</span>
+                  {% endif %}
+
+                </td>
+
+
+                <!-- COLUMNA MÉTODO DE PAGO -->
+                <td><small>{{ renta[6] or 'N/A' }}</small></td>
+                <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
+                <td>{{renta[23]}}</td>
+
+                <!-- COLUMNA DE ACCIONES -->
+                <td>
+                  <div class="d-flex actions justify-content-center gap-1">
+
+                    <!-- Botón de Acciones -->
+                    <div class="dropdown dropup">
+                      <button class="btn btn-sm btn-primary dropdown-toggle no-caret rounded rounded-circle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                        title=" + Opciones ">
+                        <i class="bi bi-three-dots"></i>
+                      </button>
+                      <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                        <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
+                              class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                        {% if renta[4] == 'Activo' and not renta[23] %}
+                        <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#" data-renta-id="{{ renta[0] }}"><i
+                              class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
+                        {% endif %}
+                        <li>
+                          <hr class="dropdown-divider">
+                        </li>
+                        <li>
+                          <a class="dropdown-item btn-ver-detalle" href="#" data-renta-id="{{ renta[0] }}">
+                            <i class="bi bi-eye me-2"></i>Ver Detalles
+                          </a>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <!-- Botón de PDF -->
+                    <div class="dropdown dropup">
+                      <button class="btn btn-sm btn-success dropdown-toggle no-caret rounded rounded-circle" type="button"
+                        data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                        title="Documentos PDF">
+                        <i class="bi bi-printer"></i>
+                      </button>
+                      <ul class="dropdown-menu">
+                        <li>
+                          <a class="dropdown-item" href="/notas_salida/pdf_renta/{{ renta[0] }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Nota de salida
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item" href="/notas_entrada/pdf_renta/{{ renta[0] }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-2 text-primary"></i>Nota de entrada
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item" href="/prefactura/pdf_renta/{{ renta[0] }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-2 text-success"></i>Prefactura
+                          </a>
+                        </li>
+                        {% if renta[19] %}
+                        <li>
+                          <a class="dropdown-item" href="/cobros_extra/pdf/{{ renta[19] }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-2 text-warning"></i>Cobro Extra
+                          </a>
+                        </li>
+                        {% endif %}
+                        {% if renta[27] %}
+                        <li>
+                          <a class="dropdown-item" href="/cobros_retraso/pdf/{{ renta[27] }}" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Cobro Retraso
+                          </a>
+                        </li>
+                        {% endif %}
+                      </ul>
+                    </div>
+
+                    <!-- Botón de Notas -->
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-warning text-dark dropdown-toggle no-caret rounded rounded-circle"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
+                        data-bs-toggle="tooltip" title="Gestionar notas ">
+                        <i class="bi bi-journal-text"></i>
+                      </button>
+                      <ul class="dropdown-menu">
+                        <li>
+                          <a class="dropdown-item btn-nota-salida {% if renta[23] %}disabled{% endif %}" href="#"
+                            data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true" {% endif %}>
+                            <i
+                              class="bi bi-arrow-right-circle me-2 {% if renta[23] %}text-secondary{% else %}text-danger{% endif %}"></i>
+                            Crear Nota de Salida
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item btn-nota-entrada {% if renta[23] %}disabled{% endif %}" href="#"
+                            data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true"
+                            title="Esta renta asociada no requiere nota de entrada" {% endif %}>
+                            <i
+                              class="bi bi-arrow-left-circle me-2 {% if renta[23] %}text-secondary{% else %}text-primary{% endif %}"></i>Crear
+                            Nota de Entrada
+                          </a>
+                        </li>
+                        <li>
+                          <hr class="dropdown-divider">
+                        </li>
+                        <li>
+                          <a class="dropdown-item btn-prefactura {% if renta[5]|lower == 'pago realizado' %}disabled{% endif %}"
+                            href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
+                            data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
+                            renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
+                            <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo pendiente'
+                            %}Abonar{% else %}Generar Prefactura{% endif %}
+                          </a>
+                        </li>
+                        {% if renta[17] == 'Extra Pendiente' %}
+                        <li>
+                          <a class="dropdown-item btn-cobro-extra" href="#" data-renta-id="{{ renta[0] }}">
+                            <i class="bi bi-cash-coin me-2 text-warning"></i>Cobrar Extra
+                          </a>
+                        </li>
+                        {% endif %}
+
+                        {% if renta[20] == 'Retraso Pendiente' %}
+                        <li>
+                          <a class="dropdown-item btn-cobro-retraso" href="#" data-renta-id="{{ renta[0] }}">
+                            <i class="bi bi-clock-history me-2 text-danger"></i>Cobrar Retraso
+                          </a>
+                        </li>
+                        {% endif %}
+                      </ul>
+                    </div>
+
+
+                    <!-- Botón de Eliminar -->
+                    <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta"
+                      type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar"
+                      data-renta-id="{{ renta[0] }}">
+                      <i class="bi bi-trash-fill"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div id="pagination-container" class="mt-3 d-flex justify-content-center"></div>
+          {% include 'rentas/_modal_cancelar_renta.html' %}
+          <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
+          <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <form id="form-cancelar-renta">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Cancelar renta</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="mb-3">
+                      <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
+                      <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2"
+                        required></textarea>
+                    </div>
+                    <div class="mb-3">
+                      <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
+                      <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0"
+                        step="0.01" required>
+                    </div>
+                    <input type="hidden" id="renta-id-cancelar" name="renta_id">
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-danger" id="btnConfirmarCancelarRenta">Cancelar renta</button>
+                  </div>
+                </form>
               </div>
-              {% else %}
-              <div class="d-flex flex-column">
-                <small class="text-warning">Indefinido</small>
-              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              {% if not renta[3] %}
-              <button class="btn btn-sm btn-outline-secondary btn-editar-fecha-entrada" data-renta-id="{{ renta[0] }}"
-                title="Editar fecha de entrada">
-                <i class="bi bi-calendar-check"></i>
-              </button>
-              {% endif %}
-              {% endif %}
-            </td>
-
-
-            <!-- COLUMNA DIRECCIÓN DE OBRA -->
-            <td>
-              {% if renta[11] and renta[11]|length > 25 %}
-              <span class="tooltip-direccion" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ renta[11] }}">
-                {{ renta[11][:25] }}...
-              </span>
-              {% else %}
-              {{ renta[11] or '<small class="text-muted">Sin dirección</small>' }}
-              {% endif %}
-            </td>
-
-
-            <!-- COLUMNA ESTADO DE LA RENTA -->
-            <td>
-              <span class="badge
-                {% if renta[4]|lower in ['activo', 'activa renovación'] %}bg-success
-                {% elif renta[4]|lower == 'finalizada' %}bg-dark
-                {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
-                {% elif renta[4]|lower == 'en curso' %}bg-primary
-                {% else %}bg-secondary
-                {% endif %}">
-                {{ renta[4].title() }}
-              </span>
-
-              {% if renta[21] and renta[21] > 0 %}
-              <br>
-              <span class="badge bg-warning text-dark">Piezas pendientes</span>
-              {% endif %}
-              {% if renta[22] and renta[22] > 0 and not renta[23] %}
-              <br>
-              <span class="badge bg-info text-white">
-                <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
-              </span>
-              {% endif %}
-            </td>
+      <div
+        class="tab-pane fade"
+        id="content-2"
+        role="tabpanel"
+        aria-labelledby="tab-2"
+      >
+           <!-- Tabla de rentas pagadas o finalizadas -->
+          <div class="table-responsive">
+            <table id="pagadas" class="table table-rentas align-middle tabla-paginada">
+              <thead>
+                <tr>
+                  <th>Folio</th>
+                  {% if es_admin and sucursal_actual.id == 'todas' %}
+                  <th>Sucursal</th>
+                  {% endif %}
+                  <th>Fecha de registro</th>
+                  <th>Nombre del cliente</th>
+                  <th>Kit/Producto</th>
+                  <th>Fecha de salida</th>
+                  <th>Fecha de entrada</th>
+                  <th>Dirección de la obra</th>
+                  <th>Estado de la renta</th>
+                  <th>Estado de pago</th>
+                  <th>Método de pago</th>
+                  <th>Total en $</th>
+                  <th>Renta asociada</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
 
 
-            <!-- COLUMNA ESTADO DE PAGO -->
-            <td>
+              <tbody>
+                {% for renta in rentas_pagadas %}
+                <tr>
 
-              {# Estado de pago: mostrar 'Saldo pendiente' si corresponde #}
-              <span class="badge
-                  {% if renta[4]|lower == 'cancelada' %}bg-info
-                  {% elif renta[5]|lower == 'pago realizado' %}bg-success
-                  {% elif renta[5]|lower == 'saldo pendiente' %}bg-warning
-                  {% elif renta[5]|lower == 'pago pendiente' %}bg-danger
-                  {% else %}bg-secondary
-                  {% endif %}">
-                {% if renta[4]|lower == 'cancelada' %}Reembolsado{% elif renta[5]|lower == 'saldo pendiente' %}Saldo
-                pendiente{% else %}{{ renta[5] }}{% endif %}
-              </span>
+                  <!-- COLUMNA DE FOLIO -->
+                  <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[25]) }}</strong></td>
 
-              {% if renta[17] %}
-              <br>
-              <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17]
-                }}</span>
-              {% endif %}
+                  <!-- COLUMNA DE SUCURSAL (solo si admin ve todas) -->
+                  {% if es_admin and sucursal_actual.id == 'todas' %}
+                  <td>
+                    <span class="badge bg-info">{{ renta[26] }}</span>
+                  </td>
+                  {% endif %}
 
-              {% if renta[20] == 'Retraso Pendiente' %}
-              <br>
-              <span class="badge bg-warning">Retraso Pendiente</span>
-              {% elif renta[20] == 'Retraso Pagado' %}
-              <br>
-              <span class="badge bg-success">Retraso Pagado</span>
-              {% endif %}
+                  <!-- COLUMNA DE FECHA DE REGISTRO -->
+                  <td><small>{{ renta[1].strftime('%d/%m/%Y %H:%M') }}</small></td>
 
-            </td>
+                  <!-- COLUMNA DE NOMBRE DEL CLIENTE -->
+                  <td><strong>{{ renta[12] }} {{ renta[13] }}</strong></td>
 
 
-            <!-- COLUMNA MÉTODO DE PAGO -->
-            <td><small>{{ renta[6] or 'N/A' }}</small></td>
-            <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
-            <td>{{renta[23]}}</td>
+                  <!-- COLUMNA DE PRODUCTOS -->
+                  <td>
+                    <div class="productos-lista">
+                      {% if productos_por_renta.get(renta[0]) %}
+                      {% set productos_list = productos_por_renta[renta[0]] %}
+                      {% if productos_list|length > 2 %}
+                      <span class="tooltip-producto" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
+                        title="{% for item in productos_list %}<div class='mb-1'>• {{ item }}</div>{% endfor %}">
+                        <span class="producto-item">{{ productos_list[0] }}</span>
+                        <span class="producto-item">{{ productos_list[1] }}</span>
+                        <small class="text-muted">+{{ productos_list|length - 2 }} más...</small>
+                      </span>
+                      {% else %}
+                      {% for item in productos_list %}
+                      <span class="producto-item">{{ item }}</span>
+                      {% endfor %}
+                      {% endif %}
+                      {% else %}
+                      <small class="text-muted">Sin productos</small>
+                      {% endif %}
+                    </div>
+                  </td>
 
-            <!-- COLUMNA DE ACCIONES -->
-            <td>
-              <div class="d-flex actions justify-content-center gap-1">
 
-                <!-- Botón de Acciones -->
-                <div class="dropdown dropup">
-                  <button class="btn btn-sm btn-primary dropdown-toggle no-caret rounded rounded-circle" type="button"
-                    data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
-                    title=" + Opciones ">
-                    <i class="bi bi-three-dots"></i>
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
-                    <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
-                          class="bi bi-ban me-2"></i>Cancelar renta</a></li>
-                    {% if renta[4] == 'Activo' and not renta[23] %}
-                    <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#" data-renta-id="{{ renta[0] }}"><i
-                          class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
+                  <!-- COLUMNA DE FECHA DE SALIDA -->
+                  <td>
+                    {% if renta[2] %}
+                    {{ renta[2].strftime('%d/%m/%Y') }}
+                    {% else %}
+                    <small class="text-muted">Sin fecha</small>
                     {% endif %}
-                    <li>
-                      <hr class="dropdown-divider">
-                    </li>
-                    <li>
-                      <a class="dropdown-item btn-ver-detalle" href="#" data-renta-id="{{ renta[0] }}">
-                        <i class="bi bi-eye me-2"></i>Ver Detalles
-                      </a>
-                    </li>
-                  </ul>
-                </div>
+                  </td>
 
-                <!-- Botón de PDF -->
-                <div class="dropdown dropup">
-                  <button class="btn btn-sm btn-success dropdown-toggle no-caret rounded rounded-circle" type="button"
-                    data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
-                    title="Documentos PDF">
-                    <i class="bi bi-printer"></i>
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li>
-                      <a class="dropdown-item" href="/notas_salida/pdf_renta/{{ renta[0] }}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Nota de salida
-                      </a>
-                    </li>
-                    <li>
-                      <a class="dropdown-item" href="/notas_entrada/pdf_renta/{{ renta[0] }}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf me-2 text-primary"></i>Nota de entrada
-                      </a>
-                    </li>
-                    <li>
-                      <a class="dropdown-item" href="/prefactura/pdf_renta/{{ renta[0] }}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf me-2 text-success"></i>Prefactura
-                      </a>
-                    </li>
-                    {% if renta[19] %}
-                    <li>
-                      <a class="dropdown-item" href="/cobros_extra/pdf/{{ renta[19] }}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf me-2 text-warning"></i>Cobro Extra
-                      </a>
-                    </li>
-                    {% endif %}
-                    {% if renta[27] %}
-                    <li>
-                      <a class="dropdown-item" href="/cobros_retraso/pdf/{{ renta[27] }}" target="_blank">
-                        <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Cobro Retraso
-                      </a>
-                    </li>
-                    {% endif %}
-                  </ul>
-                </div>
 
-                <!-- Botón de Notas -->
-                <div class="dropdown">
-                  <button class="btn btn-sm btn-warning text-dark dropdown-toggle no-caret rounded rounded-circle"
-                    type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
-                    data-bs-toggle="tooltip" title="Gestionar notas ">
-                    <i class="bi bi-journal-text"></i>
-                  </button>
-                  <ul class="dropdown-menu">
-                    <li>
-                      <a class="dropdown-item btn-nota-salida {% if renta[23] %}disabled{% endif %}" href="#"
-                        data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true" {% endif %}>
-                        <i
-                          class="bi bi-arrow-right-circle me-2 {% if renta[23] %}text-secondary{% else %}text-danger{% endif %}"></i>
-                        Crear Nota de Salida
-                      </a>
-                    </li>
-                    <li>
-                      <a class="dropdown-item btn-nota-entrada {% if renta[23] %}disabled{% endif %}" href="#"
-                        data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true"
-                        title="Esta renta asociada no requiere nota de entrada" {% endif %}>
-                        <i
-                          class="bi bi-arrow-left-circle me-2 {% if renta[23] %}text-secondary{% else %}text-primary{% endif %}"></i>Crear
-                        Nota de Entrada
-                      </a>
-                    </li>
-                    <li>
-                      <hr class="dropdown-divider">
-                    </li>
-                    <li>
-                      <a class="dropdown-item btn-prefactura {% if renta[5]|lower == 'pago realizado' %}disabled{% endif %}"
-                        href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
-                        data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
-                        renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
-                        <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo pendiente'
-                        %}Abonar{% else %}Generar Prefactura{% endif %}
-                      </a>
-                    </li>
-                    {% if renta[17] == 'Extra Pendiente' %}
-                    <li>
-                      <a class="dropdown-item btn-cobro-extra" href="#" data-renta-id="{{ renta[0] }}">
-                        <i class="bi bi-cash-coin me-2 text-warning"></i>Cobrar Extra
-                      </a>
-                    </li>
+                  <!-- COLUMNA DE FECHA DE ENTRADA -->
+                  <td>
+                    {% if renta[3] %}
+                    <div class="d-flex flex-column">
+                      <span>{{ renta[3].strftime('%d/%m/%Y') }}</span>
+                      {% if renta[17] %}
+                      <span class="badge {{ renta[17]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                        {{ renta[17]['texto'] }}
+                      </span>
+                      {% endif %}
+                      {% if renta[28] %}
+                        <span class="badge {{ renta[28]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                          {{ renta[28]['texto'] }}
+                        </span>
+                      {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="d-flex flex-column">
+                      <small class="text-warning">Indefinido</small>
+                    </div>
+
+                    {% if not renta[3] %}
+                    <button class="btn btn-sm btn-outline-secondary btn-editar-fecha-entrada" data-renta-id="{{ renta[0] }}"
+                      title="Editar fecha de entrada">
+                      <i class="bi bi-calendar-check"></i>
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                  </td>
+
+
+                  <!-- COLUMNA DIRECCIÓN DE OBRA -->
+                  <td>
+                    {% if renta[11] and renta[11]|length > 25 %}
+                    <span class="tooltip-direccion" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ renta[11] }}">
+                      {{ renta[11][:25] }}...
+                    </span>
+                    {% else %}
+                    {{ renta[11] or '<small class="text-muted">Sin dirección</small>' }}
+                    {% endif %}
+                  </td>
+
+
+                  <!-- COLUMNA ESTADO DE LA RENTA -->
+                  <td>
+                    <span class="badge
+                      {% if renta[4]|lower in ['activo', 'activa renovación'] %}bg-success
+                      {% elif renta[4]|lower == 'finalizada' %}bg-dark
+                      {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
+                      {% elif renta[4]|lower == 'en curso' %}bg-primary
+                      {% else %}bg-secondary
+                      {% endif %}">
+                      {{ renta[4].title() }}
+                    </span>
+
+                    {% if renta[21] and renta[21] > 0 %}
+                    <br>
+                    <span class="badge bg-warning text-dark">Piezas pendientes</span>
+                    {% endif %}
+                    {% if renta[22] and renta[22] > 0 and not renta[23] %}
+                    <br>
+                    <span class="badge bg-info text-white">
+                      <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
+                    </span>
+                    {% endif %}
+                  </td>
+
+
+                  <!-- COLUMNA ESTADO DE PAGO -->
+                  <td>
+
+                    {# Estado de pago: mostrar 'Saldo pendiente' si corresponde #}
+                    <span class="badge
+                        {% if renta[4]|lower == 'cancelada' %}bg-info
+                        {% elif renta[5]|lower == 'pago realizado' %}bg-success
+                        {% elif renta[5]|lower == 'saldo pendiente' %}bg-warning
+                        {% elif renta[5]|lower == 'pago pendiente' %}bg-danger
+                        {% else %}bg-secondary
+                        {% endif %}">
+                      {% if renta[4]|lower == 'cancelada' %}Reembolsado{% elif renta[5]|lower == 'saldo pendiente' %}Saldo
+                      pendiente{% else %}{{ renta[5] }}{% endif %}
+                    </span>
+
+                    {% if renta[17] %}
+                    <br>
+                    <span class="badge {{ 'bg-warning' if renta[17] == 'Extra Pendiente' else 'bg-success' }}">{{ renta[17]
+                      }}</span>
                     {% endif %}
 
                     {% if renta[20] == 'Retraso Pendiente' %}
-                    <li>
-                      <a class="dropdown-item btn-cobro-retraso" href="#" data-renta-id="{{ renta[0] }}">
-                        <i class="bi bi-clock-history me-2 text-danger"></i>Cobrar Retraso
-                      </a>
-                    </li>
+                    <br>
+                    <span class="badge bg-warning">Retraso Pendiente</span>
+                    {% elif renta[20] == 'Retraso Pagado' %}
+                    <br>
+                    <span class="badge bg-success">Retraso Pagado</span>
                     {% endif %}
-                  </ul>
-                </div>
+
+                  </td>
 
 
-                <!-- Botón de Eliminar -->
-                <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta"
-                  type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar"
-                  data-renta-id="{{ renta[0] }}">
-                  <i class="bi bi-trash-fill"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <div id="pagination-container" class="mt-3 d-flex justify-content-center"></div>
-      {% include 'rentas/_modal_cancelar_renta.html' %}
-      <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
-      <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <form id="form-cancelar-renta">
-              <div class="modal-header">
-                <h5 class="modal-title">Cancelar renta</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-              </div>
-              <div class="modal-body">
-                <div class="mb-3">
-                  <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
-                  <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2"
-                    required></textarea>
+                  <!-- COLUMNA MÉTODO DE PAGO -->
+                  <td><small>{{ renta[6] or 'N/A' }}</small></td>
+                  <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
+                  <td>{{renta[23]}}</td>
+
+                  <!-- COLUMNA DE ACCIONES -->
+                  <td>
+                    <div class="d-flex actions justify-content-center gap-1">
+
+                      <!-- Botón de Acciones -->
+                      <div class="dropdown dropup">
+                        <button class="btn btn-sm btn-primary dropdown-toggle no-caret rounded rounded-circle" type="button"
+                          data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                          title=" + Opciones ">
+                          <i class="bi bi-three-dots"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                          <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                          <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
+                                class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                          {% if renta[4] == 'Activo' and not renta[23] %}
+                          <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#" data-renta-id="{{ renta[0] }}"><i
+                                class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
+                          {% endif %}
+                          <li>
+                            <hr class="dropdown-divider">
+                          </li>
+                          <li>
+                            <a class="dropdown-item btn-ver-detalle" href="#" data-renta-id="{{ renta[0] }}">
+                              <i class="bi bi-eye me-2"></i>Ver Detalles
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <!-- Botón de PDF -->
+                      <div class="dropdown dropup">
+                        <button class="btn btn-sm btn-success dropdown-toggle no-caret rounded rounded-circle" type="button"
+                          data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top" data-bs-toggle="tooltip"
+                          title="Documentos PDF">
+                          <i class="bi bi-printer"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                          <li>
+                            <a class="dropdown-item" href="/notas_salida/pdf_renta/{{ renta[0] }}" target="_blank">
+                              <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Nota de salida
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="/notas_entrada/pdf_renta/{{ renta[0] }}" target="_blank">
+                              <i class="bi bi-file-earmark-pdf me-2 text-primary"></i>Nota de entrada
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item" href="/prefactura/pdf_renta/{{ renta[0] }}" target="_blank">
+                              <i class="bi bi-file-earmark-pdf me-2 text-success"></i>Prefactura
+                            </a>
+                          </li>
+                          {% if renta[19] %}
+                          <li>
+                            <a class="dropdown-item" href="/cobros_extra/pdf/{{ renta[19] }}" target="_blank">
+                              <i class="bi bi-file-earmark-pdf me-2 text-warning"></i>Cobro Extra
+                            </a>
+                          </li>
+                          {% endif %}
+                          {% if renta[27] %}
+                          <li>
+                            <a class="dropdown-item" href="/cobros_retraso/pdf/{{ renta[27] }}" target="_blank">
+                              <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Cobro Retraso
+                            </a>
+                          </li>
+                          {% endif %}
+                        </ul>
+                      </div>
+
+                      <!-- Botón de Notas -->
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-warning text-dark dropdown-toggle no-caret rounded rounded-circle"
+                          type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
+                          data-bs-toggle="tooltip" title="Gestionar notas ">
+                          <i class="bi bi-journal-text"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                          <li>
+                            <a class="dropdown-item btn-nota-salida {% if renta[23] %}disabled{% endif %}" href="#"
+                              data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true" {% endif %}>
+                              <i
+                                class="bi bi-arrow-right-circle me-2 {% if renta[23] %}text-secondary{% else %}text-danger{% endif %}"></i>
+                              Crear Nota de Salida
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item btn-nota-entrada {% if renta[23] %}disabled{% endif %}" href="#"
+                              data-renta-id="{{ renta[0] }}" {% if renta[23] %}tabindex="-1" aria-disabled="true"
+                              title="Esta renta asociada no requiere nota de entrada" {% endif %}>
+                              <i
+                                class="bi bi-arrow-left-circle me-2 {% if renta[23] %}text-secondary{% else %}text-primary{% endif %}"></i>Crear
+                              Nota de Entrada
+                            </a>
+                          </li>
+                          <li>
+                            <hr class="dropdown-divider">
+                          </li>
+                          <li>
+                            <a class="dropdown-item btn-prefactura {% if renta[5]|lower == 'pago realizado' %}disabled{% endif %}"
+                              href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
+                              data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
+                              renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
+                              <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo pendiente'
+                              %}Abonar{% else %}Generar Prefactura{% endif %}
+                            </a>
+                          </li>
+                          {% if renta[17] == 'Extra Pendiente' %}
+                          <li>
+                            <a class="dropdown-item btn-cobro-extra" href="#" data-renta-id="{{ renta[0] }}">
+                              <i class="bi bi-cash-coin me-2 text-warning"></i>Cobrar Extra
+                            </a>
+                          </li>
+                          {% endif %}
+
+                          {% if renta[20] == 'Retraso Pendiente' %}
+                          <li>
+                            <a class="dropdown-item btn-cobro-retraso" href="#" data-renta-id="{{ renta[0] }}">
+                              <i class="bi bi-clock-history me-2 text-danger"></i>Cobrar Retraso
+                            </a>
+                          </li>
+                          {% endif %}
+                        </ul>
+                      </div>
+
+
+                      <!-- Botón de Eliminar -->
+                      <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta"
+                        type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar"
+                        data-renta-id="{{ renta[0] }}">
+                        <i class="bi bi-trash-fill"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <div class="paginacion"></div>
+            {% include 'rentas/_modal_cancelar_renta.html' %}
+            <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
+            <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <form id="form-cancelar-renta">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Cancelar renta</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                      <div class="mb-3">
+                        <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
+                        <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2"
+                          required></textarea>
+                      </div>
+                      <div class="mb-3">
+                        <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
+                        <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0"
+                          step="0.01" required>
+                      </div>
+                      <input type="hidden" id="renta-id-cancelar" name="renta_id">
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                      <button type="submit" class="btn btn-danger" id="btnConfirmarCancelarRenta">Cancelar renta</button>
+                    </div>
+                  </form>
                 </div>
-                <div class="mb-3">
-                  <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
-                  <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0"
-                    step="0.01" required>
-                </div>
-                <input type="hidden" id="renta-id-cancelar" name="renta_id">
               </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <button type="submit" class="btn btn-danger" id="btnConfirmarCancelarRenta">Cancelar renta</button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
       </div>
     </div>
   </div>
@@ -546,10 +953,6 @@
 </script>
 
 <script>
-  
-</script>
-
-<script>
   document.addEventListener('DOMContentLoaded', function () {
     // Sincronizar sucursal del modal con la vista actual del admin
     const btnNuevaRenta = document.querySelector('[data-bs-target="#modalNuevaRenta"]');
@@ -567,7 +970,6 @@
     }
   });
 </script>
-
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
@@ -704,6 +1106,14 @@
     });
   });
 </script>
+
+<script>
+  // Initialization for ES Users
+import { Tab, initMDB } from "mdb-ui-kit";
+
+initMDB({ Tab });
+</script>
+
 <script src="{{ url_for('static', filename='js/rentas.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_salida.js') }}"></script>
 <script src="{{ url_for('static', filename='js/prefactura.js') }}"></script>

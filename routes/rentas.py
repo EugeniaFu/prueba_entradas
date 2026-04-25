@@ -171,7 +171,21 @@ def modulo_rentas():
         row = cursor.fetchone()
         sucursal_actual = {'id': sucursal_id_usuario, 'nombre': row[0] if row else 'Mi Sucursal'}
 
-    # Consulta principal con filtro de sucursal y folio
+   # Filtro de estados (lo definimos antes)
+    filtro_estado = """
+    AND (
+        LOWER(TRIM(r.estado_renta)) IN ('en curso', 'activo', 'activa renovación')
+        
+        OR (
+            LOWER(TRIM(r.estado_renta)) = 'finalizada'
+            AND LOWER(TRIM(r.estado_pago)) IN ('pago pendiente', 'saldo pendiente')
+        )
+    )
+    """
+
+    # Asegurar WHERE válido
+    where_final = where_sucursal if where_sucursal else "WHERE 1=1"
+
     cursor.execute(f"""
     SELECT 
         r.id, r.fecha_registro, r.fecha_salida, r.fecha_entrada,
@@ -198,17 +212,17 @@ def modulo_rentas():
                 THEN (
                     SELECT COUNT(*) FROM (
                         SELECT nsd.id_pieza,
-                               nsd.cantidad AS cantidad_salida,
-                               (
-                                   SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
-                                   FROM notas_entrada ne2
-                                   JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
-                                   WHERE (
-                                       ne2.renta_id = r.id
-                                       OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
-                                   )
-                                   AND ned2.id_pieza = nsd.id_pieza
-                               ) AS cantidad_recibida_total
+                            nsd.cantidad AS cantidad_salida,
+                            (
+                                SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
+                                FROM notas_entrada ne2
+                                JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
+                                WHERE (
+                                    ne2.renta_id = r.id
+                                    OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
+                                )
+                                AND ned2.id_pieza = nsd.id_pieza
+                            ) AS cantidad_recibida_total
                         FROM notas_salida ns
                         JOIN notas_salida_detalle nsd ON nsd.nota_salida_id = ns.id
                         WHERE ns.renta_id = r.id
@@ -228,7 +242,6 @@ def modulo_rentas():
                 ELSE 0
             END
         ) AS piezas_pendientes,
-        -- Verificar si hay rentas asociadas (renovaciones activas)
         (
             SELECT COUNT(*)
             FROM rentas r_hija
@@ -236,10 +249,10 @@ def modulo_rentas():
         ) AS tiene_renovaciones,
         r.renta_asociada_id,
         r.id_sucursal,
-        -- Calcular folio por sucursal
-        (SELECT COUNT(*) FROM rentas r2 WHERE r2.id_sucursal = r.id_sucursal AND r2.id <= r.id ORDER BY r2.id) AS folio_sucursal,
+        (SELECT COUNT(*) FROM rentas r2 WHERE r2.id_sucursal = r.id_sucursal AND r2.id <= r.id) AS folio_sucursal,
         s.nombre AS sucursal_nombre,
         ncr.id AS cobro_retraso_id
+
     FROM rentas r
     JOIN clientes c ON r.cliente_id = c.id
     JOIN sucursales s ON r.id_sucursal = s.id
@@ -247,18 +260,88 @@ def modulo_rentas():
         AND ne.id = (SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id)
     LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
     LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
-    {where_sucursal}
-    ORDER BY 
-    CASE 
-        WHEN TRIM(LOWER(r.estado_renta)) = 'en curso' THEN 0
-        WHEN TRIM(LOWER(r.estado_renta)) = 'activo' THEN 1
-        WHEN TRIM(LOWER(r.estado_renta)) = 'activa renovación' THEN 2
-        ELSE 3
-    END,
-    r.id DESC
+
+    {where_final}
+    {filtro_estado}
+
+    ORDER BY r.id DESC
     """, params_sucursal)
     
     rentas = cursor.fetchall()
+
+    filtro_pagadas = """
+    AND (
+        LOWER(TRIM(r.estado_renta)) = 'finalizada'
+        AND LOWER(TRIM(r.estado_pago)) = 'pago realizado'
+    )
+    """
+
+    cursor.execute(f"""
+    SELECT 
+        r.id, r.fecha_registro, r.fecha_salida, r.fecha_entrada,
+        r.estado_renta, r.estado_pago, r.metodo_pago,
+        r.total_con_iva, r.total, r.iva, r.observaciones,
+        r.direccion_obra,
+        c.nombre, c.apellido1, c.apellido2,
+        (SELECT COUNT(*) FROM notas_entrada ne WHERE ne.renta_id = r.id) as tiene_nota_entrada,
+        CASE 
+            WHEN r.fecha_entrada IS NOT NULL THEN 
+                DATE_ADD(r.fecha_entrada, INTERVAL 1 DAY)
+            ELSE NULL 
+        END as fecha_limite_entrega,
+        r.estado_cobro_extra,
+        nce.estado_pago AS estado_pago_extra,
+        nce.id AS cobro_extra_id,
+        ne.estado_retraso,
+        (
+            CASE
+                WHEN (
+                    SELECT COUNT(*) FROM notas_entrada ne
+                    WHERE ne.renta_id = r.id 
+                    OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
+                ) > 0
+                THEN (
+                    SELECT COUNT(*) FROM (
+                        SELECT nsd.id_pieza
+                        FROM notas_salida ns
+                        JOIN notas_salida_detalle nsd ON nsd.nota_salida_id = ns.id
+                        WHERE ns.renta_id = r.id
+                    ) AS pendientes
+                )
+                ELSE 0
+            END
+        ) AS piezas_pendientes,
+        (
+            SELECT COUNT(*)
+            FROM rentas r_hija
+            WHERE r_hija.renta_asociada_id = r.id 
+            AND r_hija.estado_renta = 'activa renovación'
+        ) AS tiene_renovaciones,
+        r.renta_asociada_id,
+        r.id_sucursal,
+        (SELECT COUNT(*) FROM rentas r2 
+        WHERE r2.id_sucursal = r.id_sucursal AND r2.id <= r.id) AS folio_sucursal,
+        s.nombre AS sucursal_nombre,
+        ncr.id AS cobro_retraso_id
+
+    FROM rentas r
+    JOIN clientes c ON r.cliente_id = c.id
+    JOIN sucursales s ON r.id_sucursal = s.id
+    LEFT JOIN notas_entrada ne ON ne.renta_id = r.id
+        AND ne.id = (SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id)
+    LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
+    LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
+
+    {where_final}
+    AND (
+        LOWER(TRIM(r.estado_renta)) = 'finalizada'
+        AND LOWER(TRIM(r.estado_pago)) = 'pago realizado'
+    )
+
+    ORDER BY r.id DESC
+    """, params_sucursal)
+
+    rentas_pagadas = cursor.fetchall()
 
     # Obtener IDs que son padres (tienen hijas)
     ids_padre = set(r[23] for r in rentas if r[23])  # renta_asociada_id
@@ -383,7 +466,8 @@ def modulo_rentas():
         # Nuevos datos para filtros admin
         sucursales=sucursales,
         sucursal_actual=sucursal_actual,
-        es_admin=(rol_id == 2) 
+        es_admin=(rol_id == 2),
+        rentas_pagadas=rentas_pagadas
     )
 
 
