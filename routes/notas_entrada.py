@@ -495,8 +495,8 @@ def generar_pdf_nota_entrada(nota_entrada_id):
 
     # Obtener datos completos de la nota de entrada
     cursor.execute("""
-        SELECT ne.folio, ne.fecha_entrada_real, ne.requiere_traslado_extra, ne.costo_traslado_extra, ne.observaciones,
-               r.fecha_salida, r.fecha_entrada, r.direccion_obra,
+         SELECT ne.folio, ne.fecha_entrada_real, ne.requiere_traslado_extra, ne.costo_traslado_extra, ne.observaciones,
+             r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.estado_renta,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, 
                c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal
@@ -632,6 +632,8 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     y_position -= 15
     
     can.setFont("Carlito", 10)
+    es_recoleccion = (nota.get('estado_renta') or '').lower() == 'en recolección'
+
     for pieza in piezas:
         # Verificar si necesitamos nueva página
         if y_position < 200:
@@ -644,7 +646,10 @@ def generar_pdf_nota_entrada(nota_entrada_id):
             
         can.drawString(70, y_position + 5, str(pieza['cantidad_esperada']))
         can.drawString(150, y_position + 5, pieza['nombre_pieza'].upper())
-        can.drawString(365, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_recibida']))
+        recibidas_texto = mostrar_vacio_si_cero(pieza['cantidad_recibida'])
+        if es_recoleccion and recibidas_texto == "":
+            recibidas_texto = "(               )"
+        can.drawString(355, y_position + 5, recibidas_texto)
         
         # Solo mostrar columnas de estado si hay piezas problemáticas
         if hay_piezas_problematicas:

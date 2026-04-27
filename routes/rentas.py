@@ -174,7 +174,7 @@ def modulo_rentas():
    # Filtro de estados (lo definimos antes)
     filtro_estado = """
     AND (
-        LOWER(TRIM(r.estado_renta)) IN ('en curso', 'activo', 'activa renovación')
+        LOWER(TRIM(r.estado_renta)) IN ('en curso', 'activo', 'activa renovación', 'en recolección')
         
         OR (
             LOWER(TRIM(r.estado_renta)) = 'finalizada'
