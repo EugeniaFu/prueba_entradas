@@ -89,7 +89,6 @@ def dashboard():
                     SELECT 1 FROM rentas rn 
                     WHERE rn.renta_asociada_id = r.id 
                     AND rn.estado_renta IN ('activa renovación', 'activo')
-                    AND DATE(rn.fecha_entrada) >= CURDATE()
                 )
             )
             UNION ALL
@@ -110,8 +109,6 @@ def dashboard():
                     SELECT 1 FROM rentas rn_posterior
                     WHERE rn_posterior.renta_asociada_id = r.renta_asociada_id
                     AND rn_posterior.id > r.id
-                    AND rn_posterior.estado_renta IN ('activa renovación', 'activo')
-                    AND DATE(rn_posterior.fecha_entrada) >= CURDATE()
                 )
             )
             ORDER BY dias_vencida DESC, fecha_entrada ASC
