@@ -69,7 +69,8 @@ def dashboard():
         rentas_a_vencer = cursor.fetchall()
         
         # 2. RENTAS VENCIDAS (el equipo ya debía haber regresado)
-        # Incluye: rentas originales sin renovaciones activas + renovaciones activas vencidas
+        # Incluye: rentas originales sin renovaciones vigentes + renovaciones vencidas
+        # NO incluye rentas cuya renovación más reciente está aún vigente
         cursor.execute(f"""
             (
                 SELECT r.id, r.fecha_entrada, r.direccion_obra,
@@ -88,6 +89,7 @@ def dashboard():
                     SELECT 1 FROM rentas rn 
                     WHERE rn.renta_asociada_id = r.id 
                     AND rn.estado_renta IN ('activa renovación', 'activo')
+                    AND DATE(rn.fecha_entrada) >= CURDATE()
                 )
             )
             UNION ALL
@@ -104,6 +106,13 @@ def dashboard():
                 {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovación', 'activo')
                 AND DATE(r.fecha_entrada) < CURDATE()
                 AND r.renta_asociada_id IS NOT NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM rentas rn_posterior
+                    WHERE rn_posterior.renta_asociada_id = r.renta_asociada_id
+                    AND rn_posterior.id > r.id
+                    AND rn_posterior.estado_renta IN ('activa renovación', 'activo')
+                    AND DATE(rn_posterior.fecha_entrada) >= CURDATE()
+                )
             )
             ORDER BY dias_vencida DESC, fecha_entrada ASC
         """, params + params)

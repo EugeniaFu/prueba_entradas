@@ -302,10 +302,32 @@ def modulo_rentas():
                 ) > 0
                 THEN (
                     SELECT COUNT(*) FROM (
-                        SELECT nsd.id_pieza
+                        SELECT nsd.id_pieza,
+                            nsd.cantidad AS cantidad_salida,
+                            (
+                                SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
+                                FROM notas_entrada ne2
+                                JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
+                                WHERE (
+                                    ne2.renta_id = r.id
+                                    OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
+                                )
+                                AND ned2.id_pieza = nsd.id_pieza
+                            ) AS cantidad_recibida_total
                         FROM notas_salida ns
                         JOIN notas_salida_detalle nsd ON nsd.nota_salida_id = ns.id
                         WHERE ns.renta_id = r.id
+                        GROUP BY nsd.id_pieza, nsd.cantidad
+                        HAVING nsd.cantidad > (
+                            SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
+                            FROM notas_entrada ne2
+                            JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
+                            WHERE (
+                                ne2.renta_id = r.id
+                                OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
+                            )
+                            AND ned2.id_pieza = nsd.id_pieza
+                        )
                     ) AS pendientes
                 )
                 ELSE 0
@@ -352,8 +374,9 @@ def modulo_rentas():
     # Modificar consulta de detalles para filtrar por rentas de la sucursal
     detalles = []
     productos_por_renta = {}
-    if rentas:
-        renta_ids = [str(renta[0]) for renta in rentas]
+    rentas_con_productos = rentas + rentas_pagadas
+    if rentas_con_productos:
+        renta_ids = [str(renta_id) for renta_id in dict.fromkeys(renta[0] for renta in rentas_con_productos)]
         cursor.execute(f"""
             SELECT d.renta_id, p.nombre, d.cantidad, d.id_producto, p.tipo
             FROM renta_detalle d
@@ -362,7 +385,7 @@ def modulo_rentas():
         """, renta_ids)
         detalles = cursor.fetchall()
         for renta_id, nombre, cantidad, id_producto, tipo in detalles:
-            productos_por_renta.setdefault(renta_id, []).append(f"{nombre} x{cantidad}")        
+            productos_por_renta.setdefault(renta_id, []).append(f"{nombre} x{cantidad}")
                 # Si no se especifica sucursal_id, redirigir a Matriz Colosio (id=1)
             if not sucursal_filtro:
                 return redirect(url_for('rentas.modulo_rentas', sucursal_id=sucursal_id_usuario))
