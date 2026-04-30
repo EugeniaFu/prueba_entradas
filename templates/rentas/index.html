@@ -129,7 +129,7 @@
       <div class="tab-pane fade show active" id="content-1" role="tabpanel" aria-labelledby="tab-1">
         <!-- Tabla de rentas con pendeintes de pago -->
         <div class="table-responsive">
-          <table id="tablaRentas" class="table table-rentas align-middle">
+          <table id="tablaRentas" class="table table-rentas align-middle tabla-paginada">
             <thead>
               <tr>
                 <th>Folio</th>
@@ -454,7 +454,7 @@
               {% endfor %}
             </tbody>
           </table>
-          <div id="pagination-container" class="mt-3 d-flex justify-content-center"></div>
+          <div class="paginacion mt-3 d-flex justify-content-center"></div>
           {% include 'rentas/_modal_cancelar_renta.html' %}
           <!-- Modal para cancelar renta (solo una instancia global, fuera del bucle) -->
           <div class="modal fade" id="modalCancelarRenta" tabindex="-1" aria-hidden="true">
@@ -1104,7 +1104,7 @@
 <script src="{{ url_for('static', filename='js/nota_cobro_retraso.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_entrada.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_cobro_extra.js') }}"></script>
-<script src="{{ url_for('static', filename='js/paginacion.js') }}"></script>
+{# Legacy paginacion.js removed — using paginado_componente.js loaded in base.html #}
 <script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/renovacion_renta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/renovacion_pendientes.js') }}"></script>
