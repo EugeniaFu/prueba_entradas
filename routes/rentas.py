@@ -122,9 +122,14 @@ def cancelar_renta(renta_id):
 ###########################################################
 # ======================= LISTADO Y CREACIÓN DE RENTAS =======================
 @rentas_bp.route('/')
+@rentas_bp.route('/<int:sucursal_id>')
 @requiere_sesion()
-@requiere_permiso('ver_rentas')
-def modulo_rentas():
+def modulo_rentas(sucursal_id=None):
+    # Solo permitimos si tiene el permiso original o si está en la lista de permisos
+    if 'ver_rentas' not in session.get('permisos', []):
+        flash('No tienes permiso para acceder al módulo de rentas', 'danger')
+        return redirect(url_for('dashboard.dashboard'))
+        
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -138,8 +143,14 @@ def modulo_rentas():
         cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
         sucursales = cursor.fetchall()
     
-    # Determinar qué sucursal filtrar
-    sucursal_filtro = request.args.get('sucursal_id')
+    # Si le mandan la sucursal por la URL (Ejemplo: secretaria clickea desde el accordion)
+    # y no hay filtro por querystring, usamos la de la URL.
+    if sucursal_id:
+        request.args = request.args.copy()  # Forzamos compatibilidad
+        sucursal_filtro = str(sucursal_id)
+    else:
+        sucursal_filtro = request.args.get('sucursal_id')
+        
     sucursal_actual = None
     
     if rol_id == 2:  # Admin
@@ -534,9 +545,11 @@ def generar_folio_display(sucursal_id, folio_numero):
 # ======================= CREAR RENTA =======================
 @rentas_bp.route('/crear', methods=['POST'])
 @requiere_sesion()
-@requiere_permiso('crear_renta')
 def crear_renta():
     try:
+        if 'crear_renta' not in session.get('permisos', []):
+            return jsonify({'success': False, 'error': 'No tienes permiso para Crear Rentas'}), 403
+            
         conn = get_db_connection()
         cursor = conn.cursor()
 

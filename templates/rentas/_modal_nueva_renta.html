@@ -33,7 +33,7 @@
                                 <div class="mb-3">
                                     <label class="form-label">Sucursal</label>
 
-                                    {% if es_admin and session['sucursal_id'] == 1 %}
+                                    {% if es_admin and (session['sucursal_id'] is none or session['sucursal_id'] == 1) %}
                                         <!-- ADMIN MATRIZ: ve todas -->
                                         <select class="form-select" name="id_sucursal" id="id_sucursal" required>
                                             {% for sucursal in sucursales %}
@@ -42,10 +42,6 @@
                                             </option>
                                             {% endfor %}
                                         </select>
-
-                                        <small class="form-text text-muted">
-                                            Como administrador, puedes crear la renta en cualquier sucursal.
-                                        </small>
 
                                     {% elif es_admin %}
                                         <!-- ADMIN NORMAL: solo su sucursal -->

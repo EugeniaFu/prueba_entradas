@@ -301,7 +301,22 @@ def guardar_cobro_retraso(renta_id):
         if metodo_pago.upper() == 'EFECTIVO':
             concepto = f"Cobro retraso #{folio} - Nota entrada #{nota_entrada_id}"
             usuario_id = session.get('user_id')
-            sucursal_id = session.get('sucursal_id', 1)
+            
+            # Obtener la sucursal de la renta para asignarle el movimiento de caja
+            cursor.execute("""
+                SELECT r.id_sucursal 
+                FROM rentas r 
+                JOIN notas_entrada ne ON r.id = ne.renta_id 
+                WHERE ne.id = %s
+            """, (nota_entrada_id,))
+            renta_info = cursor.fetchone()
+            
+            if isinstance(renta_info, dict):
+                sucursal_id = renta_info['id_sucursal']
+            elif isinstance(renta_info, tuple) or isinstance(renta_info, list):
+                sucursal_id = renta_info[0]
+            else:
+                sucursal_id = session.get('sucursal_id') or 1
             
             resultado_caja = registrar_movimiento_automatico(
                 tipo='ingreso',

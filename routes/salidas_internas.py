@@ -80,7 +80,8 @@ def index():
     salidas_internas = cursor.fetchall()
 
     # Obtener productos disponibles en la sucursal para el modal
-    if sucursal_id_usuario:
+    sucursal_para_productos = sucursal_filtro if sucursal_filtro and sucursal_filtro != 'todas' else (sucursal_id_usuario or 1)
+    if sucursal_para_productos:
         cursor.execute("""
             SELECT p.id_pieza, p.nombre_pieza, 
                    COALESCE(inv.disponibles, 0) as disponibles
@@ -89,7 +90,7 @@ def index():
                                                AND inv.id_sucursal = %s
             WHERE COALESCE(inv.disponibles, 0) > 0
             ORDER BY p.nombre_pieza
-        """, (sucursal_id_usuario,))
+        """, (sucursal_para_productos,))
         productos_disponibles = cursor.fetchall()
     else:
         productos_disponibles = []

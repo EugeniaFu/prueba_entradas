@@ -360,7 +360,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Sincronizar sucursal del modal con la vista actual
     window.sucursalData = {
-        id_sucursal: {{ sucursal_id_usuario }}
+        id_sucursal: {% if sucursal_actual.id and sucursal_actual.id != 'todas' %}{{ sucursal_actual.id }}{% elif sucursal_id_usuario is not none %}{{ sucursal_id_usuario }}{% else %}1{% endif %}
     };
     
     // Mostrar fecha actual en el modal usando zona horaria de Campeche

@@ -521,7 +521,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (modalNueva) {
         modalNueva.addEventListener('show.bs.modal', function () {
             // Asegurar que la fecha automática se actualice
-            document.getElementById('fecha_automatica').value = getFechaLocalCampeche();
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('fecha_automatica').value = `${year}-${month}-${day}T${hours}:${minutes}`;
         });
 
         modalNueva.addEventListener('hidden.bs.modal', function () {

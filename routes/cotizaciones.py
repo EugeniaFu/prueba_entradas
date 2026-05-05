@@ -781,8 +781,11 @@ def index():
 
 @cotizaciones_bp.route('/crear', methods=['POST'])
 @requiere_sesion()
-@requiere_permiso('crear_cotizacion')
 def crear_cotizacion():
+    permisos = session.get('permisos') or []
+    if 'crear_cotizacion' not in permisos:
+        return jsonify({'success': False, 'error': 'No tienes permiso para crear cotizaciones'}), 403
+        
     """Crear nueva cotización"""
     try:
         # Obtener datos del formulario
@@ -790,10 +793,15 @@ def crear_cotizacion():
         cliente_telefono = request.form.get('cliente_telefono')
         cliente_email = request.form.get('cliente_email', '')
         cliente_empresa = request.form.get('cliente_empresa', '')
-        dias_renta = int(request.form.get('dias_renta'))
-        requiere_traslado = bool(request.form.get('requiere_traslado'))
+        
+        dias_renta_str = request.form.get('dias_renta')
+        dias_renta = int(dias_renta_str) if dias_renta_str else 1
+        
+        requiere_traslado = request.form.get('requiere_traslado') == 'on'
         tipo_traslado = request.form.get('tipo_traslado') if requiere_traslado else None
-        costo_traslado = float(request.form.get('costo_traslado', 0)) if requiere_traslado else 0
+        
+        costo_traslado_str = request.form.get('costo_traslado', '0')
+        costo_traslado = float(costo_traslado_str) if costo_traslado_str and requiere_traslado else 0.0
         
         # Calcular fecha de vigencia: 7 días desde hoy
         fecha_vigencia = get_local_now() + timedelta(days=7)
@@ -829,7 +837,7 @@ def crear_cotizacion():
         
         # Obtener usuario y sucursal de la sesión
         usuario_id = session.get('user_id')
-        sucursal_id = session.get('sucursal_id')
+        sucursal_id = request.form.get('sucursal_id') or session.get('sucursal_id') or 1
         
         conexion = get_db_connection()
         cursor = conexion.cursor()

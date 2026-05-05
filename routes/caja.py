@@ -69,7 +69,14 @@ def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_
 @caja_bp.route('/')
 @requiere_sesion()
 def movimientos_caja():
-    return render_template('caja/movimiento_caja.html')
+    # Obtener lista de sucursales para el select (si es admin)
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, nombre FROM sucursales ORDER BY nombre")
+    sucursales = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('caja/movimiento_caja.html', sucursales=sucursales)
 
 @caja_bp.route('/api/movimiento', methods=['POST'])
 @requiere_sesion()
@@ -98,7 +105,11 @@ def crear_movimiento_manual():
             return jsonify({'success': False, 'error': 'Los movimientos de caja solo aceptan EFECTIVO'}), 400
         
         usuario_id = session.get('user_id')
-        sucursal_id = session.get('sucursal_id', 1)
+        sucursal_id = data.get('sucursal_id', session.get('sucursal_id'))
+        
+        if not sucursal_id:
+            # Si el admin no seleccionó sucursal (y no tiene una propia), no puede registrar algo "global"
+            return jsonify({'success': False, 'error': 'Debe especificar a qué sucursal pertenece el movimiento'}), 400
         
         if not usuario_id:
             return jsonify({'success': False, 'error': 'Usuario no autenticado'}), 401
@@ -214,7 +225,12 @@ def obtener_movimientos():
         tipo = request.args.get('tipo')
         tipo_movimiento = request.args.get('tipo_movimiento')
         metodo_pago = request.args.get('metodo_pago')
-        sucursal_id = session.get('sucursal_id', 1)
+        
+        sucursal_id = request.args.get('sucursal_id', type=int)
+        if sucursal_id is None:
+            sucursal_id = session.get('sucursal_id')
+        if sucursal_id is None:
+            sucursal_id = 1
         
         if not fecha_inicio:
             fecha_inicio = date.today().strftime('%Y-%m-%d')
@@ -274,8 +290,13 @@ def obtener_resumen():
     try:
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
         fecha_fin = request.args.get('fecha_fin', fecha_inicio)
-        sucursal_id = session.get('sucursal_id', 1)
         
+        sucursal_id = request.args.get('sucursal_id', type=int)
+        if sucursal_id is None:
+            sucursal_id = session.get('sucursal_id')
+        if sucursal_id is None:
+            sucursal_id = 1
+            
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
@@ -344,8 +365,13 @@ def obtener_ingresos_digitales():
     try:
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
         fecha_fin = request.args.get('fecha_fin', fecha_inicio)
-        sucursal_id = session.get('sucursal_id', 1)
         
+        sucursal_id = request.args.get('sucursal_id', type=int)
+        if sucursal_id is None:
+            sucursal_id = session.get('sucursal_id')
+        if sucursal_id is None:
+            sucursal_id = 1
+            
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
@@ -461,8 +487,13 @@ def generar_pdf_movimientos():
         fecha_fin = request.args.get('fecha_fin', fecha_inicio)
         tipo = request.args.get('tipo')
         tipo_movimiento = request.args.get('tipo_movimiento')
-        sucursal_id = session.get('sucursal_id', 1)
         
+        sucursal_id = request.args.get('sucursal_id', type=int)
+        if sucursal_id is None:
+            sucursal_id = session.get('sucursal_id')
+        if sucursal_id is None:
+            sucursal_id = 1
+            
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         

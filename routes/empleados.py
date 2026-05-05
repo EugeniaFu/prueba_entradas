@@ -23,10 +23,10 @@ def empleados():
 
     query = """
         SELECT u.id, u.nombre, u.apellido1, u.apellido2, u.correo, u.estado,
-               s.nombre AS sucursal, r.nombre AS rol, u.sucursal_id, u.rol_id
+               COALESCE(s.nombre, 'Acceso General') AS sucursal, r.nombre AS rol, u.sucursal_id, u.rol_id
         FROM usuarios u
-        JOIN sucursales s ON u.sucursal_id = s.id
-        JOIN roles r ON u.rol_id = r.id
+        LEFT JOIN sucursales s ON u.sucursal_id = s.id
+        LEFT JOIN roles r ON u.rol_id = r.id
         WHERE 1=1
     """
     params = []
@@ -86,7 +86,9 @@ def nuevo_empleado():
     apellido1 = request.form['apellido1']
     apellido2 = request.form['apellido2']
     correo = request.form['correo']
-    sucursal_id = request.form['sucursal_id']
+    sucursal_id = request.form.get('sucursal_id')
+    if not sucursal_id or sucursal_id == "":
+        sucursal_id = None
     rol_id = request.form['rol_id']
 
     temp_password = secrets.token_urlsafe(10)
@@ -133,7 +135,9 @@ def editar_empleado(id):
     apellido1 = request.form['apellido1']
     apellido2 = request.form['apellido2']
     correo = request.form['correo']
-    sucursal_id = request.form['sucursal_id']
+    sucursal_id = request.form.get('sucursal_id')
+    if not sucursal_id or sucursal_id == "":
+        sucursal_id = None
     rol_id = request.form['rol_id']
     conn = get_db_connection()
     cursor = conn.cursor()

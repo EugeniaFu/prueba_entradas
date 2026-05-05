@@ -948,7 +948,14 @@
         const selectSucursal = modal.querySelector('#id_sucursal');
 
         if (sucursalActual && selectSucursal && selectSucursal.tagName === 'SELECT') {
-          selectSucursal.value = sucursalActual === 'todas' ? '{{ sucursal_id }}' : sucursalActual;
+          if (sucursalActual === 'todas') {
+            selectSucursal.style.pointerEvents = 'auto';
+            selectSucursal.style.backgroundColor = '';
+          } else {
+            selectSucursal.value = sucursalActual;
+            selectSucursal.style.pointerEvents = 'none';
+            selectSucursal.style.backgroundColor = '#e9ecef'; // Color gris simulando bloqueado
+          }
         }
       });
     }

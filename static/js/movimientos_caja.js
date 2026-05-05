@@ -108,7 +108,8 @@ $(document).ready(function() {
             fecha_inicio: $('#fechaInicioEfectivo').val(),
             fecha_fin: $('#fechaFinEfectivo').val(),
             tipo: $('#tipoMovimientoEfectivo').val(),
-            tipo_movimiento: $('#origenMovimientoEfectivo').val()
+            tipo_movimiento: $('#origenMovimientoEfectivo').val(),
+            sucursal_id: $('#filtroSucursalEfectivo').length ? $('#filtroSucursalEfectivo').val() : ''
         };
         
         $.ajax({
@@ -135,7 +136,8 @@ $(document).ready(function() {
     function cargarResumenEfectivo() {
         const filtros = {
             fecha_inicio: $('#fechaInicioEfectivo').val(),
-            fecha_fin: $('#fechaFinEfectivo').val()
+            fecha_fin: $('#fechaFinEfectivo').val(),
+            sucursal_id: $('#filtroSucursalEfectivo').length ? $('#filtroSucursalEfectivo').val() : ''
         };
         
         $.ajax({
@@ -241,7 +243,8 @@ $(document).ready(function() {
         
         const filtros = {
             fecha_inicio: $('#fechaInicioDigital').val(),
-            fecha_fin: $('#fechaFinDigital').val()
+            fecha_fin: $('#fechaFinDigital').val(),
+            sucursal_id: $('#filtroSucursalDigital').length ? $('#filtroSucursalDigital').val() : ''
         };
         
         $.ajax({
@@ -378,6 +381,17 @@ $(document).ready(function() {
             observaciones: $('#observacionesMovimiento').val().trim(),
             metodo_pago: 'EFECTIVO' // Siempre efectivo para movimientos de caja
         };
+        
+        // Si el usuario es admin y tiene selector de sucursal en el modal, enviarlo.
+        // Si no lo seleccionó aunque aparezca, validarlo.
+        const $sucursalMovimiento = $('#sucursalMovimiento');
+        if ($sucursalMovimiento.length) {
+            data.sucursal_id = $sucursalMovimiento.val();
+            if (!data.sucursal_id) {
+                mostrarError('Debe seleccionar a qué sucursal pertenece el movimiento');
+                return;
+            }
+        }
         
         // Validaciones básicas
         if (!data.tipo || !data.monto || !data.concepto) {
@@ -617,9 +631,10 @@ $(document).ready(function() {
         const tipo = $('#tipoMovimientoEfectivo').val();
         const tipoMovimiento = $('#origenMovimientoEfectivo').val();
         
+        const sucursalId = $('#filtroSucursalEfectivo').length ? $('#filtroSucursalEfectivo').val() : '';
+        
         // Construir URL con parámetros
-        let url = '/caja/pdf/movimientos?';
-        url += `fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
+        let url = `/caja/pdf/movimientos?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
         
         if (tipo) {
             url += `&tipo=${tipo}`;
@@ -627,6 +642,10 @@ $(document).ready(function() {
         
         if (tipoMovimiento) {
             url += `&tipo_movimiento=${tipoMovimiento}`;
+        }
+        
+        if (sucursalId) {
+            url += `&sucursal_id=${sucursalId}`;
         }
         
         // Abrir PDF en nueva ventana

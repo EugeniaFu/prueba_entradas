@@ -20,7 +20,16 @@ def reporte_diario():
     """
     Muestra el reporte de entradas y salidas por fecha y sucursal
     """
-    sucursal_id = request.args.get('sucursal_id', session.get('sucursal_id', 1), type=int)
+    # Si viene en la URL toma ese id, SI NO tiene en sesión pide la sucursal 1 (Matriz) por defecto
+    sucursal_id = request.args.get('sucursal_id', type=int)
+    
+    if sucursal_id is None:
+        sucursal_id = session.get('sucursal_id')
+    
+    if sucursal_id is None:
+        # El admin global (sin sesión sucursal) verá la sucursal 1 por defecto al cargar si no pasa un id en el selector
+        sucursal_id = 1
+        
     fecha_consulta = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
     
     print(f"DEBUG: Consultando sucursal {sucursal_id}, fecha {fecha_consulta}")

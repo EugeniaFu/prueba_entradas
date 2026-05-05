@@ -40,9 +40,9 @@
             value="{{ request.args.get('busqueda', '') }}">
         <select class="form-select" name="sucursal" style="max-width: 180px;">
             <option value="">Todas las sucursales</option>
-            <option value="1" {% if request.args.get('sucursal') == '1' %}selected{% endif %}>Matriz</option>
-            <option value="2" {% if request.args.get('sucursal') == '2' %}selected{% endif %}>Reyes</option>
-            <option value="3" {% if request.args.get('sucursal') == '3' %}selected{% endif %}>Lerma</option>
+            {% for s in sucursales %}
+            <option value="{{ s.id }}" {% if request.args.get('sucursal') == s.id|string %}selected{% endif %}>{{ s.nombre }}</option>
+            {% endfor %}
         </select>
         <select class="form-select" name="estado" style="max-width: 150px;">
             <option value="">Todos</option>
@@ -158,15 +158,18 @@
                                     <div class="row g-3">
                                         <div class="col-md-12 mb-2">
                                             <label for="sucursal" class="form-label">Sucursal</label>
-                                            <select class="form-select" name="sucursal_id" required>
+                                            <select class="form-select sucursal-select" name="sucursal_id" required>
+                                                <option value="">-- Seleccionar --</option>
                                                 {% for sucursal in sucursales %}
                                                 <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
                                                 {% endfor %}
                                             </select>
+                                            <small class="text-muted sucursal-help" style="display: none;">El administrador tiene acceso a todas las sucursales por defecto.</small>
                                         </div>
                                         <div class="col-md-12 mb-2">
                                             <label for="rol" class="form-label">Rol</label>
-                                            <select class="form-select" name="rol_id" required>
+                                            <select class="form-select rol-select" name="rol_id" required>
+                                                <option value="">-- Seleccionar --</option>
                                                 {% for rol in roles %}
                                                 <option value="{{ rol.id }}">{{ rol.nombre }}</option>
                                                 {% endfor %}
@@ -297,15 +300,17 @@
                                     <div class="row g-3">
                                         <div class="col-md-12 mb-2">
                                             <label class="form-label">Sucursal</label>
-                                            <select class="form-select" name="sucursal_id" required>
+                                            <select class="form-select sucursal-select" name="sucursal_id" {% if empleado.rol_id != 2 %}required{% endif %}>
+                                                <option value="">-- Sin sucursal fija --</option>
                                                 {% for sucursal in sucursales %}
                                                 <option value="{{ sucursal.id }}" {% if sucursal.id == empleado.sucursal_id %}selected{% endif %}>{{ sucursal.nombre }}</option>
                                                 {% endfor %}
                                             </select>
+                                            <small class="text-muted sucursal-help" style="{% if empleado.rol_id != 2 %}display: none;{% endif %}">El administrador tiene acceso a todas las sucursales por defecto.</small>
                                         </div>
                                         <div class="col-md-12 mb-2">
                                             <label class="form-label">Rol</label>
-                                            <select class="form-select" name="rol_id" required>
+                                            <select class="form-select rol-select" name="rol_id" required>
                                                 {% for rol in roles %}
                                                 <option value="{{ rol.id }}" {% if rol.id == empleado.rol_id %}selected{% endif %}>{{ rol.nombre }}</option>
                                                 {% endfor %}

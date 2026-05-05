@@ -55,15 +55,27 @@
                         </div>
                         <div class="card-body">
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="fechaInicioEfectivo" class="form-label">Fecha Inicio</label>
                                     <input type="date" class="form-control" id="fechaInicioEfectivo" name="fechaInicioEfectivo">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="fechaFinEfectivo" class="form-label">Fecha Fin</label>
                                     <input type="date" class="form-control" id="fechaFinEfectivo" name="fechaFinEfectivo">
                                 </div>
-                                <div class="col-md-4">
+                                
+                                {% if sucursales %}
+                                <div class="col-md-3">
+                                    <label for="filtroSucursalEfectivo" class="form-label">Sucursal</label>
+                                    <select class="form-select border-primary" id="filtroSucursalEfectivo" name="filtroSucursalEfectivo">
+                                        {% for s in sucursales %}
+                                        <option value="{{ s.id }}">{{ s.nombre }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endif %}
+
+                                <div class="col-md-3">
                                     <label for="tipoMovimientoEfectivo" class="form-label">Tipo</label>
                                     <select class="form-select" id="tipoMovimientoEfectivo" name="tipoMovimientoEfectivo">
                                         <option value="">Todos los tipos</option>
@@ -202,15 +214,27 @@
                         </div>
                         <div class="card-body">
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="fechaInicioDigital" class="form-label">Fecha Inicio</label>
                                     <input type="date" class="form-control" id="fechaInicioDigital" name="fechaInicioDigital">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label for="fechaFinDigital" class="form-label">Fecha Fin</label>
                                     <input type="date" class="form-control" id="fechaFinDigital" name="fechaFinDigital">
                                 </div>
-                                <div class="col-md-4 d-flex align-items-end">
+                                
+                                {% if sucursales %}
+                                <div class="col-md-3">
+                                    <label for="filtroSucursalDigital" class="form-label">Sucursal</label>
+                                    <select class="form-select border-primary" id="filtroSucursalDigital" name="filtroSucursalDigital">
+                                        {% for s in sucursales %}
+                                        <option value="{{ s.id }}">{{ s.nombre }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% endif %}
+
+                                <div class="col-md-3 d-flex align-items-end">
                                     <button type="button" class="btn btn-primary" id="btnFiltrarDigital">
                                         <i class="bi bi-search me-1"></i>Filtrar
                                     </button>
