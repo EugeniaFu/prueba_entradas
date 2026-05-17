@@ -116,6 +116,20 @@
                                             <option value="betado">Betado</option>
                                         </select>
                                     </div>
+
+                                    <!-- SI ES ADMIN (SIN SUCURSAL) DEBE SELECCIONARLA -->
+                                    {% if not session.get('sucursal_id') %}
+                                    <div class="mb-3">
+                                        <label class="form-label text-primary"><strong>Asignar a Sucursal *</strong></label>
+                                        <select class="form-select border-primary" name="sucursal_id" required>
+                                            <option value="">Selecciona una sucursal...</option>
+                                            {% for sucursal in sucursales %}
+                                            <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="text-muted">Como administrador, debes indicar a qué sucursal pertenece este cliente.</small>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
 

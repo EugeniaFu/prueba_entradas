@@ -157,7 +157,7 @@
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
-                <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[25]) }}</strong></td>
+                <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[0]) }}</strong></td>
 
                 <!-- COLUMNA DE SUCURSAL (solo si admin ve todas) -->
                 {% if es_admin and sucursal_actual.id == 'todas' %}
@@ -217,9 +217,9 @@
                       {{ renta[17]['texto'] }}
                     </span>
                     {% endif %}
-                    {% if renta[28] %}
-                    <span class="badge {{ renta[28]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                      {{ renta[28]['texto'] }}
+                    {% if renta[29] %}
+                    <span class="badge {{ renta[29]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                      {{ renta[29]['texto'] }}
                     </span>
                     {% endif %}
                   </div>
@@ -312,7 +312,7 @@
                 <!-- COLUMNA MÉTODO DE PAGO -->
                 <td><small>{{ renta[6] or 'N/A' }}</small></td>
                 <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
-                <td>{{renta[23]}}</td>
+                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{% endif %}</td>
 
                 <!-- COLUMNA DE ACCIONES -->
                 <td>
@@ -520,7 +520,7 @@
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
-                <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[25]) }}</strong></td>
+                <td><strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[0]) }}</strong></td>
 
                 <!-- COLUMNA DE SUCURSAL (solo si admin ve todas) -->
                 {% if es_admin and sucursal_actual.id == 'todas' %}
@@ -580,9 +580,9 @@
                       {{ renta[17]['texto'] }}
                     </span>
                     {% endif %}
-                    {% if renta[28] %}
-                    <span class="badge {{ renta[28]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                      {{ renta[28]['texto'] }}
+                    {% if renta[29] %}
+                    <span class="badge {{ renta[29]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                      {{ renta[29]['texto'] }}
                     </span>
                     {% endif %}
                   </div>
@@ -675,7 +675,7 @@
                 <!-- COLUMNA MÉTODO DE PAGO -->
                 <td><small>{{ renta[6] or 'N/A' }}</small></td>
                 <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
-                <td>{{renta[23]}}</td>
+                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{% endif %}</td>
 
                 <!-- COLUMNA DE ACCIONES -->
                 <td>

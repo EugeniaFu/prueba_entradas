@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (estadoSeleccionado === 'renta en renovación') {
                     coincideEstado = textoFila.includes('renta en renovación');
                 } else if (estadoSeleccionado === 'piezas pendientes') {
-                    coincideEstado = textoFila.includes('piezas pendientes');
+                    coincideEstado = estadoRenta.includes('piezas pendientes');
                 } else if (estadoSeleccionado === 'pago pendiente') {
                     coincideEstado = estadoPago.includes('pago pendiente');
                 } else if (estadoSeleccionado === 'saldo pendiente') {
@@ -357,13 +357,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (estadoSeleccionado === 'pago realizado') {
                     coincideEstado = estadoPago.includes('pago realizado');
                 } else if (estadoSeleccionado === 'retraso pendiente') {
-                    coincideEstado = textoFila.includes('retraso pendiente');
+                    coincideEstado = estadoPago.includes('retraso pendiente') || estadoRenta.includes('retraso pendiente');
                 } else if (estadoSeleccionado === 'retraso pagado') {
-                    coincideEstado = textoFila.includes('retraso pagado');
+                    coincideEstado = estadoPago.includes('retraso pagado') || estadoRenta.includes('retraso pagado');
                 } else if (estadoSeleccionado === 'extra pendiente') {
-                    coincideEstado = textoFila.includes('extra pendiente');
+                    coincideEstado = estadoPago.includes('extra pendiente') || estadoRenta.includes('extra pendiente');
                 } else if (estadoSeleccionado === 'extra pagado') {
-                    coincideEstado = textoFila.includes('extra pagado');
+                    coincideEstado = estadoPago.includes('extra pagado') || estadoRenta.includes('extra pagado');
                 } else if (estadoSeleccionado === 'retrasadas') {
                     // Buscar indicadores de retraso
                     coincideEstado = textoFila.includes('vence hoy') || 
