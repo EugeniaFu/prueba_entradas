@@ -2,32 +2,86 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Recupera tu contraseña</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recupera tu contraseña - Andamios Colosio</title>
+    <!-- Estilos inline para máxima compatibilidad con todos los clientes de correo -->
+    <!-- Paleta: Azul #23395d #3363af | Rojo #c62828 | Gris #f8fafc #6c757d -->
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {font-family: Arial, sans-serif !important;}
+    </style>
+    <![endif]-->
 </head>
-<body style="font-family: Arial, sans-serif; background: #f5f5f5; margin:0; padding:0;">
-    <div style="max-width: 500px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #ccc; overflow: hidden;">
-        <div style="background: #1a237e; padding: 24px 0; text-align: center;">
-            <img src="{{ logo_url }}" alt="Andamios Colosio" style="height: 60px;">
-        </div>
-        <div style="padding: 32px;">
-            <h2 style="color: #1a237e;">Restablece tu contraseña</h2>
-            <p>Hola <strong>{{ nombre }}</strong>,</p>
-            <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente botón para continuar:</p>
-            <div style="text-align: center; margin: 32px 0;">
-                <a href="{{ reset_url }}" style="background: #1a237e; color: #fff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-size: 18px;" target="_blank">Restablecer contraseña</a>
-            </div>
-            <p style="color: #888; font-size: 14px;">
-                Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
-                <a href="{{ reset_url }}">{{ reset_url }}</a>
-            </p>
-            <p style="color: #888; font-size: 14px;">
-                Este enlace expirará en 1 hora.<br>
-                Si no solicitaste este cambio, puedes ignorar este correo.
-            </p>
-        </div>
-        <div style="background: #f5f5f5; color: #888; text-align: center; padding: 16px; font-size: 13px;">
-            © {{ year }} Andamios Colosio. Todos los derechos reservados.
-        </div>
-    </div>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: #f8fafc; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <!-- Contenedor principal -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 16px rgba(35, 57, 93, 0.1); overflow: hidden;">
+                    
+                    <!-- Header con gradiente -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #23395d 0%, #3363af 100%); padding: 2px; text-align: center;">
+                            {% if logo_url %}
+                            <img src="{{ logo_url }}" alt="Andamios Colosio" style="max-width: 380px; height: auto; display: block; margin: 0 auto;" />
+                            {% else %}
+                            <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">Andamios Colosio</h1>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    
+                    <!-- Contenido principal -->
+                    <tr>
+                        <td style="padding: 40px 32px;">
+                            <h2 style="color: #23395d; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">Restablece tu contraseña</h2>
+                            
+                            <p style="color: #23395d; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                                Hola <strong style="color: #c62828;">{{ nombre }}</strong>,
+                            </p>
+                            
+                            <p style="color: #23395d; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                                Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente botón para continuar:
+                            </p>
+                            
+                            <!-- Botón principal -->
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding: 32px 0;">
+                                        <a href="{{ reset_url }}" target="_blank" style="display: inline-block; background: #c62828; color: #ffffff; padding: 16px 40px; border-radius: 30px; text-decoration: none; font-size: 18px; font-weight: 600;">
+                                            Restablecer contraseña
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Información adicional -->
+                            <div style="background: #f8fafc; border-left: 4px solid #3363af; padding: 16px; border-radius: 8px; margin-top: 24px;">
+                                <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 0 0 12px 0;">
+                                    <strong>Si el botón no funciona,</strong> copia y pega este enlace en tu navegador:
+                                </p>
+                                <p style="margin: 0;">
+                                    <a href="{{ reset_url }}" style="color: #3363af; font-size: 13px; word-break: break-all; text-decoration: none;">{{ reset_url }}</a>
+                                </p>
+                            </div>
+                            
+                            <p style="color: #6c757d; font-size: 14px; line-height: 1.5; margin: 24px 0 0 0;">
+                                ⏱️ Este enlace <strong>expirará en 1 hora</strong>.<br>
+                                🔒 Si no solicitaste este cambio, puedes ignorar este correo de forma segura.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background: #f8fafc; color: #6c757d; text-align: center; padding: 24px; font-size: 13px; border-top: 1px solid #e0e0e0;">
+                            <p style="margin: 0 0 8px 0;">© {{ year }} Andamios Colosio</p>
+                            <p style="margin: 0; color: #9ca3af;">Todos los derechos reservados</p>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

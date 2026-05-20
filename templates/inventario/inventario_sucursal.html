@@ -18,7 +18,7 @@
     };
     
     window.userData = {
-        rol_id: {{ session['rol_id'] }},
+        es_admin: {{ 'true' if es_admin else 'false' }},
         sucursal_id: {{ session['sucursal_id'] or 'null' }},
         user_id: {{ session['user_id'] }}
     };

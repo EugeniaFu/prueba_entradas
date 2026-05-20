@@ -4,7 +4,7 @@ from utils.db import get_db_connection
 import secrets
 from datetime import timedelta
 from flask_mail import Message
-from utils.datetime_utils import get_local_now
+from utils.datetime_utils import get_local_now, get_local_now_naive
 
 login_bp = Blueprint('login', __name__, url_prefix='/login')
 ph = PasswordHasher()
@@ -97,7 +97,7 @@ def recover():
         if user:
             # Generar token seguro y fecha de expiración
             token = secrets.token_urlsafe(32)
-            expires_at = get_local_now() + timedelta(hours=1)
+            expires_at = get_local_now_naive() + timedelta(hours=1)
             cursor2 = conn.cursor()
             cursor2.execute(
                 "INSERT INTO password_reset_tokens (usuario_id, token, expires_at) VALUES (%s, %s, %s)",
@@ -106,7 +106,11 @@ def recover():
             conn.commit()
             # Enviar correo con el enlace
             reset_url = url_for('login.reset_password', token=token, _external=True)
-            logo_url = url_for('static', filename='img/logo.png', _external=True)
+            
+            # Usar logo público si está configurado en las variables de entorno
+            # Para configurar: agregar PUBLIC_LOGO_URL=https://tudominio.com/logo.png en .env
+            logo_url = current_app.config.get('PUBLIC_LOGO_URL')
+            
             html_body = render_template(
                 'login/email.html',
                 nombre=user['nombre'],
@@ -150,7 +154,7 @@ def reset_password(token):
         WHERE t.token=%s
     """, (token,))
     token_data = cursor.fetchone()
-    if not token_data or token_data['usado'] or get_local_now() > token_data['expires_at']:
+    if not token_data or token_data['usado'] or get_local_now_naive() > token_data['expires_at']:
         flash('El enlace de recuperación es inválido o ha expirado.', 'danger')
         return redirect(url_for('login.recover'))
 

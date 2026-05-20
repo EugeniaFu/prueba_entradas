@@ -158,13 +158,13 @@
                                     <div class="row g-3">
                                         <div class="col-md-12 mb-2">
                                             <label for="sucursal" class="form-label">Sucursal</label>
-                                            <select class="form-select sucursal-select" name="sucursal_id" required>
-                                                <option value="">-- Seleccionar --</option>
+                                            <select class="form-select sucursal-select" name="sucursal_id">
+                                                <option value="">-- Sin sucursal fija (Acceso a todas) --</option>
                                                 {% for sucursal in sucursales %}
                                                 <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
                                                 {% endfor %}
                                             </select>
-                                            <small class="text-muted sucursal-help" style="display: none;">El administrador tiene acceso a todas las sucursales por defecto.</small>
+                                            <small class="text-muted sucursal-help">Dejar vacío para dar acceso a todas las sucursales. Asignar una sucursal específica filtrará los datos a esa ubicación.</small>
                                         </div>
                                         <div class="col-md-12 mb-2">
                                             <label for="rol" class="form-label">Rol</label>
@@ -300,13 +300,13 @@
                                     <div class="row g-3">
                                         <div class="col-md-12 mb-2">
                                             <label class="form-label">Sucursal</label>
-                                            <select class="form-select sucursal-select" name="sucursal_id" {% if empleado.rol_id != 2 %}required{% endif %}>
-                                                <option value="">-- Sin sucursal fija --</option>
+                                            <select class="form-select sucursal-select" name="sucursal_id">
+                                                <option value="">-- Sin sucursal fija (Acceso a todas) --</option>
                                                 {% for sucursal in sucursales %}
                                                 <option value="{{ sucursal.id }}" {% if sucursal.id == empleado.sucursal_id %}selected{% endif %}>{{ sucursal.nombre }}</option>
                                                 {% endfor %}
                                             </select>
-                                            <small class="text-muted sucursal-help" style="{% if empleado.rol_id != 2 %}display: none;{% endif %}">El administrador tiene acceso a todas las sucursales por defecto.</small>
+                                            <small class="text-muted sucursal-help" style="{% if empleado.sucursal_id is none %}display: block;{% else %}display: none;{% endif %}">Este usuario tiene acceso a todas las sucursales. Solo usuarios con sucursal asignada ven datos filtrados.</small>
                                         </div>
                                         <div class="col-md-12 mb-2">
                                             <label class="form-label">Rol</label>

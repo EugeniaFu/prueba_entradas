@@ -29,7 +29,6 @@ def index():
 
     # Obtener sucursal del usuario desde la sesión
     sucursal_id_usuario = session.get('sucursal_id')
-    rol_id = session.get('rol_id')
     
     # Determinar qué sucursal filtrar
     sucursal_filtro = request.args.get('sucursal_id')
@@ -39,7 +38,7 @@ def index():
     where_sucursal = ""
     params_sucursal = []
     
-    if rol_id == 2:  # Admin
+    if sucursal_id_usuario is None:  # Usuario multi-sucursal
         if sucursal_filtro and sucursal_filtro != 'todas':
             where_sucursal = "WHERE si.id_sucursal = %s"
             params_sucursal = [sucursal_filtro]
@@ -111,8 +110,8 @@ def index():
         salidas_internas=salidas_internas,
         productos_disponibles=productos_disponibles,
         sucursal_actual=sucursal_actual,
-        sucursales=sucursales if rol_id == 2 else [],
-        es_admin=(rol_id == 2),
+        sucursales=sucursales if sucursal_id_usuario is None else [],
+        es_admin=(sucursal_id_usuario is None),
         sucursal_id_usuario=sucursal_id_usuario,
         sucursal_nombre=sucursal_nombre
     )

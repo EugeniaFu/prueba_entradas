@@ -68,6 +68,7 @@ def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_
 
 @caja_bp.route('/')
 @requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def movimientos_caja():
     # Obtener lista de sucursales para el select (si es admin)
     conn = get_db_connection()
@@ -80,6 +81,7 @@ def movimientos_caja():
 
 @caja_bp.route('/api/movimiento', methods=['POST'])
 @requiere_sesion()
+@requiere_permiso('crear_movimiento_caja')
 def crear_movimiento_manual():
     try:
         data = request.get_json()
@@ -145,6 +147,7 @@ def crear_movimiento_manual():
 
 @caja_bp.route('/api/movimiento/<int:movimiento_id>')
 @requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def obtener_detalle_movimiento(movimiento_id):
     try:
         sucursal_id = session.get('sucursal_id', 1)
@@ -218,6 +221,7 @@ def obtener_detalle_movimiento(movimiento_id):
 
 @caja_bp.route('/api/movimientos')
 @requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def obtener_movimientos():
     try:
         fecha_inicio = request.args.get('fecha_inicio')
@@ -286,6 +290,7 @@ def obtener_movimientos():
 
 @caja_bp.route('/api/resumen')
 @requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
 def obtener_resumen():
     try:
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))

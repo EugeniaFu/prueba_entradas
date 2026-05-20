@@ -2,7 +2,7 @@ from utils.db import get_db_connection
 
 class RentasService:
     @staticmethod
-    def obtener_rentas_por_sucursal_y_estado(sucursal_actual_id, rol_id, estado_filtro):
+    def obtener_rentas_por_sucursal_y_estado(sucursal_actual_id, es_admin, estado_filtro):
         """
         Retorna las rentas basándose en la sucursal actual (para admin o empleado) 
         y el estado (activas o finalizadas/pagadas).
@@ -12,7 +12,7 @@ class RentasService:
         
         try:
             # Determinamos si se filtra por una sucursal específica o no (admin puede ver todas)
-            if rol_id == 2 and sucursal_actual_id == 'todas':
+            if es_admin and sucursal_actual_id == 'todas':
                 where_sucursal = "WHERE 1=1"
                 params_sucursal = ()
             else:
@@ -135,7 +135,7 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def crear_nueva_renta(datos_renta, sucursal_id, rol_id, productos, cantidades, dias, costos):
+    def crear_nueva_renta(datos_renta, sucursal_id, es_admin, productos, cantidades, dias, costos):
         """
         Calcula precios, inserta la nueva renta, inserta sus detalles 
         y actualiza los folios y totales, dentro de una transacción segura.
@@ -148,7 +148,7 @@ class RentasService:
             
             # Determinamos sucursal
             sucursal_para_renta = sucursal_id
-            if not sucursal_para_renta and rol_id != 2: # Fail-safe si viene nulo
+            if not sucursal_para_renta and not es_admin: # Fail-safe si viene nulo
                 raise Exception("No se pudo determinar la sucursal del empleado.")
             
             # Datos principales

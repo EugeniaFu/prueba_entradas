@@ -648,13 +648,13 @@ def index():
         conexion = get_db_connection()
         cursor = conexion.cursor(dictionary=True)
 
-        rol_id = session.get('rol_id')
-        sucursal_id = request.args.get('sucursal_id') or session.get('sucursal_id')
+        sucursal_id_usuario = session.get('sucursal_id')
+        sucursal_id = request.args.get('sucursal_id') or sucursal_id_usuario
 
         sucursal_actual = None
         sucursales = []
 
-        if rol_id == 2:  # ADMIN
+        if sucursal_id_usuario is None:  # Usuario multi-sucursal
             cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
             sucursales = cursor.fetchall()
 
@@ -759,7 +759,7 @@ def index():
             productos=productos_disponibles,
             sucursal_actual=sucursal_actual,
             sucursales=sucursales,
-            es_admin=(rol_id == 2)
+            es_admin=(sucursal_id_usuario is None)
         )
 
     except Exception as e:
@@ -781,11 +781,8 @@ def index():
 
 @cotizaciones_bp.route('/crear', methods=['POST'])
 @requiere_sesion()
+@requiere_permiso('crear_cotizacion')
 def crear_cotizacion():
-    permisos = session.get('permisos') or []
-    if 'crear_cotizacion' not in permisos:
-        return jsonify({'success': False, 'error': 'No tienes permiso para crear cotizaciones'}), 403
-        
     """Crear nueva cotización"""
     try:
         # Obtener datos del formulario

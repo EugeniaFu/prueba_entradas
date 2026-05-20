@@ -43,17 +43,23 @@
         Descontinuadas
       </button>
     </div>
+    {% if 'modificar_existencias_inventario_general' in session.get('permisos', []) or 'agregar_pieza_inventario_general' in session.get('permisos', []) %}
     <div class="d-flex gap-2">
+      {% if 'modificar_existencias_inventario_general' in session.get('permisos', []) %}
       <button class="btn btn-inventario-success" data-bs-toggle="modal" data-bs-target="#modalAltaEquipoGeneral">
         <i class="bi bi-plus-circle me-2"></i>Altas
       </button>
       <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalBajaEquipoGeneral">
         <i class="bi bi-dash-circle me-2"></i>Bajas
       </button>
+      {% endif %}
+      {% if 'agregar_pieza_inventario_general' in session.get('permisos', []) %}
       <button class="btn btn-inventario-main" data-bs-toggle="modal" data-bs-target="#modalNuevaPieza">
         <i class="bi bi-plus-lg me-2"></i>Nueva Pieza
       </button>
+      {% endif %}
     </div>
+    {% endif %}
   </div>
 
   <div class="table-responsive">
@@ -120,6 +126,7 @@
           {% endfor %}
 
           <td>
+            {% if 'agregar_pieza_inventario_general' in session.get('permisos', []) %}
             <div class="d-flex flex-column gap-1">
               <button class="btn btn-sm btn-outline-warning action-btn-inventario" data-bs-toggle="modal"
                 data-bs-target="#modalEditarPieza{{ pieza.id_pieza }}" title="Editar">
@@ -144,6 +151,9 @@
               </button>
               {% endif %}
             </div>
+            {% else %}
+            <span class="text-muted small">Sin permisos</span>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

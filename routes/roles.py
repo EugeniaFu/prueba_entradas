@@ -11,8 +11,7 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
-    # Obtener todos los roles (Puedes omitir el rol 1 si es 'cliente' u otro que no necesite login al sistema)
-    # Por ahora los mostramos todos.
+    # Obtener todos los roles
     cursor.execute("SELECT * FROM roles ORDER BY id")
     roles = cursor.fetchall()
     

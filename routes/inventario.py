@@ -274,15 +274,15 @@ def inventario_sucursal(sucursal_id):
         flash('Sucursal no encontrada', 'error')
         return redirect(url_for('inventario.inventario_general'))
     
-    # 🔥 Crear sucursal_actual (ESTO ES LO QUE TE FALTA)
+    # Crear sucursal_actual (ESTO ES LO QUE TE FALTA)
     sucursal_actual = {
         'id': sucursal['id_sucursal'],
         'nombre': sucursal['nombre']
     }
 
-    # 🔥 Obtener rol para saber si es admin
-    rol_id = session.get('rol_id')
-    es_admin = (rol_id == 2)
+    # Obtener rol para saber si es admin
+    sucursal_id_usuario = session.get('sucursal_id')
+    es_admin = (sucursal_id_usuario is None)
 
     # Obtener piezas
     cursor.execute("""

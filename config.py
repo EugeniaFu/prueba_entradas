@@ -41,6 +41,12 @@ class Config:
     # Configuración de seguridad
     SHOW_RESET_LINKS_ON_ERROR = False  # Por defecto NO mostrar enlaces en errores
     
+    # Configuración de recursos públicos (para emails)
+    # URL pública del logo (opcional). Si no se configura, se usa texto.
+    # Ejemplo: 'https://tudominio.com/static/img/logo.png'
+    # o 'https://i.imgur.com/tu-logo.png' (usando un servicio de imágenes)
+    PUBLIC_LOGO_URL = os.environ.get('PUBLIC_LOGO_URL', None)
+    
 class DevelopmentConfig(Config):
     DEBUG = True
     ENV = 'development'

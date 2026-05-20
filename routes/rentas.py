@@ -76,18 +76,14 @@ def cancelar_renta(renta_id):
 @rentas_bp.route('/')
 @rentas_bp.route('/<sucursal_id>')
 @requiere_sesion()
+@requiere_permiso('ver_rentas')
 def modulo_rentas(sucursal_id=None):
-    if 'ver_rentas' not in session.get('permisos', []):
-        flash('No tienes permiso para acceder al módulo de rentas', 'danger')
-        return redirect(url_for('dashboard.dashboard'))
-        
     conn = get_db_connection()
     cursor = conn.cursor()
 
     sucursal_id_usuario = session.get('sucursal_id')
-    rol_id = session.get('rol_id')
     
-    sucursales = RentasService.obtener_sucursales() if rol_id == 2 else []
+    sucursales = RentasService.obtener_sucursales() if sucursal_id_usuario is None else []
     
     if sucursal_id:
         request.args = request.args.copy()
@@ -97,7 +93,7 @@ def modulo_rentas(sucursal_id=None):
         
     sucursal_actual = None
     
-    if rol_id == 2:
+    if sucursal_id_usuario is None:
         if sucursal_filtro and sucursal_filtro != 'todas':
             try:
                 sucursal_filtro = int(sucursal_filtro)
@@ -122,15 +118,16 @@ def modulo_rentas(sucursal_id=None):
         sucursal_actual = {'id': sucursal_id_usuario, 'nombre': row[0] if row else 'Mi Sucursal'}
 
     # Si no se especifica sucursal_id para un usuario normal, redirigirlo a la url con ID
-    if not sucursal_filtro and rol_id != 2:
+    if not sucursal_filtro and sucursal_id_usuario is not None:
         cursor.close()
         conn.close()
         return redirect(url_for('rentas.modulo_rentas', sucursal_id=sucursal_id_usuario))
 
     # ---- OBTENER RENTAS A TRAVÉS DEL SERVICE ----
     sucursal_para_servicio = sucursal_actual['id'] if sucursal_actual['id'] != 'todas' else 'todas'
-    rentas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, rol_id, 'activas')
-    rentas_pagadas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, rol_id, 'pagadas')
+    es_admin = (sucursal_id_usuario is None)
+    rentas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, es_admin, 'activas')
+    rentas_pagadas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, es_admin, 'pagadas')
 
     rentas = rentas_crudas
     rentas_pagadas = rentas_pagadas_crudas
@@ -215,7 +212,7 @@ def modulo_rentas(sucursal_id=None):
         sucursal_id=sucursal_id_usuario,
         sucursales=sucursales,
         sucursal_actual=sucursal_actual,
-        es_admin=(rol_id == 2),
+        es_admin=(sucursal_id_usuario is None),
         rentas_pagadas=rentas_pagadas
     )
 
@@ -260,15 +257,13 @@ def generar_folio_display(sucursal_id, folio_numero):
 # ======================= CREAR RENTA =======================
 @rentas_bp.route('/crear', methods=['POST'])
 @requiere_sesion()
+@requiere_permiso('crear_renta')
 def crear_renta():
     try:
-        if 'crear_renta' not in session.get('permisos', []):
-            return jsonify({'success': False, 'error': 'No tienes permiso para Crear Rentas'}), 403
-            
-        rol_id = session.get('rol_id')
         sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
         
-        # Determinar la sucursal de destino y soportar Admins (rol_id 2) con null
+        # Determinar la sucursal de destino
         sucursal_para_renta = request.form.get('id_sucursal')
         if not sucursal_para_renta:
             sucursal_para_renta = sucursal_id_usuario
@@ -304,7 +299,7 @@ def crear_renta():
 
         # Delegar al servicio
         success, renta_id, su_id_usada, err_msg = RentasService.crear_nueva_renta(
-            datos_renta, sucursal_para_renta, rol_id, productos, cantidades, dias, costos
+            datos_renta, sucursal_para_renta, es_admin, productos, cantidades, dias, costos
         )
 
         if success:

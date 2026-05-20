@@ -10,13 +10,14 @@ dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
 @dashboard_bp.route('/')
 @requiere_sesion()
+@requiere_permiso('ver_dashboard')
 def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
     # Obtener sucursal del usuario
     sucursal_id = session.get('sucursal_id')
-    es_admin = session.get('rol_id') == 2
+    es_admin = (sucursal_id is None)
     
     # Determinar filtro de sucursal
     where_sucursal = ""

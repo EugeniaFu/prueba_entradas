@@ -25,6 +25,14 @@ def requiere_sesion():
 
 
 def requiere_permiso(nombre_permiso):
+    """
+    Decorador que verifica si el usuario tiene un permiso específico.
+    El sistema de permisos es completamente basado en RBAC:
+    - Los permisos se asignan a roles en la tabla roles_permisos
+    - Los usuarios heredan permisos de su rol
+    - Los usuarios pueden tener permisos individuales activados/desactivados
+    - NO hay bypass por rol: todos los usuarios siguen las mismas reglas
+    """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -33,11 +41,7 @@ def requiere_permiso(nombre_permiso):
                 flash('Debes iniciar sesión para acceder a esta página.', 'warning')
                 return redirect(url_for('login.login'))
             
-            # Los ADMINISTRADORES (rol_id = 2) tienen acceso a TODO automáticamente
-            if session.get('rol_id') == 2:
-                return f(*args, **kwargs)
-            
-            # Para secretarias y otros, verificar permisos específicos
+            # Verificar permisos específicos (sin excepciones por rol)
             permisos = session.get('permisos', [])
             if nombre_permiso not in permisos:
                 flash('No tienes permiso para acceder a esta sección.', 'danger')

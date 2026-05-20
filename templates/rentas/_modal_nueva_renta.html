@@ -35,8 +35,8 @@
                                 <div class="mb-3">
                                     <label class="form-label">Sucursal</label>
 
-                                    {% if es_admin and (session['sucursal_id'] is none or session['sucursal_id'] == 1) %}
-                                        <!-- ADMIN MATRIZ: ve todas -->
+                                    {% if es_admin %}
+                                        <!-- Usuario multi-sucursal: puede seleccionar cualquier sucursal -->
                                         <select class="form-select" name="id_sucursal" id="id_sucursal" required>
                                             {% for sucursal in sucursales %}
                                             <option value="{{ sucursal[0] }}" {% if sucursal_actual.id == sucursal[0] %}selected{% endif %}>
@@ -44,27 +44,17 @@
                                             </option>
                                             {% endfor %}
                                         </select>
-
-                                    {% elif es_admin %}
-                                        <!-- ADMIN NORMAL: solo su sucursal -->
-                                        <select class="form-select" name="id_sucursal" id="id_sucursal" required>
-                                            {% for sucursal in sucursales %}
-                                                {% if sucursal[0] == session['sucursal_id'] %}
-                                                <option value="{{ sucursal[0] }}" selected>
-                                                    {{ sucursal[1] }}
-                                                </option>
-                                                {% endif %}
-                                            {% endfor %}
-                                        </select>
-
                                         <small class="form-text text-muted">
-                                            Solo puedes crear rentas en tu sucursal asignada.
+                                            Selecciona la sucursal donde se registrará esta renta.
                                         </small>
 
                                     {% else %}
-                                        <!-- USUARIO NORMAL -->
+                                        <!-- Usuario con sucursal asignada: solo puede usar su sucursal -->
                                         <input type="text" class="form-control" value="{{ sucursal_nombre or 'No disponible' }}" readonly>
                                         <input type="hidden" name="id_sucursal" id="id_sucursal" value="{{ sucursal_id }}">
+                                        <small class="form-text text-muted">
+                                            Solo puedes crear rentas en tu sucursal asignada.
+                                        </small>
                                     {% endif %}
                                 </div>
                                 <div class="row mb-3">

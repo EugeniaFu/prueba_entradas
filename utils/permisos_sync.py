@@ -44,10 +44,15 @@ PERMISOS_SISTEMA = [
     ('ver_rentas', 'Ver la lista general de rentas de una sucursal'),
     ('crear_renta', 'Iniciar una nueva renta y generar prefactura'),
     ('editar_renta', 'Editar información de una renta existente'),
-    ('cancelar_renta', 'Cancelar una reservación de renta'),
+    ('cancelar_renta', 'Cancelar una renta'),
+    ('eliminar_renta', 'Eliminar una renta definitivamente'),
+    ('cerrar_renta', 'Cerrar/finalizar una renta'),
     ('renovar_renta', 'Realizar la renovación de herramientas rentadas'),
+    ('crear_renovacion_pendiente', 'Crear una renovación pendiente para una renta'),
     ('cobrar_retraso', 'Registrar nota de cobro por retraso'),
+    ('ver_cobro_retraso', 'Ver notas de cobro por retraso'),
     ('cobrar_extra', 'Registrar nota de cobro extra por daños'),
+    ('ver_cobro_extra', 'Ver notas de cobro extra'),
     
     # Módulo Caja y Reportes
     ('ver_movimientos_caja', 'Acceder al control de caja (efectivo y digital)'),
@@ -75,18 +80,21 @@ PERMISOS_SISTEMA = [
     ('crear_nota_entrada', 'Generar una nota de entrada (recibir piezas de renta)'),
     
     # Prefacturas
-    ('ver_prefacturas', 'Consultar prefacturas generadas'),
+    ('ver_prefactura', 'Consultar prefacturas generadas'),
+    ('pagar_prefactura', 'Registrar pagos de prefacturas'),
     ('crear_prefactura', 'Generar prefactura de rentas'),
 
     # Cotizaciones
     ('ver_cotizaciones', 'Ver la lista de cotizaciones'),
     ('crear_cotizacion', 'Registrar una nueva cotización'),
     ('editar_cotizacion', 'Modificar una cotización existente'),
+    ('eliminar_cotizacion', 'Eliminar una cotización definitivamente'),
     ('cancelar_cotizacion', 'Cancelar (dar de baja) una cotización'),
     ('convertir_cotizacion', 'Generar una renta a partir de una cotización'),
 
     # Salidas Internas
     ('ver_salidas_internas', 'Ver la bitácora de salidas internas de la sucursal'),
+    ('finalizar_salida_interna', 'Finalizar/cerrar una salida interna y registrar entrada'),
     ('crear_salida_interna', 'Registrar una salida interna para uso de la tienda'),
 
     # Dashboard

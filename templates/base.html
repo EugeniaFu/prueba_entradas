@@ -79,29 +79,35 @@
                         <hr>
                         <strong><i class="bi bi-grid"></i> General</strong>
                         <ul class="nav flex-column ms-3">
-                            {% if session['sucursal_id'] is none or 'ver_inventario_general' in session.get('permisos', []) %}
+                            {% if 'ver_inventario_general' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link"
                                     href="{{ url_for('inventario.inventario_general') }}"><i class="bi bi-boxes"></i>
                                     Inventario General</a></li>
                             {% endif %}
                             
-                            {% if session['sucursal_id'] is none or 'ver_reportes' in session.get('permisos', []) %}
+                            {% if 'ver_reportes' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('reportes.reporte_diario') }}"><i
                                         class="bi bi-bar-chart"></i>
                                     Reportes</a></li>
                             {% endif %}
                                     
-                            {% if session['sucursal_id'] is none or 'ver_movimientos_caja' in session.get('permisos', []) %}
+                            {% if 'ver_movimientos_caja' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('caja.movimientos_caja') }}"><i
                                         class="bi bi-cash-stack"></i>
                                     Caja</a></li>
                             {% endif %}
 
-                            {% if session['sucursal_id'] is none %}
+                            {% if 'ver_empleados' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('empleados.empleados') }}"><i
                                         class="bi bi-person-badge"></i> Empleados</a></li>
+                            {% endif %}
+                            
+                            {% if 'ver_sucursales' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link" href="{{ url_for('sucursales.sucursales') }}"><i 
                                         class="bi bi-buildings"></i> Sucursales</a></li>
+                            {% endif %}
+                            
+                            {% if 'gestionar_roles_permisos' in session.get('permisos', []) %}
                             <li class="nav-item"><a class="nav-link text-warning" href="{{ url_for('roles.index') }}"><i 
                                         class="bi bi-shield-check"></i> Roles y Permisos</a></li>
                             {% endif %}
