@@ -23,7 +23,7 @@ class RentasService:
             if estado_filtro == 'activas':
                 filtro_estado = """
                 HAVING (
-                    LOWER(TRIM(estado_renta)) IN ('en curso', 'activo', 'activa renovación', 'en recolección', 'programada')
+                    LOWER(TRIM(estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'en recolección', 'programada')
                     
                     OR (
                         LOWER(TRIM(estado_renta)) = 'finalizada'
@@ -101,7 +101,7 @@ class RentasService:
                 (
                     SELECT COUNT(*)
                     FROM rentas r_hija
-                    WHERE r_hija.renta_asociada_id = r.id AND r_hija.estado_renta = 'activa renovación'
+                    WHERE r_hija.renta_asociada_id = r.id AND r_hija.estado_renta = 'activa renovacion'
                 ) AS tiene_renovaciones,
                 r.renta_asociada_id,
                 r.id_sucursal,
@@ -556,7 +556,7 @@ class RentasService:
 
     @staticmethod
     def renovar_renta(renta_id, nueva_fecha_salida, fecha_entrada, observaciones, productos_d, cantidades_d, dias_d, costos_d, current_time):
-        """Copia la renta inicial y crea una nueva con estado 'activa renovación'."""
+        """Copia la renta inicial y crea una nueva con estado 'activa renovacion'."""
         from itertools import zip_longest
         from datetime import datetime
 
@@ -566,16 +566,19 @@ class RentasService:
             conn.start_transaction()
 
             cursor.execute(
-                "SELECT cliente_id, direccion_obra, id_sucursal, costo_traslado, traslado "
+                "SELECT cliente_id, direccion_obra, id_sucursal, costo_traslado, traslado, renta_asociada_id "
                 "FROM rentas WHERE id = %s", (renta_id,)
             )
             renta_original = cursor.fetchone()
             if not renta_original:
                 raise ValueError("La renta original no existe.")
 
-            cliente_id, direccion_obra, sucursal_id, costo_traslado, traslado = renta_original
+            cliente_id, direccion_obra, sucursal_id, costo_traslado, traslado, renta_asociada_id_db = renta_original
             costo_traslado = costo_traslado or 0
             traslado = traslado or 'ninguno'
+            
+            # Heredar el padre raíz (Logica 1)
+            padre_real_id = renta_asociada_id_db if renta_asociada_id_db else renta_id
 
             cursor.execute("""
                 INSERT INTO rentas (
@@ -586,9 +589,9 @@ class RentasService:
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 cliente_id, current_time, nueva_fecha_salida, fecha_entrada,
-                direccion_obra, 'activa renovación', 'Pago pendiente', 'Pendiente',
+                direccion_obra, 'activa renovacion', 'Pago pendiente', 'Pendiente',
                 0, 0, 0, observaciones, None, sucursal_id,
-                costo_traslado, traslado, renta_id
+                costo_traslado, traslado, padre_real_id
             ))
             nueva_renta_id = cursor.lastrowid
 
@@ -631,6 +634,11 @@ class RentasService:
             cursor.execute("""
                 UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
             """, (total, total_iva, total_con_iva, nueva_renta_id))
+
+            # Finalizar la renta antigua para que no le puedan meter más acciones
+            cursor.execute("""
+                UPDATE rentas SET estado_renta = 'finalizada' WHERE id = %s
+            """, (renta_id,))
 
             conn.commit()
             return True, nueva_renta_id, sucursal_id, "Renta renovada con éxito"
@@ -692,19 +700,22 @@ class RentasService:
             conn.start_transaction()
 
             cursor.execute("""
-                SELECT cliente_id, sucursal_id, id_sucursal 
+                SELECT cliente_id, sucursal_id, id_sucursal, renta_asociada_id 
                 FROM rentas WHERE id = %s
             """, (renta_id,))
             renta_original = cursor.fetchone()
             if not renta_original:
                 raise ValueError("Renta original no encontrada")
+            
+            # Heredar el padre raíz (Logica 1 - misma línea que en renovacion total)
+            padre_real_id = renta_original[3] if len(renta_original)>3 and renta_original[3] else renta_id
 
             cursor.execute("""
                 INSERT INTO rentas (
                     cliente_id, sucursal_id, id_sucursal, fecha_salida, fecha_entrada,
                     direccion_obra, traslado_extra, costo_traslado_extra, 
-                    factura_legal, estado, renta_asociada_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa', %s)
+                    factura_legal, estado_renta, estado_pago, metodo_pago, renta_asociada_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'activa renovacion', 'Pago pendiente', 'Pendiente', %s)
             """, (
                 renta_original[0], renta_original[1], renta_original[2],
                 data['fecha_salida'], data['fecha_entrada'],
@@ -712,7 +723,7 @@ class RentasService:
                 data.get('traslado_extra', 'ninguno'),
                 data.get('costo_traslado_extra', 0),
                 data.get('factura_legal', 0),
-                renta_id
+                padre_real_id
             ))
             nueva_renta_id = cursor.lastrowid
 
@@ -743,7 +754,9 @@ class RentasService:
             total_con_iva = total + iva
 
             cursor.execute("UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s", (total, iva, total_con_iva, nueva_renta_id))
-            cursor.execute("UPDATE rentas SET estado = 'renovación finalizada' WHERE id = %s", (renta_id,))
+            
+            # FINALIZAR la renta anterior!
+            cursor.execute("UPDATE rentas SET estado_renta = 'finalizada' WHERE id = %s", (renta_id,))
 
             conn.commit()
             return True, nueva_renta_id, "Renovación creada exitosamente"

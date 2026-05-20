@@ -95,7 +95,7 @@ def preview_nota_entrada(renta_id):
     cursor.execute("""
         SELECT r.id, r.fecha_entrada
         FROM rentas r
-        WHERE r.renta_asociada_id = %s AND r.estado_renta IN ('activa renovación', 'activo')
+        WHERE r.renta_asociada_id = %s AND r.estado_renta IN ('activa renovacion', 'activo')
         ORDER BY r.fecha_entrada DESC LIMIT 1
     """, (renta_id,))
     renovacion = cursor.fetchone()
@@ -234,7 +234,7 @@ def crear_nota_entrada(renta_id):
         cursor.execute("""
             SELECT COUNT(*) AS total_renovaciones
             FROM rentas
-            WHERE renta_asociada_id = %s AND estado_renta IN ('activa renovación', 'activo')
+            WHERE renta_asociada_id = %s AND estado_renta IN ('activa renovacion', 'activo')
         """, (renta_id,))
         total_renovaciones = cursor.fetchone()['total_renovaciones']
 
@@ -402,7 +402,7 @@ def crear_nota_entrada(renta_id):
                 # Finalizar también las rentas asociadas (renovaciones)
                 cursor.execute("""
                     UPDATE rentas SET estado_renta = 'finalizada'
-                    WHERE renta_asociada_id = %s AND estado_renta = 'activa renovación'
+                    WHERE renta_asociada_id = %s AND estado_renta = 'activa renovacion'
                 """, (renta_id,))
             else:
                 cursor.execute("""

@@ -2,11 +2,16 @@
 
 {% block title %}Gestión de Sucursales{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/clientes.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sucursales.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-building"></i> Gestión de Sucursales</h2>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevaSucursal">
+<div class="clientes-box-container">
+    <div class="clientes-section-header">
+        <h2 class="clientes-section-title"><i class="bi bi-building"></i> Gestión de Sucursales</h2>
+        <button class="btn btn-clientes-main" data-bs-toggle="modal" data-bs-target="#modalNuevaSucursal">
             <i class="bi bi-plus-circle"></i> Nueva Sucursal
         </button>
     </div>
@@ -24,8 +29,8 @@
     {% endwith %}
 
     <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead class="table-dark">
+        <table class="table table-clientes align-middle" style="border-spacing:0 2px;">
+            <thead>
                 <tr>
                     <th>ID</th>
                     <th>Nombre</th>
@@ -35,25 +40,25 @@
             </thead>
             <tbody>
                 {% for sucursal in sucursales %}
-                <tr>
+                <tr style="height:38px;">
                     <td>{{ sucursal.id }}</td>
                     <td>{{ sucursal.nombre }}</td>
                     <td>{{ sucursal.direccion }}</td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalEditarSucursal{{ sucursal.id }}" title="Editar">
+                        <button class="btn btn-square btn-outline-warning p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;" data-bs-toggle="modal" data-bs-target="#modalEditarSucursal{{ sucursal.id }}" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
                     </td>
                 </tr>
 
                 <!-- Modal Editar Sucursal -->
-                <div class="modal fade" id="modalEditarSucursal{{ sucursal.id }}" tabindex="-1" aria-labelledby="modalEditarLabel" aria-hidden="true">
+                <div class="modal fade" id="modalEditarSucursal{{ sucursal.id }}" tabindex="-1" aria-labelledby="modalEditarLabel{{ sucursal.id }}" aria-hidden="true">
                     <div class="modal-dialog">
                         <form method="post" action="{{ url_for('sucursales.editar_sucursal', id=sucursal.id) }}">
                             <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title" id="modalEditarLabel"><i class="bi bi-pencil"></i> Editar Sucursal</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                                <div class="modal-header modal-header-azul">
+                                    <h5 class="modal-title" id="modalEditarLabel{{ sucursal.id }}"><i class="bi bi-pencil"></i> Editar Sucursal</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                                 </div>
                                 <div class="modal-body text-start">
                                     <div class="mb-3">
@@ -67,7 +72,7 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                    <button type="submit" class="btn btn-warning">Guardar Cambios</button>
+                                    <button type="submit" class="btn btn-clientes-main">Guardar Cambios</button>
                                 </div>
                             </div>
                         </form>
@@ -89,7 +94,7 @@
     <div class="modal-dialog">
         <form method="post" action="{{ url_for('sucursales.nueva_sucursal') }}">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
+                <div class="modal-header modal-header-azul">
                     <h5 class="modal-title" id="modalNuevaLabel"><i class="bi bi-plus-circle"></i> Agregar Nueva Sucursal</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
@@ -105,7 +110,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Registrar Sucursal</button>
+                    <button type="submit" class="btn btn-clientes-main">Registrar Sucursal</button>
                 </div>
             </div>
         </form>

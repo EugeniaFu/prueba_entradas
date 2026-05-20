@@ -344,10 +344,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     coincideEstado = estadoRenta.includes('en recolección');
                 } else if (estadoSeleccionado === 'renta parcial') {
                     coincideEstado = estadoRenta.includes('renta parcial');
-                } else if (estadoSeleccionado === 'activa renovación') {
-                    coincideEstado = estadoRenta.includes('activa renovación');
-                } else if (estadoSeleccionado === 'renta en renovación') {
-                    coincideEstado = textoFila.includes('renta en renovación');
+                } else if (estadoSeleccionado === 'activa renovacion') {
+                    coincideEstado = estadoRenta.includes('activa renovacion');
                 } else if (estadoSeleccionado === 'piezas pendientes') {
                     coincideEstado = estadoRenta.includes('piezas pendientes');
                 } else if (estadoSeleccionado === 'pago pendiente') {

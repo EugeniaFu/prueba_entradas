@@ -87,3 +87,29 @@ main {
 .table thead th {
     vertical-align: middle;
 }
+
+
+
+/* --- COMPONENTES GLOBALES (Navegacion de Modulos) --- */
+.btn-group .btn {
+    margin: 2px;
+}
+.btn-tab {
+    background: #e0e0e0; /* Fondo gris */
+    color: #555555;      /* Texto gris */
+    border: 1px solid #b0b0b0;
+    border-radius: 8px;
+    margin-right: 0.5rem;
+    font-weight: 500;
+    padding: 0.35rem 1rem;
+    font-size: 0.98rem;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+}
+.btn-tab.active,
+.btn-tab:hover {
+    background: #23395d; /* Azul oscuro del sistema */
+    color: #fff;
+    border-color: #23395d;
+}
+

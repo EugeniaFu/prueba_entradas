@@ -47,7 +47,7 @@ def dashboard():
                 AND NOT EXISTS (
                     SELECT 1 FROM rentas rn 
                     WHERE rn.renta_asociada_id = r.id 
-                    AND rn.estado_renta IN ('activa renovación', 'activo')
+                    AND rn.estado_renta IN ('activa renovacion', 'activo')
                 )
             )
             UNION ALL
@@ -60,7 +60,7 @@ def dashboard():
                 JOIN clientes c ON r.cliente_id = c.id
                 JOIN sucursales s ON r.id_sucursal = s.id
                 {where_sucursal}
-                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovación', 'activo')
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovacion', 'activo')
                 AND DATE(r.fecha_entrada) = CURDATE()
                 AND r.renta_asociada_id IS NOT NULL
             )
@@ -88,7 +88,7 @@ def dashboard():
                 AND NOT EXISTS (
                     SELECT 1 FROM rentas rn 
                     WHERE rn.renta_asociada_id = r.id 
-                    AND rn.estado_renta IN ('activa renovación', 'activo')
+                    AND rn.estado_renta IN ('activa renovacion', 'activo')
                 )
             )
             UNION ALL
@@ -102,7 +102,7 @@ def dashboard():
                 JOIN clientes c ON r.cliente_id = c.id
                 JOIN sucursales s ON r.id_sucursal = s.id
                 {where_sucursal}
-                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovación', 'activo')
+                {"AND" if where_sucursal else "WHERE"} r.estado_renta IN ('activa renovacion', 'activo')
                 AND DATE(r.fecha_entrada) < CURDATE()
                 AND r.renta_asociada_id IS NOT NULL
                 AND NOT EXISTS (

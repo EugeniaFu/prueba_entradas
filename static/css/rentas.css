@@ -1,4 +1,4 @@
-    /* --- CONTENEDOR PRINCIPAL RENTAS --- */
+/* --- CONTENEDOR PRINCIPAL RENTAS --- */
 .rentas-box-container {
     background: #fff;
     border-radius: 20px;
@@ -73,25 +73,6 @@ border: 2px solid #0d6efd;
 
 
 /* --- TABS --- */
-.btn-tab {
-    background: #f5f5f5;
-    color: #23395d;
-    border: 1px solid #b0b0b0;
-    border-radius: 8px;
-    margin-right: 0.5rem;
-    font-weight: 500;
-    padding: 0.35rem 1rem;
-    font-size: 0.98rem;
-    text-decoration: none;
-}
-
-.btn-tab.active,
-.btn-tab:hover {
-    background: #23395d;
-    color: #fff;
-}
-
-
 /* --- TABLA DE RENTAS --- */
 .table-rentas {
     border: 2.5px solid #23395d;
@@ -416,7 +397,7 @@ border: 2px solid #0d6efd;
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/
-/* MODAL NUEVA RENTA FORMAL */
+/* MODAL NUEVA RENTA */
 
 .modal-nueva-renta-header {
     background: #23395d;
@@ -435,7 +416,7 @@ border: 2px solid #0d6efd;
 
 /* Estilos para el modal de nueva renta con diseño del inventario */
 #modalNuevaRenta .modal-header {
-    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
+    background: #23395d;
     color: #fff;
     border-bottom: none;
     border-top-left-radius: 16px;
@@ -447,17 +428,16 @@ border: 2px solid #0d6efd;
     font-size: 1.4rem;
     font-weight: 700;
     color: #fff !important;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 #modalNuevaRenta .modal-content {
     border: 2px solid #23395d;
     border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(35, 57, 93, 0.2);
 }
 
+#modalNuevaRenta .modal-footer,
 #modalNuevaRenta .modal-footer-azul {
-    background: linear-gradient(135deg, #f1f4fa 0%, #e8eef7 100%);
+    background: #f1f4fa;
     border-bottom-left-radius: 14px;
     border-bottom-right-radius: 14px;
     border-top: 2px solid #23395d;
@@ -465,7 +445,7 @@ border: 2px solid #0d6efd;
 }
 
 #modalNuevaRenta .card-header {
-    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
+    background: #23395d;
     color: #fff !important;
     border-bottom: 2px solid #1a2d4a;
     font-weight: 700;
@@ -480,208 +460,154 @@ border: 2px solid #0d6efd;
     font-size: 1.1rem;
     font-weight: 700;
     margin: 0;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-
-#modalNuevaRenta .card {
-    border: 2px solid #23395d;
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(35, 57, 93, 0.15);
-    overflow: hidden;
-}
-
-#modalNuevaRenta .card-body {
-    padding: 1.5rem;
-    background: #fafbfd;
-}
-
-#modalNuevaRenta .table-dark th {
-    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%) !important;
-    border-color: #1a2d4a !important;
-    color: #fff !important;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.5rem 0.3rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
 }
 
-#modalNuevaRenta .table-bordered td {
-    font-size: 0.7rem;
-    padding: 0.4rem 0.3rem;
-    background: #fff;
-    border-color: #dee2e6;
-    line-height: 1.2;
+#modalNuevaRenta .card {
+    border: 2px solid #23395d;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(35, 57, 93, 0.1);
 }
 
-#modalNuevaRenta .table-bordered input.form-control {
-    font-size: 0.7rem;
-    padding: 0.3rem 0.5rem;
-    height: auto;
-    min-height: 1.8rem;
+#modalNuevaRenta .card-body {
+    padding: 1.5rem;
+    background: #ffffff;
 }
 
 #modalNuevaRenta .form-label {
     color: #23395d;
     font-weight: 700;
-    font-size: 1rem;
-    margin-bottom: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
 }
 
 #modalNuevaRenta .form-control,
 #modalNuevaRenta .form-select {
+    border: 1.5px solid #d1d9e6;
     border-radius: 8px;
-    border: 2px solid #dee2e6;
+    padding: 0.7rem;
     font-size: 0.95rem;
-    padding: 0.6rem 1rem;
-    transition: all 0.2s ease-in-out;
-    background-color: #fff;
+    transition: all 0.2s ease;
+    background-color: transparent;
 }
 
 #modalNuevaRenta .form-control:focus,
 #modalNuevaRenta .form-select:focus {
     border-color: #23395d;
     box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25);
-    background-color: #f8f9fa;
-}
-
-#modalNuevaRenta .btn {
-    border-radius: 8px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0.6rem 1.2rem;
+    background-color: transparent;
 }
 
 #modalNuevaRenta .btn-primary {
-    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
-    border-color: #23395d;
-    color: #fff;
-    box-shadow: 0 4px 15px rgba(35, 57, 93, 0.3);
+    background: #23395d;
+    border: 1px solid #23395d;
+    font-weight: 700;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    text-transform: none;
+    letter-spacing: normal;
+    box-shadow: none;
 }
 
 #modalNuevaRenta .btn-primary:hover {
-    background: linear-gradient(135deg, #1a2d4a 0%, #23395d 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(35, 57, 93, 0.4);
+    background: #1a2d4a;
+    border-color: #1a2d4a;
+    transform: none;
+    box-shadow: none;
+}
+
+#modalNuevaRenta .btn-secondary {
+    background: #6c757d;
+    border: 1px solid #6c757d;
+    font-weight: 600;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
 }
 
 #modalNuevaRenta .btn-success {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    border-color: #28a745;
-    color: #fff;
+    font-weight: 600;
+    border-radius: 8px;
 }
 
 #modalNuevaRenta .btn-danger {
-    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-    border-color: #dc3545;
-    color: #fff;
+    font-weight: 600;
+    border-radius: 8px;
 }
 
 #modalNuevaRenta .modal-body {
-    padding: 2rem;
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    
+    background: transparent;
 }
 
-#modalNuevaRenta .text-muted {
-    color: #6c757d !important;
-    font-size: 0.85rem;
+#modalNuevaRenta .table-bordered {
+    border: 2px solid #23395d;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    #modalNuevaRenta .modal-dialog {
-        max-width: 95%;
-        margin: 1rem auto;
-    }
-    
-    #modalNuevaRenta .modal-header {
-        padding: 1rem 1.5rem;
-    }
-    
-    #modalNuevaRenta .modal-title {
-        font-size: 1.2rem;
-    }
-    
-    #modalNuevaRenta .modal-body {
-        padding: 1.5rem;
-    }
-    
-    #modalNuevaRenta .col-md-6 {
-        margin-bottom: 1.5rem;
-    }
-    
-    #modalNuevaRenta .table-responsive {
-        font-size: 0.75rem;
-    }
-    
-    #modalNuevaRenta .d-flex.gap-2 {
-        flex-direction: column;
-        gap: 0.75rem !important;
-    }
-    
-    #modalNuevaRenta .d-flex.gap-2 > * {
-        flex: 1;
-    }
-    
-    #modalNuevaRenta #cantidad_producto {
-        max-width: 100% !important;
-    }
-    
-    #modalNuevaRenta .form-label {
-        font-size: 0.9rem;
-    }
-    
-    #modalNuevaRenta .card-header h6 {
-        font-size: 1rem;
-    }
-}
-
-/* Estilos adicionales para mayor impacto visual */
-#modalNuevaRenta .form-check-label {
-    color: #23395d;
-    font-weight: 600;
-    font-size: 0.95rem;
-}
-
-#modalNuevaRenta .table-sm td {
-    font-weight: 600;
-    color: #23395d;
-    font-size: 0.7rem;
-    padding: 0.4rem 0.3rem;
-}
-
-#modalNuevaRenta .table-sm td .btn {
-    padding: 0.2rem 0.4rem;
-    font-size: 0.65rem;
-    line-height: 1;
-}
-
-#modalNuevaRenta .table-sm td input[type="number"] {
-    font-size: 0.7rem;
-    padding: 0.25rem 0.4rem;
-    width: 100%;
-    max-width: 60px;
-}
-
-#modalNuevaRenta .table-primary td {
-    background-color: rgba(35, 57, 93, 0.1) !important;
+#modalNuevaRenta .table thead th,
+#modalNuevaRenta .table-dark th {
+    background: #23395d !important;
+    color: #fff !important;
     border-color: #23395d !important;
     font-weight: 700;
-    font-size: 1.1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
 }
 
-#modalNuevaRenta .sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
+#modalNuevaRenta .table td {
+    border-color: #d1d9e6;
+    vertical-align: middle;
 }
 
-#modalNuevaRenta .form-text {
-    font-size: 0.8rem;
-    font-style: italic;
+#modalNuevaRenta .table-sm td input.form-control {
+    font-size: 0.85rem;
+    padding: 0;
+    height: auto;
+    width: 100%;
+    min-width: 45px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+}
+#modalNuevaRenta .table-sm td input.form-control:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+#modalNuevaRenta .table-sm td input.form-control[readonly] {
+    background: transparent;
+}
+
+/* Tooltip para productos */
+#modalNuevaRenta .tooltip-producto {
+    cursor: help;
+    border-bottom: 1px dotted #23395d;
+}
+
+/* Responsive para el modal */
+@media (max-width: 768px) {
+    #modalNuevaRenta .modal-dialog {
+        margin: 0.5rem;
+        max-width: none;
+    }
+    
+    #modalNuevaRenta .modal-header,
+    #modalNuevaRenta .modal-footer,
+    #modalNuevaRenta .modal-footer-azul {
+        padding: 1rem;
+    }
+    
+    #modalNuevaRenta .card-body {
+        padding: 1rem;
+    }
 }
 
 /*///////////////////////////////////////////////////////*/
@@ -689,7 +615,6 @@ border: 2px solid #0d6efd;
 /*///////////////////////////////////////////////////////*/
 /* MODAL NOTA DE SALIDA FORMAL */
 
-/* Estilos para el modal de nota de salida siguiendo exactamente el patrón del modal nueva renta */
 #modalNotaSalida .modal-header {
     background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
     color: #fff;
@@ -927,7 +852,7 @@ border: 2px solid #0d6efd;
     border-bottom-right-radius: 16px;
 }
 
-/* Estilos para el modal de nota de entrada siguiendo exactamente el patrón del modal nueva renta */
+/* MODAL NOTA DE ENTRADA*/
 #modalNotaEntrada .modal-header {
     background: #23395d;
     color: #fff;
@@ -1138,10 +1063,6 @@ border: 2px solid #0d6efd;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.btn-group .btn {
-    margin: 2px;
-}
-
 .sucursal-badge {
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
@@ -1168,9 +1089,8 @@ border: 2px solid #0d6efd;
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/
-/* MODAL PREFACTURA FORMAL */
+/* MODAL PREFACTURA */
 
-/* Estilos para el modal de prefactura siguiendo exactamente el patrón del modal nueva renta */
 #modalPrefacturaPago .modal-header {
     background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
     color: #fff;

@@ -132,12 +132,8 @@ def modulo_rentas(sucursal_id=None):
     rentas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, rol_id, 'activas')
     rentas_pagadas_crudas = RentasService.obtener_rentas_por_sucursal_y_estado(sucursal_para_servicio, rol_id, 'pagadas')
 
-    # Filtrar solo rentas finales (las que NO son padres de otras), pero NO ocultar aquellas que tengan piezas pendientes
-    ids_padre = set(r[23] for r in rentas_crudas if r[23])
-    rentas = [r for r in rentas_crudas if r[0] not in ids_padre or r[21] > 0]
-    
-    ids_padre_pagadas = set(r[23] for r in rentas_pagadas_crudas if r[23])
-    rentas_pagadas = [r for r in rentas_pagadas_crudas if r[0] not in ids_padre_pagadas or r[21] > 0]
+    rentas = rentas_crudas
+    rentas_pagadas = rentas_pagadas_crudas
 
     detalles = []
     productos_por_renta = {}
@@ -185,7 +181,7 @@ def modulo_rentas(sucursal_id=None):
     def calcular_estado_entrega(renta):
         if not renta[3]: return None
         if renta[15]: return None
-        if renta[4] is None or renta[4].lower() not in ['activo', 'activa renovación']: return None
+        if renta[4] is None or renta[4].lower() not in ['activo', 'activa renovacion']: return None
         
         fecha_entrada = renta[3]  
         fecha_limite = renta[16]  
