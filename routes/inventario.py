@@ -10,48 +10,13 @@ from flask import send_file
 from PyPDF2 import PdfReader, PdfWriter
 import os
 from utils.datetime_utils import get_local_now, format_datetime_local
-from utils.decorators import requiere_sesion, requiere_permiso
+from utils.decorators import requiere_sesion, requiere_permiso, requiere_uno_de_permisos
+from utils.folios import obtener_siguiente_folio_nota_sucursal
 
 bp_inventario = Blueprint('inventario', __name__, url_prefix='/inventario')
 
-def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
-   
-    cursor.execute("""
-        SELECT IFNULL(MAX(folio), 0) + 1 AS siguiente_folio
-        FROM (
-            SELECT ne.folio 
-            FROM notas_entrada ne
-            JOIN rentas r ON ne.renta_id = r.id
-            WHERE r.id_sucursal = %s
-            UNION ALL
-            SELECT ns.folio 
-            FROM notas_salida ns
-            JOIN rentas r ON ns.renta_id = r.id
-            WHERE r.id_sucursal = %s
-            UNION ALL
-            SELECT CAST(mi.folio_nota_salida AS UNSIGNED) as folio
-            FROM movimientos_inventario mi
-            WHERE mi.id_sucursal = %s 
-            AND mi.folio_nota_salida IS NOT NULL
-            AND mi.folio_nota_salida != ''
-            AND mi.tipo_movimiento IN ('transferencia_salida', 'reparacion_lote', 'salida_interna', 'baja_equipo_general')
-            UNION ALL
-            SELECT CAST(mi.folio_nota_entrada AS UNSIGNED) as folio
-            FROM movimientos_inventario mi
-            WHERE mi.id_sucursal = %s 
-            AND mi.folio_nota_entrada IS NOT NULL
-            AND mi.folio_nota_entrada != ''
-            AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general', 'transferencia_entrada', 'retorno_salida_interna', 'finalizar_reparacion')
-            UNION ALL
-            SELECT si.folio_sucursal as folio
-            FROM salidas_internas si
-            WHERE si.id_sucursal = %s
-        ) AS todos_folios_sucursal
-    """, (sucursal_id, sucursal_id, sucursal_id, sucursal_id, sucursal_id))
-
-    resultado = cursor.fetchone()
-    return resultado['siguiente_folio'] if resultado and resultado.get('siguiente_folio') else 1
-
+# NOTA: La función obtener_siguiente_folio_nota_sucursal ahora está en utils/folios.py
+# para evitar importaciones circulares entre módulos. Los otros blueprints la importan desde allí.
 
 
 @bp_inventario.route('/general')
@@ -760,7 +725,7 @@ def baja_equipo_nuevo():
 
 @bp_inventario.route('/alta-equipo', methods=['POST'])
 @requiere_sesion()
-@requiere_permiso('modificar_existencias_inventario_general')
+@requiere_uno_de_permisos('modificar_existencias_inventario_general', 'agregar_piezas_inventario_sucursal')
 def alta_equipo_nuevo():
 
     try:

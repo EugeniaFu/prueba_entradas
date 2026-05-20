@@ -70,14 +70,29 @@ def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_
 @requiere_sesion()
 @requiere_permiso('ver_movimientos_caja')
 def movimientos_caja():
+    # Detectar si es admin (sin sucursal asignada)
+    sucursal_id_usuario = session.get('sucursal_id')
+    es_admin = (sucursal_id_usuario is None)
+    
     # Obtener lista de sucursales para el select (si es admin)
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT id, nombre FROM sucursales ORDER BY nombre")
     sucursales = cursor.fetchall()
+    
+    # Obtener información de la sucursal asignada (para secretarias)
+    sucursal_asignada = None
+    if not es_admin:
+        cursor.execute("SELECT id, nombre FROM sucursales WHERE id = %s", (sucursal_id_usuario,))
+        sucursal_asignada = cursor.fetchone()
+    
     cursor.close()
     conn.close()
-    return render_template('caja/movimiento_caja.html', sucursales=sucursales)
+    
+    return render_template('caja/movimiento_caja.html', 
+                         sucursales=sucursales, 
+                         es_admin=es_admin,
+                         sucursal_asignada=sucursal_asignada)
 
 @caja_bp.route('/api/movimiento', methods=['POST'])
 @requiere_sesion()
@@ -107,11 +122,20 @@ def crear_movimiento_manual():
             return jsonify({'success': False, 'error': 'Los movimientos de caja solo aceptan EFECTIVO'}), 400
         
         usuario_id = session.get('user_id')
-        sucursal_id = data.get('sucursal_id', session.get('sucursal_id'))
         
-        if not sucursal_id:
-            # Si el admin no seleccionó sucursal (y no tiene una propia), no puede registrar algo "global"
-            return jsonify({'success': False, 'error': 'Debe especificar a qué sucursal pertenece el movimiento'}), 400
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede especificar la sucursal
+        # Si es secretaria, forzar su sucursal asignada
+        if es_admin:
+            sucursal_id = data.get('sucursal_id')
+            if not sucursal_id:
+                return jsonify({'success': False, 'error': 'Debe especificar a qué sucursal pertenece el movimiento'}), 400
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
         
         if not usuario_id:
             return jsonify({'success': False, 'error': 'Usuario no autenticado'}), 401
@@ -150,19 +174,35 @@ def crear_movimiento_manual():
 @requiere_permiso('ver_movimientos_caja')
 def obtener_detalle_movimiento(movimiento_id):
     try:
-        sucursal_id = session.get('sucursal_id', 1)
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
         
+        # Si es admin, puede ver movimientos de cualquier sucursal (verificar que exista)
+        # Si es secretaria, solo puede ver movimientos de su sucursal
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        cursor.execute("""
-            SELECT mc.*, CONCAT(u.nombre, ' ', u.apellido1, ' ', u.apellido2) as usuario_completo,
-                   s.nombre as sucursal_nombre
-            FROM movimientos_caja mc
-            LEFT JOIN usuarios u ON mc.usuario_id = u.id
-            LEFT JOIN sucursales s ON mc.sucursal_id = s.id
-            WHERE mc.id = %s AND mc.sucursal_id = %s
-        """, (movimiento_id, sucursal_id))
+        if es_admin:
+            # Admin puede ver cualquier movimiento
+            cursor.execute("""
+                SELECT mc.*, CONCAT(u.nombre, ' ', u.apellido1, ' ', u.apellido2) as usuario_completo,
+                       s.nombre as sucursal_nombre
+                FROM movimientos_caja mc
+                LEFT JOIN usuarios u ON mc.usuario_id = u.id
+                LEFT JOIN sucursales s ON mc.sucursal_id = s.id
+                WHERE mc.id = %s
+            """, (movimiento_id,))
+        else:
+            # Secretaria solo ve movimientos de su sucursal
+            cursor.execute("""
+                SELECT mc.*, CONCAT(u.nombre, ' ', u.apellido1, ' ', u.apellido2) as usuario_completo,
+                       s.nombre as sucursal_nombre
+                FROM movimientos_caja mc
+                LEFT JOIN usuarios u ON mc.usuario_id = u.id
+                LEFT JOIN sucursales s ON mc.sucursal_id = s.id
+                WHERE mc.id = %s AND mc.sucursal_id = %s
+            """, (movimiento_id, sucursal_id_usuario))
         
         movimiento = cursor.fetchone()
         
@@ -230,11 +270,19 @@ def obtener_movimientos():
         tipo_movimiento = request.args.get('tipo_movimiento')
         metodo_pago = request.args.get('metodo_pago')
         
-        sucursal_id = request.args.get('sucursal_id', type=int)
-        if sucursal_id is None:
-            sucursal_id = session.get('sucursal_id')
-        if sucursal_id is None:
-            sucursal_id = 1
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede seleccionar cualquier sucursal
+        # Si es secretaria, forzar su sucursal asignada
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                sucursal_id = 1  # Matriz por defecto
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
         
         if not fecha_inicio:
             fecha_inicio = date.today().strftime('%Y-%m-%d')
@@ -296,11 +344,19 @@ def obtener_resumen():
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
         fecha_fin = request.args.get('fecha_fin', fecha_inicio)
         
-        sucursal_id = request.args.get('sucursal_id', type=int)
-        if sucursal_id is None:
-            sucursal_id = session.get('sucursal_id')
-        if sucursal_id is None:
-            sucursal_id = 1
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede seleccionar cualquier sucursal
+        # Si es secretaria, forzar su sucursal asignada
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                sucursal_id = 1  # Matriz por defecto
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
             
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -371,11 +427,19 @@ def obtener_ingresos_digitales():
         fecha_inicio = request.args.get('fecha_inicio', date.today().strftime('%Y-%m-%d'))
         fecha_fin = request.args.get('fecha_fin', fecha_inicio)
         
-        sucursal_id = request.args.get('sucursal_id', type=int)
-        if sucursal_id is None:
-            sucursal_id = session.get('sucursal_id')
-        if sucursal_id is None:
-            sucursal_id = 1
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede seleccionar cualquier sucursal
+        # Si es secretaria, forzar su sucursal asignada
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                sucursal_id = 1  # Matriz por defecto
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
             
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -493,11 +557,19 @@ def generar_pdf_movimientos():
         tipo = request.args.get('tipo')
         tipo_movimiento = request.args.get('tipo_movimiento')
         
-        sucursal_id = request.args.get('sucursal_id', type=int)
-        if sucursal_id is None:
-            sucursal_id = session.get('sucursal_id')
-        if sucursal_id is None:
-            sucursal_id = 1
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede seleccionar cualquier sucursal
+        # Si es secretaria, forzar su sucursal asignada
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                sucursal_id = 1  # Matriz por defecto
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
             
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)

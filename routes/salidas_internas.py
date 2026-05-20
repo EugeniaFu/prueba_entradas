@@ -13,8 +13,8 @@ from io import BytesIO
 import os
 from flask import current_app
 
-# Importar función de folios del módulo inventario
-from routes.inventario import obtener_siguiente_folio_nota_sucursal
+# Importar función de folios desde utils
+from utils.folios import obtener_siguiente_folio_nota_sucursal
 
 # ======================= BLUEPRINT =======================
 salidas_internas_bp = Blueprint('salidas_internas', __name__, url_prefix='/salidas-internas')

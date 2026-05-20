@@ -64,7 +64,8 @@
                                     <input type="date" class="form-control" id="fechaFinEfectivo" name="fechaFinEfectivo">
                                 </div>
                                 
-                                {% if sucursales %}
+                                {% if es_admin %}
+                                <!-- Solo administradores pueden cambiar de sucursal -->
                                 <div class="col-md-3">
                                     <label for="filtroSucursalEfectivo" class="form-label">Sucursal</label>
                                     <select class="form-select border-primary" id="filtroSucursalEfectivo" name="filtroSucursalEfectivo">
@@ -72,6 +73,14 @@
                                         <option value="{{ s.id }}">{{ s.nombre }}</option>
                                         {% endfor %}
                                     </select>
+                                </div>
+                                {% else %}
+                                <!-- Secretarias solo ven su sucursal asignada -->
+                                <div class="col-md-3">
+                                    <label for="sucursalFijaEfectivo" class="form-label">Sucursal</label>
+                                    <input type="text" class="form-control" id="sucursalFijaEfectivo" 
+                                           value="{{ sucursal_asignada.nombre if sucursal_asignada else 'N/A' }}" 
+                                           readonly style="background-color: #e9ecef; font-weight: 600;">
                                 </div>
                                 {% endif %}
 
@@ -223,7 +232,8 @@
                                     <input type="date" class="form-control" id="fechaFinDigital" name="fechaFinDigital">
                                 </div>
                                 
-                                {% if sucursales %}
+                                {% if es_admin %}
+                                <!-- Solo administradores pueden cambiar de sucursal -->
                                 <div class="col-md-3">
                                     <label for="filtroSucursalDigital" class="form-label">Sucursal</label>
                                     <select class="form-select border-primary" id="filtroSucursalDigital" name="filtroSucursalDigital">
@@ -231,6 +241,14 @@
                                         <option value="{{ s.id }}">{{ s.nombre }}</option>
                                         {% endfor %}
                                     </select>
+                                </div>
+                                {% else %}
+                                <!-- Secretarias solo ven su sucursal asignada -->
+                                <div class="col-md-3">
+                                    <label for="sucursalFijaDigital" class="form-label">Sucursal</label>
+                                    <input type="text" class="form-control" id="sucursalFijaDigital" 
+                                           value="{{ sucursal_asignada.nombre if sucursal_asignada else 'N/A' }}" 
+                                           readonly style="background-color: #e9ecef; font-weight: 600;">
                                 </div>
                                 {% endif %}
 

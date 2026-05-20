@@ -30,7 +30,8 @@
                                             <option value="egreso">Egreso</option>
                                         </select>
                                     </div>
-                                    {% if session['sucursal_id'] is none %}
+                                    {% if es_admin %}
+                                    <!-- Solo administradores seleccionan sucursal -->
                                     <div class="mb-3">
                                         <label for="sucursalMovimiento" class="form-label">
                                             Sucursal <span class="text-danger">*</span>
@@ -41,6 +42,15 @@
                                             <option value="{{ s.id }}">{{ s.nombre }}</option>
                                             {% endfor %}
                                         </select>
+                                    </div>
+                                    {% else %}
+                                    <!-- Secretarias usan su sucursal asignada automáticamente -->
+                                    <div class="mb-3">
+                                        <label for="sucursalMovimientoFija" class="form-label">Sucursal</label>
+                                        <input type="text" class="form-control" id="sucursalMovimientoFija" 
+                                               value="{{ sucursal_asignada.nombre if sucursal_asignada else 'N/A' }}" 
+                                               readonly style="background-color: #e9ecef; font-weight: 600;">
+                                        <input type="hidden" name="sucursal_id" value="{{ sucursal_asignada.id if sucursal_asignada else '' }}">
                                     </div>
                                     {% endif %}
                                     <div class="mb-3">

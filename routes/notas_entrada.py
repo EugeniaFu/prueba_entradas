@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request, current_app, send_file, redirect, url_for, session
 from datetime import datetime, timedelta
 from utils.db import get_db_connection
-# Importar función de folio centralizada desde inventario
-from routes.inventario import obtener_siguiente_folio_nota_sucursal
+# Importar función de folio centralizada desde utils
+from utils.folios import obtener_siguiente_folio_nota_sucursal
 # Importar funciones de datetime utils
 from utils.datetime_utils import get_local_now, format_datetime_local
 from utils.decorators import requiere_sesion, requiere_permiso
@@ -39,13 +39,13 @@ def preview_nota_entrada(renta_id):
         conn.close()
         return jsonify({'error': 'Renta no encontrada'}), 404
     
-    # Bloquear nota de entrada para rentas asociadas
-    if sucursal_row['renta_asociada_id'] is not None:
+    # Bloquear nota de entrada para rentas finalizadas
+    if sucursal_row['estado_renta'] in ['finalizada', 'renovación finalizada', 'cancelada']:
         cursor.close()
         conn.close()
         return jsonify({
-            'error': 'No se puede crear nota de entrada para rentas asociadas',
-            'message': 'Esta es una renovación parcial. No requiere nota de entrada ya que el equipo nunca regresó físicamente.'
+            'error': 'Renta Finalizada',
+            'message': 'No se puede crear nota de entrada porque esta renta ya fue finalizada, renovada o cancelada.'
         }), 403
 
     sucursal_id = sucursal_row['id_sucursal']
@@ -68,13 +68,15 @@ def preview_nota_entrada(renta_id):
         conn.close()
         return jsonify({'error': 'Renta no encontrada'}), 404
 
-    # Obtener folio de salida y nota_salida_id (incluir rentas con estado "Renta parcial")
+    padre_real_id = sucursal_row['renta_asociada_id'] if sucursal_row['renta_asociada_id'] else renta_id
+
+    # Obtener folio de salida y nota_salida_id del padre real
     cursor.execute("""
         SELECT folio, id AS nota_salida_id
         FROM notas_salida
         WHERE renta_id = %s
         ORDER BY id DESC LIMIT 1
-    """, (renta_id,))
+    """, (padre_real_id,))
     ns_row = cursor.fetchone()
     folio_salida = str(ns_row['folio']).zfill(5) if ns_row and ns_row['folio'] is not None else '-----'
     nota_salida_id = ns_row['nota_salida_id'] if ns_row else None
@@ -154,13 +156,13 @@ def preview_nota_entrada(renta_id):
             (nsd.cantidad - IFNULL(SUM(ned.cantidad_recibida), 0)) AS cantidad_pendiente
         FROM notas_salida_detalle nsd
         JOIN piezas p ON nsd.id_pieza = p.id_pieza
-        LEFT JOIN notas_entrada ne ON ne.renta_id = %s
+        LEFT JOIN notas_entrada ne ON (ne.renta_id = %s OR ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s))
         LEFT JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne.id AND ned.id_pieza = nsd.id_pieza
         WHERE nsd.nota_salida_id = %s
         GROUP BY nsd.id_pieza, p.nombre_pieza, nsd.cantidad
         HAVING cantidad_pendiente > 0
         ORDER BY p.nombre_pieza
-    """, (renta_id, nota_salida_id))
+    """, (renta_id, padre_real_id, padre_real_id, nota_salida_id))
     piezas_pendientes = cursor.fetchall()
 
     # Si hay piezas pendientes, muestra solo esas
@@ -221,13 +223,13 @@ def crear_nota_entrada(renta_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Verificar si es una renta asociada antes de crear la nota
-        cursor.execute("SELECT renta_asociada_id FROM rentas WHERE id = %s", (renta_id,))
+        # Verificar si la renta ya está finalizada
+        cursor.execute("SELECT estado_renta FROM rentas WHERE id = %s", (renta_id,))
         renta_check = cursor.fetchone()
-        if renta_check and renta_check['renta_asociada_id'] is not None:
+        if renta_check and renta_check['estado_renta'] in ['finalizada', 'renovación finalizada', 'cancelada']:
             return jsonify({
                 'success': False, 
-                'error': 'No se puede crear nota de entrada para rentas asociadas. Esta es una renovación parcial que no requiere devolución física del equipo.'
+                'error': 'No se puede crear nota de entrada porque la renta ya está finalizada o cancelada.'
             }), 403
 
         # --- Lógica para distinguir renovación total vs parcial ---
@@ -238,13 +240,18 @@ def crear_nota_entrada(renta_id):
         """, (renta_id,))
         total_renovaciones = cursor.fetchone()['total_renovaciones']
 
-        # Obtener piezas de la nota de salida (todas las piezas que salieron)
+        # Obtener padre_real_id
+        cursor.execute("SELECT renta_asociada_id FROM rentas WHERE id = %s", (renta_id,))
+        renta_row = cursor.fetchone()
+        padre_real_id = renta_row['renta_asociada_id'] if renta_row and renta_row['renta_asociada_id'] else renta_id
+
+        # Obtener piezas de la nota de salida (todas las piezas que salieron del padre inicial)
         cursor.execute("""
             SELECT nsd.id_pieza, nsd.cantidad AS cantidad_salida
             FROM notas_salida ns
             JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
             WHERE ns.renta_id = %s
-        """, (renta_id,))
+        """, (padre_real_id,))
         piezas_salida = cursor.fetchall()
         total_piezas_salida = sum([p['cantidad_salida'] for p in piezas_salida])
         total_piezas_recibidas = sum([int(p.get('cantidad_recibida', 0)) for p in piezas])
@@ -385,12 +392,12 @@ def crear_nota_entrada(renta_id):
                     IFNULL(SUM(ned.cantidad_recibida), 0) AS cantidad_recibida_total,
                     (nsd.cantidad - IFNULL(SUM(ned.cantidad_recibida), 0)) AS cantidad_pendiente
                 FROM notas_salida_detalle nsd
-                LEFT JOIN notas_entrada ne ON ne.renta_id = %s
+                LEFT JOIN notas_entrada ne ON (ne.renta_id = %s OR ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s))
                 LEFT JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne.id AND ned.id_pieza = nsd.id_pieza
                 WHERE nsd.nota_salida_id = %s
                 GROUP BY nsd.id_pieza, nsd.cantidad
                 HAVING cantidad_pendiente > 0
-            """, (renta_id, nota_salida_id))
+            """, (renta_id, padre_real_id, padre_real_id, nota_salida_id))
             piezas_pendientes = cursor.fetchall()
 
             if len(piezas_pendientes) == 0:

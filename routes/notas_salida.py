@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, redirect, request, send_file, current_app, url_for, session
 from datetime import datetime, timedelta
 from utils.db import get_db_connection
-# Importar función de folio centralizada desde inventario
-from routes.inventario import obtener_siguiente_folio_nota_sucursal
+# Importar función de folio centralizada desde utils
+from utils.folios import obtener_siguiente_folio_nota_sucursal
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from PyPDF2 import PdfReader, PdfWriter

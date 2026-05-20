@@ -22,6 +22,7 @@ PERMISOS_SISTEMA = [
     
     # Módulo de Inventario de Sucursal
     ('ver_inventario_sucursal', 'Ver el inventario de la sucursal asignada'),
+    ('agregar_piezas_inventario_sucursal', 'Dar de alta equipos nuevos en el inventario de la sucursal'),
     ('mandar_pieza_reparacion', 'Mandar piezas a reparación desde la sucursal'),
     ('regresar_pieza_disponible', 'Regresar piezas a disponibles desde la sucursal'),
     

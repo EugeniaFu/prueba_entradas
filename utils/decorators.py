@@ -4,17 +4,21 @@ Proporciona control de acceso basado en sesión y permisos
 """
 
 from functools import wraps
-from flask import session, flash, redirect, url_for
+from flask import session, flash, redirect, url_for, request, jsonify
 
 def requiere_sesion():
     """
     Decorador que requiere que el usuario tenga una sesión activa.
-    Si no hay sesión, redirige al login.
+    Si no hay sesión, redirige al login (o retorna JSON si es petición AJAX).
     """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not session.get('user_id'):
+                # Si es petición JSON/AJAX, retornar JSON
+                if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                    return jsonify({'success': False, 'error': 'Debes iniciar sesión para acceder a esta función.'}), 401
+                # Si es petición normal, redirigir
                 flash('Debes iniciar sesión para acceder a esta página.', 'warning')
                 return redirect(url_for('login.login'))
             return f(*args, **kwargs)
@@ -38,12 +42,62 @@ def requiere_permiso(nombre_permiso):
         def decorated_function(*args, **kwargs):
             # Verificar sesión
             if not session.get('user_id'):
+                # Si es petición JSON/AJAX, retornar JSON
+                if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                    return jsonify({'success': False, 'error': 'Debes iniciar sesión para acceder a esta función.'}), 401
+                # Si es petición normal, redirigir
                 flash('Debes iniciar sesión para acceder a esta página.', 'warning')
                 return redirect(url_for('login.login'))
             
             # Verificar permisos específicos (sin excepciones por rol)
             permisos = session.get('permisos', [])
             if nombre_permiso not in permisos:
+                # Si es petición JSON/AJAX, retornar JSON
+                if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                    return jsonify({'success': False, 'error': 'No tienes permiso para realizar esta acción.'}), 403
+                # Si es petición normal, redirigir
+                flash('No tienes permiso para acceder a esta sección.', 'danger')
+                return redirect(url_for('login.login'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def requiere_uno_de_permisos(*permisos_requeridos):
+    """
+    Decorador que verifica si el usuario tiene AL MENOS UNO de los permisos especificados.
+    Útil cuando una acción puede ser realizada por diferentes roles con diferentes permisos.
+    
+    Ejemplo de uso:
+        @requiere_uno_de_permisos('modificar_existencias_inventario_general', 'agregar_piezas_inventario_sucursal')
+        def alta_equipo():
+            ...
+    
+    Args:
+        *permisos_requeridos: Lista variable de nombres de permisos (el usuario necesita AL MENOS UNO)
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Verificar sesión
+            if not session.get('user_id'):
+                # Si es petición JSON/AJAX, retornar JSON
+                if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                    return jsonify({'success': False, 'error': 'Debes iniciar sesión para acceder a esta función.'}), 401
+                # Si es petición normal, redirigir
+                flash('Debes iniciar sesión para acceder a esta página.', 'warning')
+                return redirect(url_for('login.login'))
+            
+            # Verificar si el usuario tiene AL MENOS UNO de los permisos requeridos
+            permisos_usuario = session.get('permisos', [])
+            tiene_permiso = any(permiso in permisos_usuario for permiso in permisos_requeridos)
+            
+            if not tiene_permiso:
+                # Si es petición JSON/AJAX, retornar JSON
+                if request.is_json or request.headers.get('Content-Type') == 'application/json':
+                    return jsonify({'success': False, 'error': 'No tienes permiso para realizar esta acción.'}), 403
+                # Si es petición normal, redirigir
                 flash('No tienes permiso para acceder a esta sección.', 'danger')
                 return redirect(url_for('login.login'))
             

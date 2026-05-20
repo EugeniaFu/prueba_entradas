@@ -3,92 +3,7 @@
 {% block title %}Reportes Diarios - Andamios Colosio{% endblock %}
 
 {% block head %}
-<style>
-.reporte-section {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-    border-left: 4px solid #007bff;
-}
-
-.reporte-section h4 {
-    color: #007bff;
-    font-weight: 600;
-    margin-bottom: 15px;
-}
-
-.reporte-item {
-    background: white;
-    border-radius: 6px;
-    padding: 15px;
-    margin-bottom: 10px;
-    border: 1px solid #e9ecef;
-    transition: box-shadow 0.2s;
-}
-
-.reporte-item:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.reporte-salida {
-    border-left: 4px solid #dc3545;
-}
-
-.reporte-entrada {
-    border-left: 4px solid #28a745;
-}
-
-.reporte-extra {
-    border-left: 4px solid #ffc107;
-}
-
-.cliente-info {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 5px;
-}
-
-.obra-info {
-    color: #6c757d;
-    font-size: 0.9em;
-    margin-bottom: 8px;
-}
-
-.piezas-info {
-    color: #495057;
-    font-size: 0.95em;
-    background: #f8f9fa;
-    padding: 8px;
-    border-radius: 4px;
-}
-
-.folio-fecha {
-    text-align: right;
-    color: #6c757d;
-    font-size: 0.85em;
-}
-
-.no-data {
-    text-align: center;
-    color: #6c757d;
-    font-style: italic;
-    padding: 20px;
-}
-
-.filtros-section {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    margin-bottom: 25px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.icon-section {
-    font-size: 1.2em;
-    margin-right: 8px;
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reportes.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -107,6 +22,8 @@
     <!-- Filtros -->
     <div class="filtros-section">
         <form method="GET" class="row g-3 align-items-end">
+            {% if es_admin %}
+            <!-- Solo administradores pueden cambiar de sucursal -->
             <div class="col-md-4">
                 <label for="sucursal_id" class="form-label">Sucursal:</label>
                 <select class="form-select" id="sucursal_id" name="sucursal_id">
@@ -117,6 +34,13 @@
                     {% endfor %}
                 </select>
             </div>
+            {% else %}
+            <!-- Secretarias solo ven su sucursal asignada -->
+            <div class="col-md-4">
+                <label for="sucursal_fija" class="form-label">Sucursal:</label>
+                <input type="text" class="form-control" id="sucursal_fija" value="{{ sucursal.nombre }}" readonly style="background-color: #e9ecef; font-weight: 600;">
+            </div>
+            {% endif %}
             <div class="col-md-4">
                 <label for="fecha" class="form-label">Fecha:</label>
                 <input type="date" class="form-control" id="fecha" name="fecha" value="{{ fecha_consulta }}">
@@ -279,7 +203,8 @@
 <script>
 function exportarPDF() {
     // Obtener parámetros actuales
-    const sucursalId = document.getElementById('sucursal_id').value;
+    const sucursalSelect = document.getElementById('sucursal_id');
+    const sucursalId = sucursalSelect ? sucursalSelect.value : '{{ sucursal.id }}';
     const fecha = document.getElementById('fecha').value;
     
     // Construir URL para el PDF

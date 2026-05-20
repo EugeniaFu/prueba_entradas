@@ -20,15 +20,19 @@ def reporte_diario():
     """
     Muestra el reporte de entradas y salidas por fecha y sucursal
     """
-    # Si viene en la URL toma ese id, SI NO tiene en sesión pide la sucursal 1 (Matriz) por defecto
-    sucursal_id = request.args.get('sucursal_id', type=int)
+    # Detectar si es admin (sin sucursal asignada)
+    sucursal_id_usuario = session.get('sucursal_id')
+    es_admin = (sucursal_id_usuario is None)
     
-    if sucursal_id is None:
-        sucursal_id = session.get('sucursal_id')
-    
-    if sucursal_id is None:
-        # El admin global (sin sesión sucursal) verá la sucursal 1 por defecto al cargar si no pasa un id en el selector
-        sucursal_id = 1
+    # Si es admin, puede seleccionar cualquier sucursal
+    # Si es secretaria, solo ve su sucursal asignada
+    if es_admin:
+        sucursal_id = request.args.get('sucursal_id', type=int)
+        if sucursal_id is None:
+            sucursal_id = 1  # Matriz por defecto
+    else:
+        # Forzar la sucursal del usuario (secretarias)
+        sucursal_id = sucursal_id_usuario
         
     fecha_consulta = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
     
@@ -233,7 +237,8 @@ def reporte_diario():
                              sucursal=sucursal,
                              sucursales=sucursales,
                              fecha_consulta=fecha_consulta,
-                             fecha_formato=format_date_local(get_local_now(), '%d/%m/%Y'))
+                             fecha_formato=format_date_local(get_local_now(), '%d/%m/%Y'),
+                             es_admin=es_admin)
         
     except Exception as e:
         print(f'Error en reporte diario: {e}')
@@ -242,7 +247,8 @@ def reporte_diario():
                              sucursal=sucursal,
                              sucursales=sucursales if 'sucursales' in locals() else [],
                              fecha_consulta=fecha_consulta,
-                             fecha_formato=format_date_local(get_local_now(), '%d/%m/%Y'))
+                             fecha_formato=format_date_local(get_local_now(), '%d/%m/%Y'),
+                             es_admin=es_admin if 'es_admin' in locals() else False)
 
 
 
@@ -254,7 +260,20 @@ def reporte_diario():
 def generar_pdf_reporte_diario():
     """Genera PDF del reporte diario de movimientos"""
     try:
-        sucursal_id = request.args.get('sucursal_id', session.get('sucursal_id', 1), type=int)
+        # Detectar si es admin (sin sucursal asignada)
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        
+        # Si es admin, puede seleccionar cualquier sucursal
+        # Si es secretaria, solo ve su sucursal asignada
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                sucursal_id = 1  # Matriz por defecto
+        else:
+            # Forzar la sucursal del usuario (secretarias)
+            sucursal_id = sucursal_id_usuario
+            
         fecha_consulta = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
         
         conn = get_db_connection()
