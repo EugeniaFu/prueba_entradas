@@ -201,6 +201,9 @@ def modulo_rentas(sucursal_id=None):
     cursor.close()
     conn.close()
 
+    # Verificar si el usuario tiene permiso para ajustar precios
+    puede_ajustar_precios = 'ajustar_precios_renta' in session.get('permisos', [])
+
     return render_template(
         'rentas/index.html',
         rentas=rentas_con_estado,
@@ -213,7 +216,8 @@ def modulo_rentas(sucursal_id=None):
         sucursales=sucursales,
         sucursal_actual=sucursal_actual,
         es_admin=(sucursal_id_usuario is None),
-        rentas_pagadas=rentas_pagadas
+        rentas_pagadas=rentas_pagadas,
+        puede_ajustar_precios=puede_ajustar_precios
     )
 
 
@@ -296,10 +300,16 @@ def crear_renta():
         cantidades = request.form.getlist('cantidad[]')
         dias = request.form.getlist('dias_renta[]')
         costos = request.form.getlist('costo_unitario[]')
+        
+        # Arrays de auditoría de ajustes de precio
+        precios_base = request.form.getlist('precio_base[]')
+        tipos_ajuste = request.form.getlist('ajuste_tipo[]')
+        valores_ajuste = request.form.getlist('ajuste_valor[]')
 
         # Delegar al servicio
         success, renta_id, su_id_usada, err_msg = RentasService.crear_nueva_renta(
-            datos_renta, sucursal_para_renta, es_admin, productos, cantidades, dias, costos
+            datos_renta, sucursal_para_renta, es_admin, productos, cantidades, dias, costos,
+            precios_base, tipos_ajuste, valores_ajuste
         )
 
         if success:

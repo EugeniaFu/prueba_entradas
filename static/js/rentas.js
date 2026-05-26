@@ -185,16 +185,48 @@ document.addEventListener('DOMContentLoaded', function () {
             const sucursalSelect = document.getElementById('id_sucursal');
             const sucursalId = sucursalSelect ? sucursalSelect.value : null;
             const esEscarcega = (sucursalId === '4');
+            
+            // Verificar si el usuario tiene permiso para ajustar precios
+            const puedeAjustar = window.puedeAjustarPrecios || false;
 
-            // Configurar valores de ajuste según la sucursal
-            const ajusteTipoDefault = esEscarcega ? 'porcentaje' : 'ninguno';
-            const ajusteValorDefault = esEscarcega ? '10' : '0';
-            const ajusteValorDisabled = esEscarcega ? '' : 'disabled';
+            // Configurar valores de ajuste según la sucursal Y permisos
+            let ajusteTipoDefault, ajusteValorDefault, ajusteValorDisabled, selectDisabled;
+            
+            if (esEscarcega) {
+                // Escárcega SIEMPRE tiene 10% de aumento
+                ajusteTipoDefault = 'porcentaje';
+                ajusteValorDefault = '10';
+                if (puedeAjustar) {
+                    // Con permiso: puede modificar el ajuste
+                    ajusteValorDisabled = '';
+                    selectDisabled = '';
+                } else {
+                    // Sin permiso: 10% bloqueado (no puede cambiar)
+                    ajusteValorDisabled = 'disabled';
+                    selectDisabled = 'disabled';
+                }
+            } else {
+                // Otras sucursales
+                if (puedeAjustar) {
+                    // Con permiso: puede agregar ajustes
+                    ajusteTipoDefault = 'ninguno';
+                    ajusteValorDefault = '0';
+                    ajusteValorDisabled = 'disabled';
+                    selectDisabled = '';
+                } else {
+                    // Sin permiso: sin ajuste y deshabilitado
+                    ajusteTipoDefault = 'ninguno';
+                    ajusteValorDefault = '0';
+                    ajusteValorDisabled = 'disabled';
+                    selectDisabled = 'disabled';
+                }
+            }
             
             // Calcular precio final con ajuste si aplica
             let precioFinal = precioBase;
             if (esEscarcega) {
-                precioFinal = precioBase * 1.10; // 10% de aumento
+                // Escárcega SIEMPRE tiene 10% de aumento (independiente del permiso)
+                precioFinal = precioBase * 1.10;
             }
 
             const row = document.createElement('tr');
@@ -205,15 +237,18 @@ document.addEventListener('DOMContentLoaded', function () {
         </td>
         <td><input type="number" name="cantidad[]" class="form-control form-control-sm cantidad" min="1" value="${cantidad}"></td>
         <td><input type="number" name="dias_renta[]" class="form-control form-control-sm dias" min="1" value="${dias}" readonly></td>
-        <td><input type="number" class="form-control form-control-sm precio-base" step="0.01" min="0" value="${precioBase.toFixed(2)}" readonly></td>
         <td>
-          <select class="form-select form-select-sm ajuste-tipo">
+          <input type="number" class="form-control form-control-sm precio-base" step="0.01" min="0" value="${precioBase.toFixed(2)}" readonly>
+          <input type="hidden" name="precio_base[]" value="${precioBase.toFixed(2)}">
+        </td>
+        <td>
+          <select class="form-select form-select-sm ajuste-tipo" name="ajuste_tipo[]" ${selectDisabled}>
             <option value="ninguno" ${ajusteTipoDefault === 'ninguno' ? 'selected' : ''}>S/A</option>
             <option value="porcentaje" ${ajusteTipoDefault === 'porcentaje' ? 'selected' : ''}>%</option>
             <option value="fijo">$</option>
           </select>
         </td>
-        <td><input type="number" class="form-control form-control-sm ajuste-valor" step="0.01" value="${ajusteValorDefault}" ${ajusteValorDisabled}></td>
+        <td><input type="number" name="ajuste_valor[]" class="form-control form-control-sm ajuste-valor" step="0.01" value="${ajusteValorDefault}" ${ajusteValorDisabled}></td>
         <td><input type="number" name="costo_unitario[]" class="form-control form-control-sm costo" step="0.01" min="0" value="${precioFinal.toFixed(2)}" readonly></td>
         <td><input type="number" class="form-control form-control-sm subtotal" step="0.01" min="0" value="${(cantidad * dias * precioFinal).toFixed(2)}" readonly></td>
         <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-producto"><i class="bi bi-trash"></i></button></td>

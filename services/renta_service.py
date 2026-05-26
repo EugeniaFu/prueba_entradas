@@ -135,7 +135,7 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def crear_nueva_renta(datos_renta, sucursal_id, es_admin, productos, cantidades, dias, costos):
+    def crear_nueva_renta(datos_renta, sucursal_id, es_admin, productos, cantidades, dias, costos, precios_base, tipos_ajuste, valores_ajuste):
         """
         Calcula precios, inserta la nueva renta, inserta sus detalles 
         y actualiza los folios y totales, dentro de una transacción segura.
@@ -187,12 +187,17 @@ class RentasService:
                 subtotal = cant * dias_renta * costo_unitario
                 total += subtotal
 
+                # Obtener datos de ajuste (auditoría)
+                precio_base = float(precios_base[i]) if i < len(precios_base) else costo_unitario
+                tipo_ajuste = tipos_ajuste[i] if i < len(tipos_ajuste) else 'ninguno'
+                valor_ajuste = float(valores_ajuste[i]) if i < len(valores_ajuste) else 0
+
                 cursor.execute("""
                     INSERT INTO renta_detalle (
                         renta_id, id_producto, cantidad, dias_renta,
-                        costo_unitario, subtotal
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
-                """, (renta_id, prod_id, cant, dias_renta, costo_unitario, subtotal))
+                        costo_unitario, subtotal, precio_base, ajuste_tipo, ajuste_valor
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (renta_id, prod_id, cant, dias_renta, costo_unitario, subtotal, precio_base, tipo_ajuste, valor_ajuste))
 
             # Actualizar totales
             total += datos_renta['costo_traslado']

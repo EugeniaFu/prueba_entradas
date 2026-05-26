@@ -891,6 +891,7 @@
 {% block scripts %}
 <script>
   window.preciosProductos = {{ precios_productos | tojson }};
+  window.puedeAjustarPrecios = {{ 'true' if puede_ajustar_precios else 'false' }};
 </script>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

@@ -50,6 +50,7 @@ PERMISOS_SISTEMA = [
     ('cerrar_renta', 'Cerrar/finalizar una renta'),
     ('renovar_renta', 'Realizar la renovación de herramientas rentadas'),
     ('crear_renovacion_pendiente', 'Crear una renovación pendiente para una renta'),
+    ('ajustar_precios_renta', 'Aplicar ajustes (aumentos o descuentos) a los precios en rentas'),
     ('cobrar_retraso', 'Registrar nota de cobro por retraso'),
     ('ver_cobro_retraso', 'Ver notas de cobro por retraso'),
     ('cobrar_extra', 'Registrar nota de cobro extra por daños'),
