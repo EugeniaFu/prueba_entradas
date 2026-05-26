@@ -187,4 +187,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Recalcular totales cuando cambia traslado
     if (trasladoEl) trasladoEl.addEventListener('input', recalcularTotalesDinamicos);
+
+    // Protección contra clicks múltiples en el botón de guardar
+    const btnGuardarRenovacion = document.getElementById('btn-guardar-renovacion');
+    if (formRenovar && btnGuardarRenovacion) {
+        formRenovar.addEventListener('submit', function () {
+            btnGuardarRenovacion.disabled = true;
+            btnGuardarRenovacion.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+        });
+    }
 });

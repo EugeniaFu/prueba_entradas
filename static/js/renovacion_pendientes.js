@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     let rentaIdRenovacionActual = null;
     let pendientesRenovacion = [];
+    let formularioEnviandose = false;
 
     // Abrir modal de renovación y cargar pendientes
     document.body.addEventListener('click', function (e) {
@@ -96,6 +97,13 @@ document.addEventListener('DOMContentLoaded', function () {
     // Enviar renovación
     document.getElementById('form-renovacion-pendientes').addEventListener('submit', function (e) {
         e.preventDefault();
+        
+        // Prevenir múltiples envíos
+        if (formularioEnviandose) {
+            return;
+        }
+        formularioEnviandose = true;
+        
         const btn = document.getElementById('btn-crear-renovacion');
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creando...';
@@ -129,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Swal.fire('Error', 'Error al enviar la renovación.', 'error');
         })
         .finally(() => {
+            formularioEnviandose = false;
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-check-circle"></i> Crear renovación';
         });
