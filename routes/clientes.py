@@ -188,68 +188,35 @@ def buscar_clientes():
 @clientes_bp.route('/api/colonias/<codigo_postal>')
 @requiere_sesion()
 def obtener_colonias_por_cp(codigo_postal):
-   
-    COPOMEX_TOKEN = os.getenv('COPOMEX_TOKEN')
-    
+    """
+    Busca colonias por código postal
+    Método: JSON Local (rápido)
+    """
     try:
-        # Opción 1: CopomexAPI (PRINCIPAL)
-        url = f"https://api.copomex.com/query/info_cp/{codigo_postal}?token={COPOMEX_TOKEN}"
-        response = requests.get(url, timeout=8)
+        from utils.codigos_postales import CodigosPostalesJSON
         
-        if response.status_code == 200:
-            data = response.json()
-            
-            # CopomexAPI devuelve lista con objetos response
-            if isinstance(data, list) and len(data) > 0 and 'response' in data[0]:
-                todas_colonias = []
-                primer_item = data[0]['response']
+        buscador_json = CodigosPostalesJSON()
+        resultado_json = buscador_json.buscar_colonias(codigo_postal)
+        
+        if resultado_json['success']:
+            return jsonify({
+                'success': True,
+                'estado': resultado_json['estado'],
+                'municipio': resultado_json['municipio'], 
+                'colonias': resultado_json['colonias'],
+                'fuente': 'JSON Local'
+            })
+        else:
+            # CP no encontrado, activar llenado manual
+            return jsonify({
+                'success': False, 
+                'message': f'CP {codigo_postal} no encontrado. Llena los datos manualmente.'
+            })
                 
-                for item in data:
-                    if not item.get('error') and 'response' in item:
-                        colonia = item['response'].get('asentamiento', '')
-                        if colonia:
-                            todas_colonias.append(colonia)
-                
-                if todas_colonias:
-                    return jsonify({
-                        'success': True,
-                        'estado': primer_item.get('estado', ''),
-                        'municipio': primer_item.get('municipio', ''),
-                        'colonias': sorted(list(set(todas_colonias))),
-                        'fuente': 'CopomexAPI'
-                    })
-        
-        # Opción 2: EXCEL LOCAL 
-        try:
-            from utils.codigos_postales import CodigosPostalesExcel
-            
-            buscador_excel = CodigosPostalesExcel()
-            resultado_excel = buscador_excel.buscar_colonias(codigo_postal)
-            
-            if resultado_excel['success']:
-                return jsonify({
-                    'success': True,
-                    'estado': resultado_excel['estado'],
-                    'municipio': resultado_excel['municipio'], 
-                    'colonias': resultado_excel['colonias'],
-                    'fuente': resultado_excel['fuente']
-                })
-            else:
-                pass
-                
-        except Exception as excel_error:
-            pass
-        
-        # Si Excel Local falla, activar llenado manual
-        return jsonify({
-            'success': False, 
-            'message': f'CP {codigo_postal} no encontrado. Llena los datos manualmente.'
-        })
-        
     except Exception as e:
         return jsonify({
             'success': False, 
-            'message': 'Error de conexión. Intenta de nuevo o llena manualmente.'
+            'message': 'Error al buscar código postal. Llena los datos manualmente.'
         })
 
 
