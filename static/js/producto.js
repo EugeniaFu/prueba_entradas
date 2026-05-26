@@ -162,18 +162,4 @@ document.addEventListener('DOMContentLoaded', function () {
       mostrarSelectorPiezas();
     });
   }
-
-
-  document.addEventListener('DOMContentLoaded', function () {
-    const formNuevoProducto = document.getElementById('form-nuevo-producto');
-    const btnGuardarProducto = document.getElementById('btn-guardar-producto');
-    if (formNuevoProducto && btnGuardarProducto) {
-      formNuevoProducto.addEventListener('submit', function () {
-        btnGuardarProducto.disabled = true;
-        btnGuardarProducto.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
-      });
-    }
-  });
-
-
 });

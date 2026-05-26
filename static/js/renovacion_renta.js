@@ -34,18 +34,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return dias < 1 ? 1 : dias;
     }
 
-    // Obtener precio según días y producto
-    function obtenerPrecioProducto(productoId, dias) {
-        const precios = window.preciosProductos ? window.preciosProductos[String(productoId)] : null;
-        if (!precios) return 0;
-        if (precios.precio_unico === 1) return precios.precio_dia;
-        if (dias <= 2) return precios.precio_dia;
-        if (dias >= 3 && dias <= 14) return precios.precio_7dias;
-        if (dias >= 15 && dias <= 29) return precios.precio_15dias;
-        if (dias >= 30) return precios.precio_30dias;
-        return precios.precio_dia;
-    }
-
     // Recalcular totales dinámicos
     function recalcularTotalesDinamicos() {
         let subtotal = 0;
@@ -92,11 +80,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (diasInput && costoInput && productoIdInput) {
                 diasInput.value = dias;
-                // Si el campo tiene data-fijo, no actualizar el precio
-                if (!costoInput.hasAttribute('data-fijo') || costoInput.getAttribute('data-fijo') !== '1') {
-                    const precio = obtenerPrecioProducto(productoIdInput.value, dias);
-                    costoInput.value = precio.toFixed(2);
-                }
+                // El precio nunca se recalcula en renovaciones - siempre usa costo_unitario original
             }
         });
 
@@ -135,17 +119,15 @@ document.addEventListener('DOMContentLoaded', function () {
                             ? (Number(p.cantidad_pendiente) || 1)
                             : (Number(p.cantidad) || 1);
                         const dias = calcularDiasRenta();
-                        // Usar precio original en renovaciones completas
-                        const precio = (tipo === 'completa' && p.costo_unitario !== undefined)
-                            ? parseFloat(p.costo_unitario)
-                            : obtenerPrecioProducto(p.id_producto, dias);
+                        // SIEMPRE usar precio original guardado en costo_unitario
+                        const precio = p.costo_unitario !== undefined ? parseFloat(p.costo_unitario) : 0;
 
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td><input type="hidden" name="producto_id[]" value="${p.id_producto}">${p.nombre}</td>
                             <td><input type="number" name="cantidad[]" class="form-control cantidad" min="1" value="${cantidad}"></td>
                             <td><input type="number" name="dias_renta[]" class="form-control dias" min="1" value="${dias}" readonly style="width:50px;"></td>
-                            <td><input type="number" name="costo_unitario[]" class="form-control costo" step="0.01" min="0" value="${precio.toFixed(2)}" readonly data-fijo="${tipo === 'completa' ? '1' : ''}"></td>
+                            <td><input type="number" name="costo_unitario[]" class="form-control costo" step="0.01" min="0" value="${precio.toFixed(2)}" readonly data-fijo="1"></td>
                             <td><input type="number" class="form-control subtotal" step="0.01" min="0" value="${(cantidad*dias*precio).toFixed(2)}" readonly></td>
                             <td><button type="button" class="btn btn-danger btn-sm btn-quitar"><i class="bi bi-trash"></i></button></td>
                         `;

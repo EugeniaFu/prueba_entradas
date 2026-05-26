@@ -275,17 +275,38 @@ class RentasService:
             # Actualizar fecha_entrada en rentas
             cursor.execute("UPDATE rentas SET fecha_entrada = %s WHERE id = %s", (nueva_fecha_obj, renta_id))
 
-            # Obtener detalles para actualizar días y subtotal
-            cursor.execute("SELECT id, cantidad, costo_unitario FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+            # Obtener detalles con id_producto para recalcular precios
+            cursor.execute("SELECT id, id_producto, cantidad FROM renta_detalle WHERE renta_id = %s", (renta_id,))
             detalles = cursor.fetchall()
 
             total = 0
             for detalle in detalles:
-                detalle_id, cantidad, costo_unitario = detalle
-                subtotal = cantidad * dias_renta * float(costo_unitario)
+                detalle_id, prod_id, cantidad = detalle
+                
+                # Obtener precios del producto
+                cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (prod_id,))
+                precios = cursor.fetchone()
+                cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (prod_id,))
+                precio_unico_row = cursor.fetchone()
+                precio_unico = precio_unico_row[0] if precio_unico_row else 0
+
+                # Recalcular precio según días (misma lógica que crear_nueva_renta)
+                if precio_unico == 1:
+                    costo_unitario = float(precios[0])
+                else:
+                    if dias_renta <= 2:
+                        costo_unitario = float(precios[0])
+                    elif dias_renta <= 14:
+                        costo_unitario = float(precios[1])
+                    elif dias_renta <= 29:
+                        costo_unitario = float(precios[2])
+                    else:
+                        costo_unitario = float(precios[3])
+
+                subtotal = cantidad * dias_renta * costo_unitario
                 cursor.execute("""
-                    UPDATE renta_detalle SET dias_renta = %s, subtotal = %s WHERE id = %s
-                """, (dias_renta, subtotal, detalle_id))
+                    UPDATE renta_detalle SET dias_renta = %s, costo_unitario = %s, subtotal = %s WHERE id = %s
+                """, (dias_renta, costo_unitario, subtotal, detalle_id))
                 total += subtotal
 
             total += costo_traslado
@@ -411,15 +432,36 @@ class RentasService:
             if dias_renta < 1:
                 dias_renta = 1
 
-            # Actualizar cada detalle de la renta
-            cursor.execute("SELECT id, cantidad, costo_unitario FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+            # Actualizar cada detalle de la renta con recálculo de precios
+            cursor.execute("SELECT id, id_producto, cantidad FROM renta_detalle WHERE renta_id = %s", (renta_id,))
             detalles = cursor.fetchall()
             for detalle in detalles:
-                detalle_id, cantidad, costo_unitario = detalle
-                subtotal = cantidad * dias_renta * float(costo_unitario)
+                detalle_id, prod_id, cantidad = detalle
+                
+                # Obtener precios del producto
+                cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (prod_id,))
+                precios = cursor.fetchone()
+                cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (prod_id,))
+                precio_unico_row = cursor.fetchone()
+                precio_unico = precio_unico_row[0] if precio_unico_row else 0
+
+                # Recalcular precio según días (misma lógica que crear_nueva_renta)
+                if precio_unico == 1:
+                    costo_unitario = float(precios[0])
+                else:
+                    if dias_renta <= 2:
+                        costo_unitario = float(precios[0])
+                    elif dias_renta <= 14:
+                        costo_unitario = float(precios[1])
+                    elif dias_renta <= 29:
+                        costo_unitario = float(precios[2])
+                    else:
+                        costo_unitario = float(precios[3])
+
+                subtotal = cantidad * dias_renta * costo_unitario
                 cursor.execute("""
-                    UPDATE renta_detalle SET dias_renta = %s, subtotal = %s WHERE id = %s
-                """, (dias_renta, subtotal, detalle_id))
+                    UPDATE renta_detalle SET dias_renta = %s, costo_unitario = %s, subtotal = %s WHERE id = %s
+                """, (dias_renta, costo_unitario, subtotal, detalle_id))
 
             # Recalcular totales
             cursor.execute("SELECT SUM(subtotal) FROM renta_detalle WHERE renta_id = %s", (renta_id,))
