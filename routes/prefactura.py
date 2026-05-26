@@ -65,53 +65,14 @@ def obtener_prefactura(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
-    # Obtener detalle de productos y recalcular precios con nueva lógica
+    # Obtener detalle de productos con precios históricos (ya guardados en renta_detalle)
     cursor.execute("""
-        SELECT p.nombre, d.cantidad, d.dias_renta, d.id_producto, d.subtotal
+        SELECT p.nombre, d.cantidad, d.dias_renta, d.costo_unitario, d.subtotal
         FROM renta_detalle d
         JOIN productos p ON d.id_producto = p.id_producto
         WHERE d.renta_id = %s
     """, (renta_id,))
-    detalle_raw = cursor.fetchall()
-    
-    # Recalcular precios con la nueva lógica de BD
-    detalle = []
-    for item in detalle_raw:
-        producto_id = item['id_producto']
-        dias_renta = item['dias_renta']
-        cantidad = item['cantidad']
-        
-        # Obtener precios actualizados de la BD
-        cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (producto_id,))
-        precios = cursor.fetchone()
-        
-        # Obtener si es precio único
-        cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (producto_id,))
-        precio_unico = cursor.fetchone()['precio_unico']
-        
-        # Aplicar nueva lógica de precios
-        if precio_unico == 1:
-            costo_unitario = float(precios['precio_dia'])
-        else:
-            if dias_renta <= 2:
-                costo_unitario = float(precios['precio_dia'])          # 1-2 días
-            elif dias_renta <= 14:
-                costo_unitario = float(precios['precio_14_dias'])      # 3-14 días
-            elif dias_renta <= 29:
-                costo_unitario = float(precios['precio_29_dias'])      # 15-29 días
-            else:
-                costo_unitario = float(precios['precio_30_dias'])      # 30+ días
-        
-        # Recalcular subtotal
-        subtotal_recalculado = cantidad * dias_renta * costo_unitario
-        
-        detalle.append({
-            'nombre': item['nombre'],
-            'cantidad': cantidad,
-            'dias_renta': dias_renta,
-            'costo_unitario': costo_unitario,
-            'subtotal': subtotal_recalculado
-        })
+    detalle = cursor.fetchall()
     
     # Totales y traslado
     cursor.execute("""
