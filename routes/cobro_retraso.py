@@ -104,29 +104,19 @@ def preview_cobro_retraso(renta_id):
             conn.close()
             return jsonify({'error': 'No hay nota de entrada para esta renta'}), 404
 
-        # LÓGICA CORREGIDA: Para cálculo de retraso, usar la renovación más reciente SIN importar estado
-        # porque si hubo renovación, esa fecha extiende el límite aunque ya esté finalizada
-        print(f"DEBUG: Buscando renovaciones para renta_padre_id: {renta_padre_id}")
-        cursor.execute("""
-            SELECT r.id, r.fecha_entrada, r.estado_renta
-            FROM rentas r
-            WHERE r.renta_asociada_id = %s
-            ORDER BY r.fecha_entrada DESC LIMIT 1
-        """, (renta_padre_id,))
-        renovacion = cursor.fetchone()
-        print(f"DEBUG: Renovacion encontrada: {renovacion}")
 
-        fecha_base = None
-        if renovacion and renovacion['fecha_entrada']:
-            fecha_base = renovacion['fecha_entrada']  # Usa la fecha de la renovación más reciente
-            print(f"DEBUG: Usando fecha de renovación: {fecha_base}")
-        elif renta_padre['fecha_entrada']:
-            fecha_base = renta_padre['fecha_entrada']  # Usa la fecha original
-            print(f"DEBUG: Usando fecha original: {fecha_base}")
+        # LÓGICA CORREGIDA: Usar la fecha de la renta desde donde se está cobrando el retraso
+        # - Si se cobra desde la renta original: usa fecha original
+        # - Si se cobra desde una renovación: usa fecha de renovación
+        # Esto permite cobrar el retraso de devoluciones parciales correctamente
+        print(f"DEBUG: Calculando retraso para renta_id: {renta_id}")
+        
+        fecha_base = renta_actual['fecha_entrada']  # Usar la fecha de la renta que se está cobrando
+        print(f"DEBUG: Usando fecha de entrada de renta {renta_id}: {fecha_base}")
 
         tipo_traslado = (renta_padre['traslado'] or 'ninguno').lower()
 
-        # Calcular días de retraso usando la fecha base correcta
+        # Calcular días de retraso desde la fecha de entrada de la renta actual
         dias_retraso = 0
         if fecha_base and nota['fecha_entrada_real']:
             if isinstance(fecha_base, datetime):
