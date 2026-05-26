@@ -182,26 +182,8 @@ class RentasService:
                 dias_renta_raw = dias[i]
                 dias_renta = 1 if dias_renta_raw in (None, '', 'null') else max(1, int(dias_renta_raw))
 
-                # Obtener la lógica de precios
-                cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (prod_id,))
-                precios = cursor.fetchone()
-                cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (prod_id,))
-                precio_unico_row = cursor.fetchone()
-                precio_unico = precio_unico_row[0] if precio_unico_row else 0
-
-                # Selección dinámica según días
-                if precio_unico == 1:
-                    costo_unitario = float(precios[0])
-                else:
-                    if dias_renta <= 2:
-                        costo_unitario = float(precios[0])
-                    elif dias_renta <= 14:
-                        costo_unitario = float(precios[1])
-                    elif dias_renta <= 29:
-                        costo_unitario = float(precios[2])
-                    else:
-                        costo_unitario = float(precios[3])
-
+                # Usar el costo_unitario que viene del frontend (ya incluye ajustes de precio)
+                costo_unitario = float(costos[i])
                 subtotal = cant * dias_renta * costo_unitario
                 total += subtotal
 

@@ -93,6 +93,32 @@ document.addEventListener('DOMContentLoaded', function () {
         return precios.precio_dia;
     }
 
+    // Función para recalcular una fila con ajuste de precio
+    function recalcularFilaConAjuste(fila) {
+        const cantidad = parseFloat(fila.querySelector('.cantidad').value) || 0;
+        const dias = parseFloat(fila.querySelector('.dias').value) || 0;
+        const precioBase = parseFloat(fila.querySelector('.precio-base').value) || 0;
+        const tipoAjuste = fila.querySelector('.ajuste-tipo').value;
+        const valorAjuste = parseFloat(fila.querySelector('.ajuste-valor').value) || 0;
+        
+        let precioFinal = precioBase;
+        
+        if (tipoAjuste === 'porcentaje') {
+            precioFinal = precioBase * (1 + valorAjuste / 100);
+        } else if (tipoAjuste === 'fijo') {
+            precioFinal = precioBase + valorAjuste;
+        }
+        
+        // Asegurar que el precio final no sea negativo
+        if (precioFinal < 0) precioFinal = 0;
+        
+        const costoInput = fila.querySelector('.costo');
+        const subtotalInput = fila.querySelector('.subtotal');
+        
+        costoInput.value = precioFinal.toFixed(2);
+        subtotalInput.value = (cantidad * dias * precioFinal).toFixed(2);
+    }
+
     // Actualizar días y precios en la tabla de productos
     function actualizarDiasYPrecios() {
         const dias = calcularDiasRenta();
@@ -107,22 +133,29 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         document.querySelectorAll('#tabla-productos tr').forEach(fila => {
             const productoIdInput = fila.querySelector('input[name="producto_id[]"]');
-            const costoInput = fila.querySelector('.costo');
-            const cantidadInput = fila.querySelector('.cantidad');
-            const subtotalInput = fila.querySelector('.subtotal');
-            if (productoIdInput && costoInput && cantidadInput && subtotalInput) {
+            const precioBaseInput = fila.querySelector('.precio-base');
+            if (productoIdInput && precioBaseInput) {
                 const productoId = productoIdInput.value;
-                let precio = 0;
-                let subtotal = 0;
+                let precioBase = 0;
                 if (dias !== null) {
-                    precio = obtenerPrecioProducto(productoId, dias);
-                    subtotal = (parseFloat(cantidadInput.value) * dias * precio);
+                    precioBase = obtenerPrecioProducto(productoId, dias);
                 }
-                costoInput.value = precio.toFixed(2);
-                subtotalInput.value = subtotal.toFixed(2);
+                precioBaseInput.value = precioBase.toFixed(2);
+                // Recalcular con ajuste aplicado
+                recalcularFilaConAjuste(fila);
             }
         });
         calcularTotales();
+    }
+
+    // Función para actualizar visibilidad del mensaje
+    function actualizarMensajeSinProductos() {
+        const mensajeSinProductos = document.getElementById('mensaje_sin_productos');
+        const tbody = document.querySelector('#tabla-productos tbody');
+        if (mensajeSinProductos && tbody) {
+            const tieneProductos = tbody.querySelectorAll('tr').length > 0;
+            mensajeSinProductos.style.display = tieneProductos ? 'none' : 'block';
+        }
     }
 
     // Listeners para fechas
@@ -144,9 +177,25 @@ document.addEventListener('DOMContentLoaded', function () {
             const productoNombre = selectProducto.options[selectProducto.selectedIndex].text;
             const cantidad = parseInt(inputCantidad.value) || 1;
             const dias = calcularDiasRenta();
-            const precio = obtenerPrecioProducto(productoId, dias);
+            const precioBase = obtenerPrecioProducto(productoId, dias);
 
             if (!productoId) return;
+
+            // Verificar si la sucursal es Escárcega (ID 4) para aplicar ajuste automático del 10%
+            const sucursalSelect = document.getElementById('id_sucursal');
+            const sucursalId = sucursalSelect ? sucursalSelect.value : null;
+            const esEscarcega = (sucursalId === '4');
+
+            // Configurar valores de ajuste según la sucursal
+            const ajusteTipoDefault = esEscarcega ? 'porcentaje' : 'ninguno';
+            const ajusteValorDefault = esEscarcega ? '10' : '0';
+            const ajusteValorDisabled = esEscarcega ? '' : 'disabled';
+            
+            // Calcular precio final con ajuste si aplica
+            let precioFinal = precioBase;
+            if (esEscarcega) {
+                precioFinal = precioBase * 1.10; // 10% de aumento
+            }
 
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -154,13 +203,23 @@ document.addEventListener('DOMContentLoaded', function () {
           <input type="hidden" name="producto_id[]" value="${productoId}">
           ${productoNombre}
         </td>
-        <td><input type="number" name="cantidad[]" class="form-control cantidad" min="1" value="${cantidad}"></td>
-        <td><input type="number" name="dias_renta[]" class="form-control dias" min="1" value="${dias}" readonly></td>
-        <td><input type="number" name="costo_unitario[]" class="form-control costo" step="0.01" min="0" value="${precio.toFixed(2)}" readonly></td>
-        <td><input type="number" class="form-control subtotal" step="0.01" min="0" value="${(cantidad * dias * precio).toFixed(2)}" readonly></td>
+        <td><input type="number" name="cantidad[]" class="form-control form-control-sm cantidad" min="1" value="${cantidad}"></td>
+        <td><input type="number" name="dias_renta[]" class="form-control form-control-sm dias" min="1" value="${dias}" readonly></td>
+        <td><input type="number" class="form-control form-control-sm precio-base" step="0.01" min="0" value="${precioBase.toFixed(2)}" readonly></td>
+        <td>
+          <select class="form-select form-select-sm ajuste-tipo">
+            <option value="ninguno" ${ajusteTipoDefault === 'ninguno' ? 'selected' : ''}>S/A</option>
+            <option value="porcentaje" ${ajusteTipoDefault === 'porcentaje' ? 'selected' : ''}>%</option>
+            <option value="fijo">$</option>
+          </select>
+        </td>
+        <td><input type="number" class="form-control form-control-sm ajuste-valor" step="0.01" value="${ajusteValorDefault}" ${ajusteValorDisabled}></td>
+        <td><input type="number" name="costo_unitario[]" class="form-control form-control-sm costo" step="0.01" min="0" value="${precioFinal.toFixed(2)}" readonly></td>
+        <td><input type="number" class="form-control form-control-sm subtotal" step="0.01" min="0" value="${(cantidad * dias * precioFinal).toFixed(2)}" readonly></td>
         <td><button type="button" class="btn btn-danger btn-sm btn-eliminar-producto"><i class="bi bi-trash"></i></button></td>
       `;
             tbody.appendChild(row);
+            actualizarMensajeSinProductos();
             calcularTotales();
         });
 
@@ -168,18 +227,35 @@ document.addEventListener('DOMContentLoaded', function () {
         tbody.addEventListener('click', function (e) {
             if (e.target.closest('.btn-eliminar-producto')) {
                 e.target.closest('tr').remove();
+                actualizarMensajeSinProductos();
                 calcularTotales();
             }
         });
 
-        // Recalcular subtotales y totales al cambiar cantidad o costo (NO días)
+        // Recalcular subtotales y totales al cambiar cantidad, ajuste o valor
         tbody.addEventListener('input', function (e) {
-            if (e.target.classList.contains('cantidad') || e.target.classList.contains('costo')) {
+            if (e.target.classList.contains('cantidad') || e.target.classList.contains('ajuste-valor')) {
                 const fila = e.target.closest('tr');
-                const cantidad = parseFloat(fila.querySelector('.cantidad').value) || 0;
-                const dias = parseFloat(fila.querySelector('.dias').value) || 0;
-                const costo = parseFloat(fila.querySelector('.costo').value) || 0;
-                fila.querySelector('.subtotal').value = (cantidad * dias * costo).toFixed(2);
+                recalcularFilaConAjuste(fila);
+                calcularTotales();
+            }
+        });
+
+        // Listener para cambio de tipo de ajuste
+        tbody.addEventListener('change', function (e) {
+            if (e.target.classList.contains('ajuste-tipo')) {
+                const fila = e.target.closest('tr');
+                const ajusteValorInput = fila.querySelector('.ajuste-valor');
+                const tipoAjuste = e.target.value;
+                
+                if (tipoAjuste === 'ninguno') {
+                    ajusteValorInput.disabled = true;
+                    ajusteValorInput.value = '0';
+                } else {
+                    ajusteValorInput.disabled = false;
+                }
+                
+                recalcularFilaConAjuste(fila);
                 calcularTotales();
             }
         });
