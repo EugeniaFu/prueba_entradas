@@ -249,6 +249,10 @@ def inventario_sucursal(sucursal_id):
     sucursal_id_usuario = session.get('sucursal_id')
     es_admin = (sucursal_id_usuario is None)
 
+    # Obtener todas las sucursales para los botones de navegación
+    cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
+    sucursales = cursor.fetchall()
+
     # Obtener piezas
     cursor.execute("""
         SELECT p.id_pieza, p.nombre_pieza, p.categoria, 
@@ -274,6 +278,7 @@ def inventario_sucursal(sucursal_id):
         piezas=piezas,
         sucursal=sucursal,               # 👈 lo sigues usando en modales
         sucursal_actual=sucursal_actual, # 👈 lo usa el header + tabs
+        sucursales=sucursales,           # 👈 nueva: todas las sucursales para navegación
         es_admin=es_admin
     )
 

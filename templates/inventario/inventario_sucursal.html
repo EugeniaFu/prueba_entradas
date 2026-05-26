@@ -72,36 +72,22 @@
     <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
         <div class="btn-group" role="group">
 
-            {% if session['sucursal_id'] == 1 %}
+            {% if es_admin %}
                 <a href="{{ url_for('inventario.inventario_general') }}" class="btn btn-tab">
                     <i class="bi bi-grid-3x3-gap me-1"></i>General
                 </a>
 
-                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=1) }}"
-                class="btn btn-tab {{ 'active' if sucursal_actual.id == 1 else '' }}">
-                    Matriz
+                {% for suc in sucursales %}
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=suc.id) }}"
+                class="btn btn-tab {{ 'active' if sucursal_actual.id == suc.id else '' }}">
+                    {{ suc.nombre }}
                 </a>
+                {% endfor %}
 
-                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
-                class="btn btn-tab {{ 'active' if sucursal_actual.id == 2 else '' }}">
-                    Reyes
-                </a>
-
-                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
-                class="btn btn-tab {{ 'active' if sucursal_actual.id == 3 else '' }}">
-                    Lerma
-                </a>
-
-            {% elif session['sucursal_id'] == 2 %}
-                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=2) }}"
+            {% else %}
+                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=session['sucursal_id']) }}"
                 class="btn btn-tab active">
-                    Reyes
-                </a>
-
-            {% elif session['sucursal_id'] == 3 %}
-                <a href="{{ url_for('inventario.inventario_sucursal', sucursal_id=3) }}"
-                class="btn btn-tab active">
-                    Lerma
+                    {{ sucursal_actual.nombre }}
                 </a>
             {% endif %}
 
@@ -473,15 +459,11 @@
                                             <label class="form-label"><strong>Hacia:</strong></label>
                                             <select name="id_sucursal_destino" id="id_sucursal_destino" class="form-select">
                                                 <option value="">Seleccionar sucursal destino</option>
-                                                {% if sucursal.id_sucursal != 1 %}
-                                                <option value="1">Matriz</option>
-                                                {% endif %}
-                                                {% if sucursal.id_sucursal != 2 %}
-                                                <option value="2">Los Reyes</option>
-                                                {% endif %}
-                                                {% if sucursal.id_sucursal != 3 %}
-                                                <option value="3">Lerma</option>
-                                                {% endif %}
+                                                {% for suc in sucursales %}
+                                                    {% if suc.id != sucursal.id_sucursal %}
+                                                    <option value="{{ suc.id }}">{{ suc.nombre }}</option>
+                                                    {% endif %}
+                                                {% endfor %}
                                             </select>
                                         </div>
                                     </div>
@@ -498,15 +480,11 @@
                                             <label class="form-label"><strong>Procedente de:</strong></label>
                                             <select name="id_sucursal_origen_recibir" id="id_sucursal_origen_recibir" class="form-select">
                                                 <option value="">Seleccionar sucursal origen</option>
-                                                {% if sucursal.id_sucursal != 1 %}
-                                                <option value="1">Matriz</option>
-                                                {% endif %}
-                                                {% if sucursal.id_sucursal != 2 %}
-                                                <option value="2">Los Reyes</option>
-                                                {% endif %}
-                                                {% if sucursal.id_sucursal != 3 %}
-                                                <option value="3">Lerma</option>
-                                                {% endif %}
+                                                {% for suc in sucursales %}
+                                                    {% if suc.id != sucursal.id_sucursal %}
+                                                    <option value="{{ suc.id }}">{{ suc.nombre }}</option>
+                                                    {% endif %}
+                                                {% endfor %}
                                             </select>
                                         </div>
                                     </div>
