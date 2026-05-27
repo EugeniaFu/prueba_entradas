@@ -51,14 +51,28 @@ def eliminar_renta(renta_id):
 ###########################################################
 ###########################################################
 # ======================= CANCELACIÓN DE RENTAS =======================
+@rentas_bp.route('/info_cancelar/<int:renta_id>', methods=['GET'])
+@requiere_sesion()
+@requiere_permiso('cancelar_renta')
+def info_cancelar_renta(renta_id):
+    """
+    Obtiene información sobre cómo se cancelará la renta
+    """
+    info = RentasService.info_cancelar_renta(renta_id)
+    if 'error' in info:
+        return jsonify({"status": "error", "mensaje": info['error']}), 404
+    return jsonify({"status": "ok", "info": info})
+
 @rentas_bp.route('/cancelar/<int:renta_id>', methods=['POST'])
 @requiere_sesion()
 @requiere_permiso('cancelar_renta')
 def cancelar_renta(renta_id):
-    motivo = request.form.get('motivo_cancelacion', '')
-    monto_reembolso = request.form.get('monto_reembolso', None)
+    data = request.get_json() if request.is_json else request.form
+    motivo = data.get('motivo_cancelacion', '')
+    monto_reembolso = data.get('monto_reembolso', None)
+    generar_nota_entrada = data.get('generar_nota_entrada', 'no') == 'si'
     
-    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso)
+    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso, generar_nota_entrada)
     if success:
         return jsonify({"status": "ok", "mensaje": msg})
     else:

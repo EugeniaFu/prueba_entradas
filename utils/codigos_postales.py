@@ -6,6 +6,7 @@ Sistema de búsqueda de códigos postales usando JSON
 
 import os
 import json
+import time
 from typing import Dict
 
 class CodigosPostalesJSON:

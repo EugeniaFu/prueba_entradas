@@ -22,31 +22,98 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalCancelarElem = document.getElementById('modalCancelarRenta');
     if (modalCancelarElem) {
         let rentaIdCancelar = null;
+        let infoRentaCancelar = null;
         const modalCancelar = new bootstrap.Modal(modalCancelarElem);
+        
         document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.btn-cancelar-renta');
             if (btn) {
                 rentaIdCancelar = btn.getAttribute('data-renta-id');
                 document.getElementById('renta-id-cancelar').value = rentaIdCancelar;
                 document.getElementById('motivo-cancelacion').value = '';
-                document.getElementById('monto-reembolso').value = '';
-                modalCancelar.show();
+                document.getElementById('monto-reembolso').value = '0';
+                
+                // Ocultar todos los campos opcionales inicialmente
+                document.getElementById('info-cancelacion').style.display = 'none';
+                document.getElementById('campo-reembolso').style.display = 'none';
+                document.getElementById('campo-nota-entrada').style.display = 'none';
+                
+                // Obtener información de la renta para mostrar campos apropiados
+                fetch(`/rentas/info_cancelar/${rentaIdCancelar}`)
+                    .then(resp => resp.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            infoRentaCancelar = data.info;
+                            
+                            // Mostrar mensaje informativo
+                            document.getElementById('mensaje-info-cancelacion').textContent = infoRentaCancelar.mensaje;
+                            document.getElementById('info-cancelacion').style.display = 'block';
+                            
+                            // Mostrar campo de reembolso si aplica
+                            if (infoRentaCancelar.requiere_reembolso) {
+                                document.getElementById('campo-reembolso').style.display = 'block';
+                                document.getElementById('monto-reembolso').required = true;
+                            } else {
+                                document.getElementById('campo-reembolso').style.display = 'none';
+                                document.getElementById('monto-reembolso').required = false;
+                                document.getElementById('monto-reembolso').value = '0';
+                            }
+                            
+                            // Mostrar opción de nota de entrada si aplica
+                            if (infoRentaCancelar.puede_generar_nota_entrada) {
+                                document.getElementById('campo-nota-entrada').style.display = 'block';
+                                document.getElementById('nota-entrada-si').checked = true;
+                            } else {
+                                document.getElementById('campo-nota-entrada').style.display = 'none';
+                            }
+                            
+                            modalCancelar.show();
+                        } else {
+                            Swal.fire('Error', data.mensaje || 'No se pudo obtener información de la renta.', 'error');
+                        }
+                    })
+                    .catch(() => {
+                        Swal.fire('Error', 'Error al obtener información de la renta.', 'error');
+                    });
             }
         });
 
         document.getElementById('form-cancelar-renta').addEventListener('submit', function (e) {
             e.preventDefault();
             const motivo = document.getElementById('motivo-cancelacion').value.trim();
-            const monto = document.getElementById('monto-reembolso').value;
-            if (!motivo || monto === '') {
-                Swal.fire('Error', 'Debes ingresar el motivo y el monto de reembolso.', 'warning');
+            
+            if (!motivo) {
+                Swal.fire('Error', 'Debes ingresar el motivo de cancelación.', 'warning');
                 return;
             }
+            
+            // Validar reembolso solo si está visible
+            const campoReembolsoVisible = document.getElementById('campo-reembolso').style.display !== 'none';
+            const monto = document.getElementById('monto-reembolso').value;
+            
+            if (campoReembolsoVisible && (!monto || monto === '')) {
+                Swal.fire('Error', 'Debes ingresar el monto de reembolso.', 'warning');
+                return;
+            }
+            
             const rentaId = document.getElementById('renta-id-cancelar').value;
+            
+            // Obtener valor de generar nota de entrada
+            let generarNotaEntrada = 'no';
+            if (document.getElementById('campo-nota-entrada').style.display !== 'none') {
+                generarNotaEntrada = document.querySelector('input[name="generar_nota_entrada"]:checked').value;
+            }
+            
+            const dataToSend = {
+                motivo_cancelacion: motivo,
+                monto_reembolso: monto || '0',
+                generar_nota_entrada: generarNotaEntrada
+            };
+            
             fetch(`/rentas/cancelar/${rentaId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `motivo_cancelacion=${encodeURIComponent(motivo)}&monto_reembolso=${encodeURIComponent(monto)}`
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dataToSend)
             })
             .then(resp => resp.json())
             .then(data => {

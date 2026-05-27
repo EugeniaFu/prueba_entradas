@@ -315,25 +315,191 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def cancelar_renta(renta_id, motivo, monto_reembolso):
+    def info_cancelar_renta(renta_id):
+        """
+        Analiza el estado de la renta y devuelve información para decidir cómo cancelar
+        """
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Obtener información de la renta
+            cursor.execute("""
+                SELECT estado_renta, estado_pago, id_sucursal
+                FROM rentas WHERE id = %s
+            """, (renta_id,))
+            renta = cursor.fetchone()
+            
+            if not renta:
+                return {'error': 'Renta no encontrada'}
+            
+            # Verificar si tiene nota de salida (equipo salió de bodega)
+            cursor.execute("SELECT id FROM notas_salida WHERE renta_id = %s", (renta_id,))
+            nota_salida = cursor.fetchone()
+            
+            # Verificar si tiene nota de entrada (equipo ya regresó)
+            cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
+            nota_entrada = cursor.fetchone()
+            
+            info = {
+                'estado_renta': renta['estado_renta'],
+                'estado_pago': renta['estado_pago'],
+                'tiene_nota_salida': nota_salida is not None,
+                'tiene_nota_entrada': nota_entrada is not None,
+                'requiere_devolver_inventario': False,
+                'puede_generar_nota_entrada': False,
+                'requiere_reembolso': False,
+                'mensaje': ''
+            }
+            
+            # Determinar acciones necesarias
+            if renta['estado_renta'] == 'Activo':
+                if nota_salida and not nota_entrada:
+                    # Equipo está afuera, hay que devolverlo
+                    info['requiere_devolver_inventario'] = True
+                    info['puede_generar_nota_entrada'] = True
+                    info['mensaje'] = 'Esta renta tiene equipo fuera. Se devolverá al inventario.'
+                elif nota_entrada:
+                    # Equipo ya regresó
+                    info['mensaje'] = 'El equipo ya regresó. Solo se marcará como cancelada.'
+                else:
+                    # No tiene nota de salida (equipo nunca salió)
+                    info['mensaje'] = 'Esta renta no tiene equipo registrado como salido. Se cancelará sin afectar inventario.'
+            else:
+                info['mensaje'] = f'Esta renta está en estado "{renta["estado_renta"]}". Se marcará como cancelada.'
+            
+            # Verificar si requiere reembolso
+            estado_pago_lower = renta['estado_pago'].lower().strip()
+            if 'realizado' in estado_pago_lower or 'pagado' in estado_pago_lower or 'anticipo' in estado_pago_lower:
+                info['requiere_reembolso'] = True
+            
+            return info
+            
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def cancelar_renta(renta_id, motivo, monto_reembolso, generar_nota_entrada=False):
+        """
+        Cancela una renta con manejo inteligente de inventario y reembolsos
+        
+        Args:
+            renta_id: ID de la renta a cancelar
+            motivo: Motivo de la cancelación
+            monto_reembolso: Monto a reembolsar (puede ser None si no aplica)
+            generar_nota_entrada: Si se debe generar nota de entrada automática
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
         try:
             conn.start_transaction()
-            # Marcar la renta como cancelada y guardar motivo
-            cursor.execute("UPDATE rentas SET estado_renta = 'cancelada', estado_pago = 'Reembolsado' WHERE id = %s", (renta_id,))
-
+            
+            # Obtener información de la renta
+            cursor.execute("""
+                SELECT estado_renta, estado_pago, id_sucursal
+                FROM rentas WHERE id = %s
+            """, (renta_id,))
+            renta = cursor.fetchone()
+            
+            if not renta:
+                return False, "Renta no encontrada"
+            
+            # Verificar notas
+            cursor.execute("SELECT id FROM notas_salida WHERE renta_id = %s", (renta_id,))
+            nota_salida = cursor.fetchone()
+            
+            cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
+            nota_entrada = cursor.fetchone()
+            
+            # Si la renta está activa y tiene equipo afuera (nota salida pero no entrada)
+            if renta['estado_renta'] == 'Activo' and nota_salida and not nota_entrada:
+                # Devolver inventario
+                cursor.execute("""
+                    SELECT nsd.id_pieza, nsd.cantidad
+                    FROM notas_salida_detalle nsd
+                    JOIN notas_salida ns ON nsd.nota_salida_id = ns.id
+                    WHERE ns.renta_id = %s
+                """, (renta_id,))
+                piezas = cursor.fetchall()
+                
+                id_sucursal = renta['id_sucursal']
+                
+                for pieza in piezas:
+                    # Devolver al inventario: aumentar disponibles, disminuir rentadas
+                    cursor.execute("""
+                        UPDATE inventario_sucursal
+                        SET disponibles = disponibles + %s,
+                            rentadas = rentadas - %s
+                        WHERE id_sucursal = %s AND id_pieza = %s
+                    """, (pieza['cantidad'], pieza['cantidad'], id_sucursal, pieza['id_pieza']))
+                
+                # Si se solicita generar nota de entrada automática
+                if generar_nota_entrada:
+                    from utils.folios import obtener_siguiente_folio_nota_sucursal
+                    
+                    # Obtener siguiente folio
+                    folio_siguiente = obtener_siguiente_folio_nota_sucursal(cursor, id_sucursal)
+                    folio = str(folio_siguiente).zfill(5)
+                    
+                    # Crear nota de entrada automática
+                    cursor.execute("""
+                        INSERT INTO notas_entrada (
+                            folio, renta_id, nota_salida_id, fecha_entrada_real,
+                            requiere_traslado_extra, costo_traslado_extra, 
+                            observaciones, estado, created_at, estado_retraso, accion_devolucion
+                        ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s)
+                    """, (
+                        folio, renta_id, nota_salida['id'], 'ninguno', 0,
+                        'Generada automáticamente por cancelación de renta', 'cancelacion',
+                        'Sin Retraso', 'no'
+                    ))
+                    nota_entrada_id = cursor.lastrowid
+                    
+                    # Crear detalle de nota de entrada con todas las piezas en buenas
+                    for pieza in piezas:
+                        cursor.execute("""
+                            INSERT INTO notas_entrada_detalle (
+                                nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
+                                cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida, observaciones_pieza
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            nota_entrada_id, pieza['id_pieza'], pieza['cantidad'], pieza['cantidad'],
+                            pieza['cantidad'], 0, 0, 0, 'Entrada automática por cancelación'
+                        ))
+            
+            # Determinar estado de pago según si requiere reembolso
+            estado_pago_lower = renta['estado_pago'].lower().strip()
+            if monto_reembolso and float(monto_reembolso) > 0:
+                nuevo_estado_pago = 'Reembolsado'
+            elif 'pendiente' in estado_pago_lower:
+                nuevo_estado_pago = 'Cancelado sin pago'
+            else:
+                nuevo_estado_pago = renta['estado_pago']  # Mantener estado actual
+            
+            # Marcar la renta como cancelada
+            cursor.execute("""
+                UPDATE rentas 
+                SET estado_renta = 'cancelada', estado_pago = %s 
+                WHERE id = %s
+            """, (nuevo_estado_pago, renta_id))
+            
             # Registrar en historial de rentas
             descripcion = f"Cancelación de renta. Motivo: {motivo}"
-            if monto_reembolso:
+            if monto_reembolso and float(monto_reembolso) > 0:
                 descripcion += f" | Reembolso: ${monto_reembolso}"
+            if generar_nota_entrada:
+                descripcion += " | Nota de entrada generada automáticamente"
+            else:
+                descripcion += " | Inventario devuelto sin nota de entrada"
+                
             cursor.execute("""
                 INSERT INTO historial_rentas (renta_id, accion, descripcion, fecha)
                 VALUES (%s, %s, %s, NOW())
             """, (renta_id, 'cancelacion', descripcion))
-
+            
             conn.commit()
             return True, "Renta cancelada correctamente."
+            
         except Exception as e:
             conn.rollback()
             return False, str(e)

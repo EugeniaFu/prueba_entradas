@@ -8,14 +8,40 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
         </div>
         <div class="modal-body">
+          <!-- Mensaje informativo dinámico -->
+          <div id="info-cancelacion" class="alert alert-info mb-3" style="display: none;">
+            <i class="fas fa-info-circle"></i> <span id="mensaje-info-cancelacion"></span>
+          </div>
+
           <div class="mb-3">
-            <label for="motivo-cancelacion" class="form-label">Motivo de cancelación</label>
+            <label for="motivo-cancelacion" class="form-label">Motivo de cancelación <span class="text-danger">*</span></label>
             <textarea class="form-control" id="motivo-cancelacion" name="motivo_cancelacion" rows="2" required></textarea>
           </div>
-          <div class="mb-3">
-            <label for="monto-reembolso" class="form-label">Monto de reembolso</label>
-            <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0" step="0.01" required>
+
+          <!-- Campo de reembolso (solo visible si aplica) -->
+          <div class="mb-3" id="campo-reembolso" style="display: none;">
+            <label for="monto-reembolso" class="form-label">Monto de reembolso <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="monto-reembolso" name="monto_reembolso" min="0" step="0.01" value="0">
+            <small class="text-muted">El cliente tiene un pago registrado. Ingresa el monto a reembolsar.</small>
           </div>
+
+          <!-- Opción para generar nota de entrada (solo visible si aplica) -->
+          <div class="mb-3" id="campo-nota-entrada" style="display: none;">
+            <label class="form-label">¿El equipo salió físicamente de la bodega?</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="generar_nota_entrada" id="nota-entrada-si" value="si" checked>
+              <label class="form-check-label" for="nota-entrada-si">
+                Sí, salió (Generar nota de entrada automática)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="generar_nota_entrada" id="nota-entrada-no" value="no">
+              <label class="form-check-label" for="nota-entrada-no">
+                No, no salió (Solo devolver inventario)
+              </label>
+            </div>
+          </div>
+
           <input type="hidden" id="renta-id-cancelar" name="renta_id">
         </div>
         <div class="modal-footer">
