@@ -40,16 +40,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (data.piezas && data.piezas.length > 0) {
                         data.piezas.forEach(pieza => {
+                            const disponibles = pieza.disponibles || 0;
+                            const tieneInventario = disponibles >= pieza.cantidad;
+                            const badgeClass = tieneInventario ? 'bg-success' : 'bg-danger';
+                            const disponiblesTexto = tieneInventario 
+                                ? `<span class="badge ${badgeClass}">Disponibles: ${disponibles}</span>` 
+                                : `<span class="badge ${badgeClass}">⚠️ Solo hay ${disponibles}</span>`;
+                            
                             piezasHtml += `
                                 <tr>
-                                    <td>${pieza.nombre_pieza}</td>
+                                    <td>
+                                        ${pieza.nombre_pieza}
+                                        <br><small class="text-muted">${disponiblesTexto}</small>
+                                    </td>
                                     <td>
                                         <input type="number"
                                             class="form-control form-control-sm pieza-cantidad"
                                             min="0"
                                             max="${pieza.cantidad}"
                                             value="${pieza.cantidad}"
-                                            data-id-pieza="${pieza.id_pieza}">
+                                            data-id-pieza="${pieza.id_pieza}"
+                                            data-disponibles="${disponibles}">
+                                        <small class="text-muted">Máx: ${pieza.cantidad}</small>
                                     </td>
                                 </tr>`;
                         });
@@ -135,7 +147,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         window.location.reload();
                     });
                 } else {
-                    Swal.fire('Error', json.error || 'No se pudo guardar la nota de salida', 'error');
+                    // Si hay piezas faltantes, mostrar mensaje detallado
+                    if (json.piezas_faltantes && json.piezas_faltantes.length > 0) {
+                        let mensajeDetallado = '<div class="text-start"><strong>No hay inventario suficiente:</strong><ul class="mt-2">';
+                        json.piezas_faltantes.forEach(pieza => {
+                            mensajeDetallado += `<li><strong>${pieza.nombre}</strong>: se solicitan <span class="text-danger">${pieza.solicitada}</span> pero solo hay <span class="text-warning">${pieza.disponible}</span> disponibles</li>`;
+                        });
+                        mensajeDetallado += '</ul></div>';
+                        
+                        Swal.fire({
+                            title: 'Inventario insuficiente',
+                            html: mensajeDetallado,
+                            icon: 'error',
+                            confirmButtonText: 'Entendido'
+                        });
+                    } else {
+                        // Otro tipo de error
+                        Swal.fire('Error', json.error || 'No se pudo guardar la nota de salida', 'error');
+                    }
+                    
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Generar Nota de Salida';
                 }

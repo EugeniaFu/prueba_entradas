@@ -94,6 +94,17 @@ def preview_nota_salida(renta_id):
                     'cantidad': cantidad_pieza
                 }
 
+    # 5. Consultar inventario disponible en la sucursal para cada pieza
+    for id_pieza in piezas_dict:
+        cursor.execute("""
+            SELECT IFNULL(disponibles, 0) AS disponibles
+            FROM inventario_sucursal
+            WHERE id_sucursal = %s AND id_pieza = %s
+        """, (sucursal_id, id_pieza))
+        inventario_row = cursor.fetchone()
+        disponibles = inventario_row['disponibles'] if inventario_row else 0
+        piezas_dict[id_pieza]['disponibles'] = disponibles
+
     piezas_list = list(piezas_dict.values())
 
     cursor.close()
@@ -131,6 +142,64 @@ def crear_nota_salida(renta_id):
 
         sucursal_id = sucursal_row['id_sucursal']
 
+        # ============================================
+        # VALIDACIÓN DE INVENTARIO DISPONIBLE
+        # ============================================
+        piezas_sin_inventario = []
+        
+        for pieza in piezas:
+            id_pieza = pieza.get('id_pieza')
+            cantidad_solicitada = pieza.get('cantidad', 0)
+            
+            if id_pieza and cantidad_solicitada > 0:
+                # Consultar inventario disponible en esta sucursal
+                cursor.execute("""
+                    SELECT p.nombre_pieza, IFNULL(i.disponibles, 0) AS disponibles
+                    FROM piezas p
+                    LEFT JOIN inventario_sucursal i 
+                        ON p.id_pieza = i.id_pieza AND i.id_sucursal = %s
+                    WHERE p.id_pieza = %s
+                """, (sucursal_id, id_pieza))
+                
+                inventario_row = cursor.fetchone()
+                
+                if not inventario_row:
+                    piezas_sin_inventario.append({
+                        'nombre': 'Pieza desconocida',
+                        'solicitada': cantidad_solicitada,
+                        'disponible': 0
+                    })
+                else:
+                    disponibles = inventario_row['disponibles']
+                    nombre_pieza = inventario_row['nombre_pieza']
+                    
+                    if disponibles < cantidad_solicitada:
+                        piezas_sin_inventario.append({
+                            'nombre': nombre_pieza,
+                            'solicitada': cantidad_solicitada,
+                            'disponible': disponibles
+                        })
+        
+        # Si hay piezas sin inventario suficiente, rechazar la operación
+        if piezas_sin_inventario:
+            mensajes_error = []
+            for pieza_faltante in piezas_sin_inventario:
+                mensajes_error.append(
+                    f"{pieza_faltante['nombre']}: se solicitan {pieza_faltante['solicitada']} "
+                    f"pero solo hay {pieza_faltante['disponible']} disponibles"
+                )
+            
+            error_completo = "INVENTARIO INSUFICIENTE:\n" + "\n".join(mensajes_error)
+            return jsonify({
+                'success': False, 
+                'error': error_completo,
+                'piezas_faltantes': piezas_sin_inventario
+            })
+
+        # ============================================
+        # CONTINUAR CON LA CREACIÓN DE LA NOTA
+        # ============================================
+        
         # Obtener siguiente folio por sucursal
         folio_siguiente = obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id)
         folio = str(folio_siguiente).zfill(5)
