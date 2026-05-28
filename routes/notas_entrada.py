@@ -358,8 +358,8 @@ def crear_nota_entrada(renta_id):
                     cantidad_danada, cantidad_danada, id_sucursal, id_pieza
                 ))
 
-            # Perdidas: solo si recibidas == esperadas
-            if cantidad_recibida == cantidad_esperada and cantidad_perdida > 0:
+            # Perdidas: siempre que haya piezas marcadas como perdidas
+            if cantidad_perdida > 0:
                 cursor.execute("""
                     UPDATE inventario_sucursal
                     SET 

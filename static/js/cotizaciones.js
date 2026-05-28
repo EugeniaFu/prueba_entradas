@@ -255,14 +255,55 @@ document.addEventListener('DOMContentLoaded', function () {
         const productoNombre = productoSelect.options[productoSelect.selectedIndex].text;
         const cantidad = parseFloat(cantidadInput.value);
         const diasRenta = parseInt(diasRentaInput.value) || 1;
-        
-        // Obtener precio del servidor
+
+        // Obtener precio base del servidor
         fetch(`/cotizaciones/precios/${productoId}/${diasRenta}`)
             .then(response => response.json())
             .then(data => {
                 if (data.precio) {
-                    const precioUnitario = data.precio;
-                    const subtotal = cantidad * precioUnitario * diasRenta;
+                    const precioBase = data.precio;
+
+                    // Lógica de ajuste igual que en rentas
+                    // Detectar sucursal Escárcega (ID 4) y permisos
+                    const sucursalSelect = document.getElementById('id_sucursal');
+                    const sucursalId = sucursalSelect ? sucursalSelect.value : null;
+                    const esEscarcega = (sucursalId === '4');
+                    const puedeAjustar = window.puedeAjustarPrecios || false;
+
+                    let ajusteTipoDefault, ajusteValorDefault, ajusteValorDisabled, selectDisabled;
+                    if (esEscarcega) {
+                        ajusteTipoDefault = 'porcentaje';
+                        ajusteValorDefault = '10';
+                        if (puedeAjustar) {
+                            ajusteValorDisabled = '';
+                            selectDisabled = '';
+                        } else {
+                            ajusteValorDisabled = 'disabled';
+                            selectDisabled = 'disabled';
+                        }
+                    } else {
+                        if (puedeAjustar) {
+                            ajusteTipoDefault = 'ninguno';
+                            ajusteValorDefault = '0';
+                            ajusteValorDisabled = '';
+                            selectDisabled = '';
+                        } else {
+                            ajusteTipoDefault = 'ninguno';
+                            ajusteValorDefault = '0';
+                            ajusteValorDisabled = 'disabled';
+                            selectDisabled = 'disabled';
+                        }
+                    }
+
+                    // Calcular precio final con ajuste
+                    let precioFinal = precioBase;
+                    if (ajusteTipoDefault === 'porcentaje' && ajusteValorDefault !== '0') {
+                        precioFinal = precioBase * (1 + parseFloat(ajusteValorDefault) / 100);
+                    } else if (ajusteTipoDefault === 'fijo' && ajusteValorDefault !== '0') {
+                        precioFinal = precioBase + parseFloat(ajusteValorDefault);
+                    }
+
+                    const subtotal = cantidad * precioFinal * diasRenta;
 
                     // Verificar si el producto ya existe
                     const productoExistente = productosAgregados.find(p => p.producto_id === productoId);
@@ -270,8 +311,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (productoExistente) {
                         // Actualizar cantidad y subtotal
                         productoExistente.cantidad += cantidad;
-                        productoExistente.subtotal = productoExistente.cantidad * productoExistente.precio_unitario * diasRenta;
-
+                        productoExistente.subtotal = productoExistente.cantidad * productoExistente.precio_final * diasRenta;
                         // Actualizar en la tabla
                         const fila = document.querySelector(`tr[data-producto-id="${productoId}"]`);
                         fila.querySelector('.cantidad').textContent = productoExistente.cantidad;
@@ -283,12 +323,14 @@ document.addEventListener('DOMContentLoaded', function () {
                             producto_id: productoId,
                             nombre: productoNombre,
                             cantidad: cantidad,
-                            precio_unitario: precioUnitario,
+                            precio_base: precioBase,
+                            ajuste_tipo: ajusteTipoDefault,
+                            ajuste_valor: parseFloat(ajusteValorDefault),
+                            precio_final: precioFinal,
                             subtotal: subtotal,
                             dias: diasRenta,
                             index: productoCounter++
                         };
-
                         productosAgregados.push(producto);
 
                         // Agregar fila a la tabla
@@ -298,7 +340,16 @@ document.addEventListener('DOMContentLoaded', function () {
                             <td>${productoNombre}</td>
                             <td class="cantidad">${cantidad}</td>
                             <td class="dias">${diasRenta}</td>
-                            <td class="precio-unitario">$${precioUnitario.toFixed(2)}</td>
+                            <td class="precio-base">$${precioBase.toFixed(2)}</td>
+                            <td>
+                                <select class="ajuste-tipo form-select form-select-sm" style="width: 60px; display:inline-block;" ${selectDisabled}>
+                                    <option value="ninguno" ${ajusteTipoDefault==='ninguno'?'selected':''}>Ninguno</option>
+                                    <option value="porcentaje" ${ajusteTipoDefault==='porcentaje'?'selected':''}>%</option>
+                                    <option value="fijo" ${ajusteTipoDefault==='fijo'?'selected':''}>$</option>
+                                </select>
+                                <input type="number" class="ajuste-valor form-control form-control-sm" style="width: 55px; display:inline-block;" value="${ajusteValorDefault}" ${ajusteValorDisabled}>
+                            </td>
+                            <td class="precio-final">$${precioFinal.toFixed(2)}</td>
                             <td class="subtotal">$${subtotal.toFixed(2)}</td>
                             <td>
                                 <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto('${productoId}')">
@@ -307,6 +358,22 @@ document.addEventListener('DOMContentLoaded', function () {
                             </td>
                         `;
                         productosTableBody.appendChild(fila);
+
+                        // Listeners para recalcular precio final y subtotal al cambiar ajuste
+                        const selectAjuste = fila.querySelector('.ajuste-tipo');
+                        const inputAjuste = fila.querySelector('.ajuste-valor');
+                        selectAjuste.addEventListener('change', function() {
+                            if (this.value === 'ninguno') {
+                                inputAjuste.value = 0;
+                                inputAjuste.disabled = true;
+                            } else {
+                                inputAjuste.disabled = false;
+                            }
+                            recalcularFilaConAjuste(fila, producto);
+                        });
+                        inputAjuste.addEventListener('input', function() {
+                            recalcularFilaConAjuste(fila, producto);
+                        });
                     }
 
                     // Limpiar formulario
@@ -352,36 +419,58 @@ document.addEventListener('DOMContentLoaded', function () {
     // Calcular totales
     function calcularTotales() {
         let subtotalTotal = 0;
-
         // Sumar productos
         productosAgregados.forEach(producto => {
             subtotalTotal += producto.subtotal;
         });
-
         // Sumar traslado
         if (trasladoAgregado) {
             subtotalTotal += trasladoAgregado.costo;
         }
-
         const iva = subtotalTotal * 0.16;
         const total = subtotalTotal + iva;
-
         // Actualizar displays
         document.getElementById('subtotal-display').textContent = `$${subtotalTotal.toFixed(2)}`;
         document.getElementById('iva-display').textContent = `$${iva.toFixed(2)}`;
         document.getElementById('total-display').textContent = `$${total.toFixed(2)}`;
     }
 
+    // Recalcular fila con ajuste
+    function recalcularFilaConAjuste(fila, producto) {
+        const cantidad = producto.cantidad;
+        const dias = producto.dias;
+        const precioBase = producto.precio_base;
+        const tipoAjuste = fila.querySelector('.ajuste-tipo').value;
+        const valorAjuste = parseFloat(fila.querySelector('.ajuste-valor').value) || 0;
+        let precioFinal = precioBase;
+        if (tipoAjuste === 'porcentaje') {
+            precioFinal = precioBase * (1 + valorAjuste / 100);
+        } else if (tipoAjuste === 'fijo') {
+            precioFinal = precioBase + valorAjuste;
+        }
+        if (precioFinal < 0) precioFinal = 0;
+        producto.ajuste_tipo = tipoAjuste;
+        producto.ajuste_valor = valorAjuste;
+        producto.precio_final = precioFinal;
+        producto.subtotal = cantidad * dias * precioFinal;
+        fila.querySelector('.precio-final').textContent = `$${precioFinal.toFixed(2)}`;
+        fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
+        calcularTotales();
+        actualizarHiddenInputs();
+    }
+
     // Actualizar inputs ocultos
     function actualizarHiddenInputs() {
         productosHiddenInputs.innerHTML = '';
-
         // Agregar productos
         productosAgregados.forEach((producto, index) => {
             productosHiddenInputs.innerHTML += `
                 <input type="hidden" name="productos[${index}][producto_id]" value="${producto.producto_id}">
                 <input type="hidden" name="productos[${index}][cantidad]" value="${producto.cantidad}">
-                <input type="hidden" name="productos[${index}][precio_unitario]" value="${producto.precio_unitario}">
+                <input type="hidden" name="productos[${index}][precio_base]" value="${producto.precio_base}">
+                <input type="hidden" name="productos[${index}][ajuste_tipo]" value="${producto.ajuste_tipo}">
+                <input type="hidden" name="productos[${index}][ajuste_valor]" value="${producto.ajuste_valor}">
+                <input type="hidden" name="productos[${index}][precio_final]" value="${producto.precio_final}">
                 <input type="hidden" name="productos[${index}][subtotal]" value="${producto.subtotal}">
             `;
         });

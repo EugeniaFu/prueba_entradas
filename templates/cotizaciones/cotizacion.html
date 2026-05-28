@@ -249,5 +249,8 @@
     });
 </script>
 
+<script>
+    window.puedeAjustarPrecios = {{ 'true' if puede_ajustar_precios_cotizacion else 'false' }};
+</script>
 <script src="{{ url_for('static', filename='js/cotizaciones.js') }}"></script>
 {% endblock %}

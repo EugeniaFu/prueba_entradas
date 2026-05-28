@@ -752,6 +752,12 @@ def index():
         cursor.close()
         conexion.close()
 
+        # Permiso para ajustar precios en cotizaciones
+        puede_ajustar_precios_cotizacion = False
+        permisos_usuario = session.get('permisos', [])
+        if 'ajustar_precios_cotizacion' in permisos_usuario:
+            puede_ajustar_precios_cotizacion = True
+
         return render_template(
             'cotizaciones/cotizacion.html',
             cotizaciones=cotizaciones_con_estado,
@@ -759,7 +765,8 @@ def index():
             productos=productos_disponibles,
             sucursal_actual=sucursal_actual,
             sucursales=sucursales,
-            es_admin=(sucursal_id_usuario is None)
+            es_admin=(sucursal_id_usuario is None),
+            puede_ajustar_precios_cotizacion=puede_ajustar_precios_cotizacion
         )
 
     except Exception as e:
@@ -809,13 +816,19 @@ def crear_cotizacion():
         while f'productos[{i}][producto_id]' in request.form:
             producto_id = int(request.form[f'productos[{i}][producto_id]'])
             cantidad = int(request.form[f'productos[{i}][cantidad]'])
-            precio_unitario = float(request.form[f'productos[{i}][precio_unitario]'])
+            precio_base = float(request.form.get(f'productos[{i}][precio_base]', 0))
+            ajuste_tipo = request.form.get(f'productos[{i}][ajuste_tipo]', 'ninguno')
+            ajuste_valor = float(request.form.get(f'productos[{i}][ajuste_valor]', 0))
+            precio_final = float(request.form.get(f'productos[{i}][precio_final]', 0))
             subtotal = float(request.form[f'productos[{i}][subtotal]'])
-            
+
             productos.append({
                 'producto_id': producto_id,
                 'cantidad': cantidad,
-                'precio_unitario': precio_unitario,
+                'precio_base': precio_base,
+                'ajuste_tipo': ajuste_tipo,
+                'ajuste_valor': ajuste_valor,
+                'precio_final': precio_final,
                 'subtotal': subtotal
             })
             i += 1
@@ -859,11 +872,12 @@ def crear_cotizacion():
         for producto in productos:
             cursor.execute("""
                 INSERT INTO cotizacion_detalle (
-                    cotizacion_id, producto_id, cantidad, precio_unitario, subtotal
-                ) VALUES (%s, %s, %s, %s, %s)
+                    cotizacion_id, producto_id, cantidad, precio_unitario, subtotal, precio_base, ajuste_tipo, ajuste_valor, precio_final
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 cotizacion_id, producto['producto_id'], producto['cantidad'],
-                producto['precio_unitario'], producto['subtotal']
+                producto['precio_final'], producto['subtotal'],
+                producto['precio_base'], producto['ajuste_tipo'], producto['ajuste_valor'], producto['precio_final']
             ))
         
         # Insertar seguimiento

@@ -268,14 +268,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Actualiza valores según inputs
         if (e.target.classList.contains('cantidad-recibida')) {
             pieza.cantidad_recibida = parseInt(e.target.value) || 0;
-            // Habilita/deshabilita perdidas
-            if (pieza.cantidad_recibida < pieza.cantidad_esperada) {
-                pieza.cantidad_perdida = 0;
-                document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`).value = 0;
-                document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`).disabled = true;
-            } else {
-                document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`).disabled = false;
-            }
+            // Siempre permitir marcar piezas como perdidas, dañadas o sucias
+            document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`).disabled = false;
         }
         if (e.target.classList.contains('cantidad-danada')) {
             pieza.cantidad_danada = parseInt(e.target.value) || 0;
