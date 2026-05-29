@@ -461,6 +461,13 @@ def registrar_pago_prefactura(renta_id):
 
 
 
+
+
+
+
+
+
+
 ##################################################
 ##################################################
 ##################################################  PDF
@@ -473,7 +480,7 @@ def generar_pdf_prefactura(prefactura_id):
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
         SELECT p.*, r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.metodo_pago, r.iva,
-               r.traslado, r.costo_traslado,
+               r.traslado, r.costo_traslado, r.id_sucursal,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente,
                c.telefono,
@@ -486,10 +493,12 @@ def generar_pdf_prefactura(prefactura_id):
                c.codigo_postal,    
                c.municipio,
                c.estado,
-               c.rfc
+               c.rfc,
+               s.plantilla_renta
         FROM prefacturas p
         JOIN rentas r ON p.renta_id = r.id
         JOIN clientes c ON r.cliente_id = c.id
+        JOIN sucursales s ON r.id_sucursal = s.id
         WHERE p.id = %s
     """, (prefactura_id,))
     prefactura = cursor.fetchone()
@@ -939,27 +948,39 @@ def generar_pdf_prefactura(prefactura_id):
     can.save()
     packet.seek(0)
 
-    # --- COMBINAR CON LA PLANTILLA  ---
+    # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL ---
     try:
-        plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+        plantilla_path = None
+        if prefactura.get('plantilla_renta'):
+            plantilla_path = os.path.join(current_app.root_path, prefactura['plantilla_renta'])
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+
         if os.path.exists(plantilla_path):
             plantilla_pdf = PdfReader(plantilla_path)
-            overlay_pdf = PdfReader(packet)
-            output = PdfWriter()
-
+            # Primera página: plantilla + overlay
             page = plantilla_pdf.pages[0]
             page.merge_page(overlay_pdf.pages[0])
             output.add_page(page)
+            # Páginas siguientes: solo overlay (blanco)
+            for i in range(1, len(overlay_pdf.pages)):
+                output.add_page(overlay_pdf.pages[i])
         else:
-            # Si no hay plantilla, usar solo el overlay
-            overlay_pdf = PdfReader(packet)
-            output = PdfWriter()
-            output.add_page(overlay_pdf.pages[0])
+            # Si no hay plantilla, agrega todas las páginas del overlay
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+
     except Exception as e:
         print(f"Error con plantilla, usando solo overlay: {e}")
         overlay_pdf = PdfReader(packet)
         output = PdfWriter()
-        output.add_page(overlay_pdf.pages[0])
+        for page in overlay_pdf.pages:
+            output.add_page(page)
 
     output_stream = BytesIO()
     output.write(output_stream)

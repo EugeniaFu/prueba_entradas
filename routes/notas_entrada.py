@@ -486,12 +486,11 @@ def historial_notas_entrada(renta_id):
 
 
 
-####################################################################
-####################################################################
-####################################################################
-####################################################################
 
-
+#############################################
+#############################################
+#############################################
+########## PDF NOTAS DE SALIDA ############
 
 @notas_entrada_bp.route('/pdf/<int:nota_entrada_id>')
 @requiere_sesion()
@@ -500,16 +499,18 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Obtener datos completos de la nota de entrada
+    # Obtener datos completos de la nota de entrada, incluyendo la plantilla de la sucursal
     cursor.execute("""
          SELECT ne.folio, ne.fecha_entrada_real, ne.requiere_traslado_extra, ne.costo_traslado_extra, ne.observaciones,
-             r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.estado_renta,
+             r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.estado_renta, r.id_sucursal,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, 
-               c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal
+               c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,
+               s.plantilla_renta
         FROM notas_entrada ne
         JOIN rentas r ON ne.renta_id = r.id
         JOIN clientes c ON r.cliente_id = c.id
+        JOIN sucursales s ON r.id_sucursal = s.id
         WHERE ne.id = %s
     """, (nota_entrada_id,))
     nota = cursor.fetchone()
@@ -729,9 +730,17 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     can.save()
     packet.seek(0)
 
-    # --- COMBINAR CON LA PLANTILLA ---
+    # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL ---
     try:
-        plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+        # Usar plantilla_renta de la sucursal si existe, si no usar base.pdf
+        plantilla_path = None
+        if nota.get('plantilla_renta'):
+            plantilla_path = os.path.join(current_app.root_path, nota['plantilla_renta'])
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
         overlay_pdf = PdfReader(packet)
         output = PdfWriter()
 

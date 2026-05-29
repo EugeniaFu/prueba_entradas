@@ -35,6 +35,8 @@
                     <th>ID</th>
                     <th>Nombre</th>
                     <th>Dirección</th>
+                    <th>Plantilla Renta</th>
+                    <th>Plantilla Cotización</th>
                     <th class="text-center">Acciones</th>
                 </tr>
             </thead>
@@ -44,6 +46,26 @@
                     <td>{{ sucursal.id }}</td>
                     <td>{{ sucursal.nombre }}</td>
                     <td>{{ sucursal.direccion }}</td>
+
+                    
+                    <td class="text-center">
+                        {% if sucursal.plantilla_renta %}
+                            <a href="/{{ sucursal.plantilla_renta }}" target="_blank" title="Ver plantilla de renta">
+                                <i class="bi bi-file-earmark-pdf text-danger" style="font-size:1.5rem;"></i>
+                            </a>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if sucursal.plantilla_cotizacion %}
+                            <a href="/{{ sucursal.plantilla_cotizacion }}" target="_blank" title="Ver plantilla de cotización">
+                                <i class="bi bi-file-earmark-pdf text-danger" style="font-size:1.5rem;"></i>
+                            </a>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
                     <td class="text-center">
                         <button class="btn btn-square btn-outline-warning p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;" data-bs-toggle="modal" data-bs-target="#modalEditarSucursal{{ sucursal.id }}" title="Editar">
                             <i class="bi bi-pencil"></i>

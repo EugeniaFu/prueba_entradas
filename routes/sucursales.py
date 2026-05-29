@@ -10,7 +10,7 @@ sucursales_bp = Blueprint('sucursales', __name__, url_prefix='/sucursales')
 def sucursales():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, nombre, direccion FROM sucursales ORDER BY id ASC")
+    cursor.execute("SELECT id, nombre, direccion, plantilla_renta, plantilla_cotizacion FROM sucursales ORDER BY id ASC")
     lista_sucursales = cursor.fetchall()
     cursor.close()
     conn.close()

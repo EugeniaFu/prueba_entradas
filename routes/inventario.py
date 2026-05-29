@@ -1,17 +1,20 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, current_app
 from utils.db import get_db_connection
+from utils.datetime_utils import get_local_now, format_datetime_local
+from utils.decorators import requiere_sesion, requiere_permiso, requiere_uno_de_permisos
+from utils.folios import obtener_siguiente_folio_nota_sucursal
+
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import simpleSplit
+
 from io import BytesIO
 from flask import send_file
 from PyPDF2 import PdfReader, PdfWriter
 import os
-from utils.datetime_utils import get_local_now, format_datetime_local
-from utils.decorators import requiere_sesion, requiere_permiso, requiere_uno_de_permisos
-from utils.folios import obtener_siguiente_folio_nota_sucursal
 
 bp_inventario = Blueprint('inventario', __name__, url_prefix='/inventario')
 
@@ -1341,10 +1344,10 @@ def generar_pdf_transferencia_salida(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos de la transferencia de salida desde movimientos_inventario
+        # Obtener datos de la transferencia de salida desde movimientos_inventario, incluyendo plantilla de sucursal origen
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria,
-                   so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino
+                   so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino, so.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales so ON mi.id_sucursal = so.id
@@ -1353,17 +1356,19 @@ def generar_pdf_transferencia_salida(folio):
             AND mi.tipo_movimiento = 'transferencia_salida'
             ORDER BY p.nombre_pieza
         """, (folio,))
-        
+
         movimientos = cursor.fetchall()
-        
+
         if not movimientos:
             cursor.close()
             conn.close()
             return "Transferencia de salida no encontrada", 404
-        
+
         # Datos generales de la transferencia
         primer_movimiento = movimientos[0]
-        
+
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
+
         cursor.close()
         conn.close()
         
@@ -1432,7 +1437,7 @@ def generar_pdf_transferencia_salida(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = primer_movimiento['observaciones'] if primer_movimiento['observaciones'] else "Sin observaciones."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+        
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -1460,9 +1465,16 @@ def generar_pdf_transferencia_salida(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL ORIGEN ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
@@ -1472,8 +1484,11 @@ def generar_pdf_transferencia_salida(folio):
                 page = plantilla_pdf.pages[0]
                 page.merge_page(overlay_pdf.pages[0])
                 output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
-                # Si no hay plantilla, solo overlay
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
         except Exception as e:
@@ -1517,10 +1532,10 @@ def generar_pdf_transferencia_entrada(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos de la transferencia de entrada desde movimientos_inventario
+        # Obtener datos de la transferencia de entrada desde movimientos_inventario, incluyendo plantilla de sucursal destino
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria,
-                   so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino
+                   so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino, sd.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales sd ON mi.id_sucursal = sd.id  -- sd = sucursal destino (quien recibe)
@@ -1529,17 +1544,19 @@ def generar_pdf_transferencia_entrada(folio):
             AND mi.tipo_movimiento = 'transferencia_entrada'
             ORDER BY p.nombre_pieza
         """, (folio,))
-        
+
         movimientos = cursor.fetchall()
-        
+
         if not movimientos:
             cursor.close()
             conn.close()
             return "Transferencia de entrada no encontrada", 404
-        
+
         # Datos generales de la transferencia
         primer_movimiento = movimientos[0]
-        
+
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
+
         cursor.close()
         conn.close()
         
@@ -1636,9 +1653,16 @@ def generar_pdf_transferencia_entrada(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL DESTINO ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
@@ -1648,8 +1672,11 @@ def generar_pdf_transferencia_entrada(folio):
                 page = plantilla_pdf.pages[0]
                 page.merge_page(overlay_pdf.pages[0])
                 output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
-                # Si no hay plantilla, solo overlay
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
         except Exception as e:
@@ -1696,10 +1723,10 @@ def generar_pdf_alta_equipo(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos del movimiento de alta de equipo (incluye inventario general)
+        # Obtener datos del movimiento de alta de equipo (incluye inventario general y plantilla de sucursal)
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
-                   u.nombre as usuario_nombre
+                   u.nombre as usuario_nombre, s.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
@@ -1722,6 +1749,7 @@ def generar_pdf_alta_equipo(folio):
         fecha_movimiento = primer_movimiento['fecha']
         observaciones = primer_movimiento['descripcion'] or ''
         tipo_movimiento = primer_movimiento['tipo_movimiento']
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
         
         cursor.close()
         conn.close()
@@ -1820,22 +1848,32 @@ def generar_pdf_alta_equipo(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL (plantilla_renta) ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-                for i, page in enumerate(overlay_pdf.pages):
-                    base_page = plantilla_pdf.pages[0]
-                    base_page.merge_page(page)
-                    output.add_page(base_page)
+                # Primera página: plantilla + overlay
+                page = plantilla_pdf.pages[0]
+                page.merge_page(overlay_pdf.pages[0])
+                output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
-                
         except Exception as e:
             print(f"Error con plantilla: {e}")
             overlay_pdf = PdfReader(packet)

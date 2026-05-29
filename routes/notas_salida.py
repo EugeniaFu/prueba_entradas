@@ -254,9 +254,10 @@ def crear_nota_salida(renta_id):
 
 
 
-
-
-
+#############################################
+#############################################
+#############################################
+########## PDF NOTAS DE SALIDA ############
 
 
 @notas_salida_bp.route('/pdf/<int:nota_salida_id>')
@@ -267,23 +268,25 @@ def generar_pdf_nota_salida(nota_salida_id):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos completos de la nota de salida
+        # Obtener datos completos de la nota de salida, incluyendo la plantilla de la sucursal
         cursor.execute("""
             SELECT ns.folio, ns.fecha, ns.numero_referencia, ns.observaciones,
-                   r.fecha_salida, r.fecha_entrada, r.direccion_obra,
+                   r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.id_sucursal,
                    CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                    c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, 
-                   c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal
+                   c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,
+                   s.plantilla_renta
             FROM notas_salida ns
             JOIN rentas r ON ns.renta_id = r.id
             JOIN clientes c ON r.cliente_id = c.id
+            JOIN sucursales s ON r.id_sucursal = s.id
             WHERE ns.id = %s
         """, (nota_salida_id,))
         nota = cursor.fetchone()
-        
+
         if not nota:
             return "Nota de salida no encontrada", 404
-        
+
         # Obtener piezas de la nota de salida
         cursor.execute("""
             SELECT nsd.cantidad, p.nombre_pieza
@@ -293,7 +296,7 @@ def generar_pdf_nota_salida(nota_salida_id):
             ORDER BY p.nombre_pieza
         """, (nota_salida_id,))
         piezas = cursor.fetchall()
-        
+
         # Obtener datos del usuario actual
         usuario_id = session.get('user_id')
         usuario_nombre = "USUARIO NO IDENTIFICADO"
@@ -487,27 +490,31 @@ def generar_pdf_nota_salida(nota_salida_id):
                 can.drawString(36, y_position, line)
                 y_position -= 18
 
-        
         # Guardar el canvas
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA ---
-        try:
 
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL ---
+        try:
+            # Usar plantilla_renta de la sucursal si existe, si no usar base.pdf
+            plantilla_path = None
+            if nota.get('plantilla_renta'):
+                plantilla_path = os.path.join(current_app.root_path, nota['plantilla_renta'])
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
-
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-
                 # Primera página: plantilla + overlay
                 page = plantilla_pdf.pages[0]
                 page.merge_page(overlay_pdf.pages[0])
                 output.add_page(page)
-
                 # Páginas siguientes: solo overlay (blanco)
                 for i in range(1, len(overlay_pdf.pages)):
                     output.add_page(overlay_pdf.pages[i])
@@ -522,7 +529,6 @@ def generar_pdf_nota_salida(nota_salida_id):
             output = PdfWriter()
             for page in overlay_pdf.pages:
                 output.add_page(page)
-
 
         output_stream = BytesIO()
         output.write(output_stream)
@@ -564,6 +570,8 @@ def generar_pdf_nota_salida_por_renta(renta_id):
         return f"No hay nota de salida para la renta {renta_id}", 404
 
     return redirect(url_for('notas_salida.generar_pdf_nota_salida', nota_salida_id=nota['id']))
+
+
 
 
 @notas_salida_bp.route('/historial/<int:renta_id>')
