@@ -54,7 +54,7 @@
                 <!-- Modal Editar Sucursal -->
                 <div class="modal fade" id="modalEditarSucursal{{ sucursal.id }}" tabindex="-1" aria-labelledby="modalEditarLabel{{ sucursal.id }}" aria-hidden="true">
                     <div class="modal-dialog">
-                        <form method="post" action="{{ url_for('sucursales.editar_sucursal', id=sucursal.id) }}">
+                        <form method="post" action="{{ url_for('sucursales.editar_sucursal', id=sucursal.id) }}" enctype="multipart/form-data">
                             <div class="modal-content">
                                 <div class="modal-header modal-header-azul">
                                     <h5 class="modal-title" id="modalEditarLabel{{ sucursal.id }}"><i class="bi bi-pencil"></i> Editar Sucursal</h5>
@@ -68,6 +68,14 @@
                                     <div class="mb-3">
                                         <label for="direccion" class="form-label">Dirección</label>
                                         <input type="text" class="form-control" name="direccion" value="{{ sucursal.direccion }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="plantilla_renta" class="form-label">Plantilla PDF para Rentas (opcional)</label>
+                                        <input type="file" class="form-control" name="plantilla_renta" accept="application/pdf">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="plantilla_cotizacion" class="form-label">Plantilla PDF para Cotizaciones (opcional)</label>
+                                        <input type="file" class="form-control" name="plantilla_cotizacion" accept="application/pdf">
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -107,6 +115,14 @@
                         <label for="direccion" class="form-label">Dirección Completa</label>
                         <input type="text" class="form-control" name="direccion" placeholder="Ej. Calle Principal 123, Col. Centro" required>
                     </div>
+                        <div class="mb-3">
+                            <label for="plantilla_renta" class="form-label">Plantilla PDF para Rentas (opcional)</label>
+                            <input type="file" class="form-control" name="plantilla_renta" accept="application/pdf">
+                        </div>
+                        <div class="mb-3">
+                            <label for="plantilla_cotizacion" class="form-label">Plantilla PDF para Cotizaciones (opcional)</label>
+                            <input type="file" class="form-control" name="plantilla_cotizacion" accept="application/pdf">
+                        </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -114,6 +130,7 @@
                 </div>
             </div>
         </form>
+            <form method="post" action="{{ url_for('sucursales.nueva_sucursal') }}" enctype="multipart/form-data">
     </div>
 </div>
 {% endblock %}

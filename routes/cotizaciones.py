@@ -11,6 +11,7 @@ from reportlab.lib.units import inch
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.colors import yellow
 from flask import send_file, current_app
 from io import BytesIO
 import os
@@ -188,17 +189,17 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     conexion = get_db_connection()
     cursor = conexion.cursor(dictionary=True)
     
-    # Obtener datos de la cotización
+    # Obtener datos de la cotización y ruta de plantilla personalizada
     cursor.execute("""
         SELECT c.*, u.nombre as usuario_nombre, u.apellido1 as usuario_apellido,
                s.nombre as sucursal_nombre, s.direccion as sucursal_direccion,
+               s.plantilla_cotizacion as plantilla_cotizacion_path,
                c.fecha_creacion as fecha_creacion_local
         FROM cotizaciones c
         JOIN usuarios u ON c.usuario_id = u.id
         JOIN sucursales s ON c.sucursal_id = s.id
         WHERE c.id = %s
     """, (cotizacion_id,))
-    
     cotizacion = cursor.fetchone()
     
     # Obtener detalle de productos con piezas - CORREGIDO con JOIN a tabla piezas
@@ -231,23 +232,34 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     
     # === INFORMACIÓN DE LA EMPRESA (PARTE SUPERIOR) ===
     can.setFont("Helvetica-Bold", 12)
-    can.drawString(25, 708, "COTIZACIÓN DE RENTA DE ANDAMIOS Y EQUIPO LIGERO")
+    can.drawString(25, 719, "COTIZACIÓN DE RENTA DE ANDAMIOS Y EQUIPO LIGERO")
     
     
     # Fecha y folio (lado derecho)
     # Una sola línea con formato completo
     can.setFont("Carlito", 10)
-    can.drawString(482, 708, f"{cotizacion['fecha_creacion_local'].strftime('%d/%m/%Y - %H:%M:%S')}")
+    can.drawString(482, 720, f"{cotizacion['fecha_creacion_local'].strftime('%d/%m/%Y - %H:%M:%S')}")
+    
     
     can.setFont("Helvetica-Bold", 12)
-    can.drawString(420, 693, f"COTIZACIÓN #{cotizacion['numero_cotizacion']}")
+    texto_cotizacion = f"COTIZACIÓN #{cotizacion['numero_cotizacion']}"
+    x_cot = 420
+    y_cot = 700
+    #ancho_texto = can.stringWidth(texto_cotizacion, "Helvetica-Bold", 12)
+    #alto_resaltado = 16  # Alto del resaltado
+    # Dibujar rectángulo amarillo como subrayado
+    #can.setFillColor(yellow)
+    #can.rect(x_cot - 2, y_cot - 2, ancho_texto + 4, alto_resaltado, fill=1, stroke=0)
+    can.setFillColorRGB(255, 0, 0)  # rojo para el texto
+    can.drawString(x_cot, y_cot, texto_cotizacion)
+    can.setFillColorRGB(0, 0, 0)  # Negro para el resto del documento, importante no quitar
     
     can.setFont("Carlito", 10)
-    can.drawString(483, 680, f"VIGENCIA: {cotizacion['fecha_vigencia'].strftime('%d/%m/%Y')}")
+    can.drawString(483, 683, f"VIGENCIA: {cotizacion['fecha_vigencia'].strftime('%d/%m/%Y')}")
     
     
     # === DATOS DEL CLIENTE (TODOS DE LA TABLA COTIZACIONES) ===
-    y = 685
+    y = 690
     can.setFont("Helvetica-Bold", 11)
     can.drawString(25, y-5, "DATOS DEL CLIENTE")
     y -= 20
@@ -260,26 +272,26 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     if cotizacion['cliente_empresa'] and cotizacion['cliente_empresa'].strip():
         destinatario = cotizacion['cliente_empresa'].upper()
         can.drawString(25, y, f"EMPRESA: {destinatario}")
-        y -= 15
+        y -= 13
         can.drawString(25, y, f"CONTACTO: {cotizacion['cliente_nombre'].upper()}")
     else:
         destinatario = cotizacion['cliente_nombre'].upper()
         can.drawString(25, y, f"CLIENTE: {destinatario}")
     
-    y -= 15
+    y -= 13
     can.drawString(25, y, f"TELÉFONO: {cotizacion['cliente_telefono']}")
-    y -= 15
+    y -= 13
     can.drawString(25, y, f"EMAIL: {cotizacion['cliente_email'] or 'No proporcionado'.upper()}")
     y -= 15
     can.drawString(25, y, f"DIAS DE RENTA: {cotizacion['dias_renta']}")
     
-    y -= 20
+    y -= 15
     # === SALUDO PERSONALIZADO ===
     can.setFont("Carlito", 10)
     if cotizacion['cliente_empresa'] and cotizacion['cliente_empresa'].strip():
-        saludo = f"ESTIMADA EMPRESA {cotizacion['cliente_empresa'].upper()}, A CONTINUACIÓN SE LE PRESENTA  LA COTIZACIÓN SOLICITADA:"
+        saludo = f"ESTIMADA EMPRESA {cotizacion['cliente_empresa'].upper()}, A CONTINUACIÓN SE LE PRESENTA LA COTIZACIÓN SOLICITADA:"
     else:
-        saludo = f"ESTIMADO/A {cotizacion['cliente_nombre'].upper()}, A CONTINUACIÓN SE LE PRESENTA  LA COTIZACIÓN SOLICITADA:"
+        saludo = f"ESTIMADO/A {cotizacion['cliente_nombre'].upper()}, A CONTINUACIÓN SE LE PRESENTA LA COTIZACIÓN SOLICITADA:"
     
     can.drawString(25, y, saludo)
     
@@ -548,13 +560,20 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     
     # --- COMBINAR CON PLANTILLA ---
     try:
-        plantilla_path = os.path.join(current_app.root_path, 'static/notas/cotizacion.pdf')
+        # Usar plantilla personalizada de sucursal si existe, si no la default
+        plantilla_path = None
+        if cotizacion.get('plantilla_cotizacion_path'):
+            plantilla_abspath = os.path.join(current_app.root_path, cotizacion['plantilla_cotizacion_path'])
+            if os.path.exists(plantilla_abspath):
+                plantilla_path = plantilla_abspath
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
         existing_pdf = PdfReader(plantilla_path)
         output = PdfWriter()
-        
+
         # Leer el overlay
         new_pdf = PdfReader(packet)
-        
+
         # ⭐ AGREGAR TODAS LAS PÁGINAS DEL OVERLAY ⭐
         for page_num in range(len(new_pdf.pages)):
             if page_num == 0:
@@ -565,7 +584,7 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
             else:
                 # Páginas adicionales: agregar solo el overlay
                 output.add_page(new_pdf.pages[page_num])
-        
+
     except Exception as e:
         print(f"Error al usar plantilla: {e}")
         # Si no hay plantilla, usar solo el overlay
