@@ -1625,7 +1625,7 @@ def generar_pdf_transferencia_entrada(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = primer_movimiento['observaciones'] if primer_movimiento['observaciones'] else "Sin observaciones."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+       
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -1820,7 +1820,7 @@ def generar_pdf_alta_equipo(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = observaciones if observaciones else "Sin observaciones."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+      
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -1916,10 +1916,10 @@ def generar_pdf_baja_equipo(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos del movimiento de baja de equipo (inventario general)
+        # Obtener datos del movimiento de baja de equipo (inventario general y plantilla de sucursal)
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
-                   u.nombre as usuario_nombre
+                   u.nombre as usuario_nombre, s.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
@@ -1942,6 +1942,7 @@ def generar_pdf_baja_equipo(folio):
         fecha_movimiento = primer_movimiento['fecha']
         observaciones = primer_movimiento['descripcion'] or ''
         tipo_movimiento = primer_movimiento['tipo_movimiento']
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
         
         cursor.close()
         conn.close()
@@ -2012,7 +2013,7 @@ def generar_pdf_baja_equipo(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = observaciones if observaciones else "Sin observaciones."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+       
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -2038,22 +2039,32 @@ def generar_pdf_baja_equipo(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL (plantilla_renta) ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-                for i, page in enumerate(overlay_pdf.pages):
-                    base_page = plantilla_pdf.pages[0]
-                    base_page.merge_page(page)
-                    output.add_page(base_page)
+                # Primera página: plantilla + overlay
+                page = plantilla_pdf.pages[0]
+                page.merge_page(overlay_pdf.pages[0])
+                output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
-                
         except Exception as e:
             print(f"Error con plantilla: {e}")
             overlay_pdf = PdfReader(packet)
@@ -2100,10 +2111,10 @@ def generar_pdf_reparacion_lote(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos del envío a reparación
+        # Obtener datos del envío a reparación (incluye plantilla de sucursal)
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
-                   u.nombre as usuario_nombre
+                   u.nombre as usuario_nombre, s.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
@@ -2125,6 +2136,7 @@ def generar_pdf_reparacion_lote(folio):
         usuario_nombre = primer_movimiento['usuario_nombre'] or 'No disponible'
         fecha_movimiento = primer_movimiento['fecha']
         observaciones = primer_movimiento['observaciones'] or primer_movimiento['descripcion'] or ''
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
         
         cursor.close()
         conn.close()
@@ -2193,7 +2205,7 @@ def generar_pdf_reparacion_lote(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = observaciones if observaciones else "Sin observaciones."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+       
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -2221,22 +2233,32 @@ def generar_pdf_reparacion_lote(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL (plantilla_renta) ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-                for i, page in enumerate(overlay_pdf.pages):
-                    base_page = plantilla_pdf.pages[0]
-                    base_page.merge_page(page)
-                    output.add_page(base_page)
+                # Primera página: plantilla + overlay
+                page = plantilla_pdf.pages[0]
+                page.merge_page(overlay_pdf.pages[0])
+                output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
-                
         except Exception as e:
             print(f"Error con plantilla: {e}")
             overlay_pdf = PdfReader(packet)
@@ -2279,10 +2301,10 @@ def generar_pdf_finalizacion_reparacion(folio):
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Obtener datos de la finalización de reparación
+        # Obtener datos de la finalización de reparación (incluye plantilla de sucursal)
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
-                   u.nombre as usuario_nombre
+                   u.nombre as usuario_nombre, s.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
@@ -2304,6 +2326,7 @@ def generar_pdf_finalizacion_reparacion(folio):
         usuario_nombre = primer_movimiento['usuario_nombre'] or 'No disponible'
         fecha_movimiento = primer_movimiento['fecha']
         observaciones = primer_movimiento['descripcion'] or ''
+        plantilla_renta = primer_movimiento.get('plantilla_renta')
         
         cursor.close()
         conn.close()
@@ -2372,7 +2395,7 @@ def generar_pdf_finalizacion_reparacion(folio):
         can.setFont("Carlito", 13)
         observaciones_texto = observaciones if observaciones else "Equipos reparados y listos para uso."
         max_width = 550  # ancho máximo para el texto
-        from reportlab.lib.utils import simpleSplit
+        
         obs_lines = simpleSplit(f"OBSERVACIONES: {observaciones_texto}", "Carlito", 13, max_width)
         for line in obs_lines:
             can.drawString(36, y_position, line)
@@ -2400,22 +2423,32 @@ def generar_pdf_finalizacion_reparacion(folio):
         can.save()
         packet.seek(0)
         
-        # --- COMBINAR CON LA PLANTILLA 
+        # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL (plantilla_renta) ---
         try:
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-                for i, page in enumerate(overlay_pdf.pages):
-                    base_page = plantilla_pdf.pages[0]
-                    base_page.merge_page(page)
-                    output.add_page(base_page)
+                # Primera página: plantilla + overlay
+                page = plantilla_pdf.pages[0]
+                page.merge_page(overlay_pdf.pages[0])
+                output.add_page(page)
+                # Páginas siguientes: solo overlay (blanco)
+                for i in range(1, len(overlay_pdf.pages)):
+                    output.add_page(overlay_pdf.pages[i])
             else:
+                # Si no hay plantilla, agrega todas las páginas del overlay
                 for page in overlay_pdf.pages:
                     output.add_page(page)
-                
         except Exception as e:
             print(f"Error con plantilla: {e}")
             overlay_pdf = PdfReader(packet)

@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request, send_file, current_app, url_for, session
 from utils.db import get_db_connection
 from io import BytesIO
+from reportlab.lib.utils import simpleSplit
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from PyPDF2 import PdfReader, PdfWriter
@@ -364,13 +365,35 @@ def generar_pdf_cobro_extra(cobro_extra_id):
         if usuario_row:
             usuario_nombre = usuario_row['nombre_completo'].upper()
     
+    # === OBTENER PLANTILLA DE LA SUCURSAL ===
+    sucursal_id = None
+    plantilla_renta = None
+    try:
+        conn2 = get_db_connection()
+        cursor2 = conn2.cursor(dictionary=True)
+        # Buscar sucursal de la renta asociada
+        cursor2.execute("""
+            SELECT s.id as sucursal_id, s.plantilla_renta
+            FROM rentas r
+            JOIN sucursales s ON r.id_sucursal = s.id
+            WHERE r.id = %s
+        """, (cobro['renta_id'],))
+        sucursal_row = cursor2.fetchone()
+        if sucursal_row:
+            sucursal_id = sucursal_row['sucursal_id']
+            plantilla_renta = sucursal_row['plantilla_renta']
+        cursor2.close()
+        conn2.close()
+    except Exception as e:
+        print(f"Error obteniendo plantilla_renta: {e}")
+
     cursor.close()
     conn.close()
-    
+
     # --- GENERAR PDF COMPLETO ---
     packet = BytesIO()
     can = canvas.Canvas(packet, pagesize=letter)
-    
+
     # Registrar fuentes
     try:
         font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
@@ -378,7 +401,7 @@ def generar_pdf_cobro_extra(cobro_extra_id):
             pdfmetrics.registerFont(TTFont('Carlito', font_path))
     except:
         pass
-    
+
     # === TÍTULO PRINCIPAL ===
     can.setFont("Courier-Bold", 15)
     can.drawString(490, 732, "PREFACTURA")
@@ -414,7 +437,7 @@ def generar_pdf_cobro_extra(cobro_extra_id):
         direccion_completa += f" - C.P. {cobro['codigo_postal']}"
 
     direccion_texto = f"DIRECCIÓN: {direccion_completa.upper()}"
-    from reportlab.lib.utils import simpleSplit
+   
     direccion_lines = simpleSplit(direccion_texto, "Carlito", 10, 530)
     for line in direccion_lines:
         can.drawString(36, y_cliente, line)
@@ -631,14 +654,20 @@ def generar_pdf_cobro_extra(cobro_extra_id):
     can.save()
     packet.seek(0)
 
-    # --- COMBINAR CON LA PLANTILLA ---
+    # --- COMBINAR CON LA PLANTILLA PERSONALIZADA O BASE ---
     try:
-        plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+        plantilla_path = None
+        if plantilla_renta:
+            plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
         if os.path.exists(plantilla_path):
             plantilla_pdf = PdfReader(plantilla_path)
             overlay_pdf = PdfReader(packet)
             output = PdfWriter()
-
             page = plantilla_pdf.pages[0]
             page.merge_page(overlay_pdf.pages[0])
             output.add_page(page)
@@ -673,6 +702,13 @@ def generar_pdf_cobro_extra(cobro_extra_id):
     response.headers['Expires'] = '0'
     
     return response
+
+
+
+
+
+
+
 
 
 @bp_extras.route('/pendientes/<int:renta_id>')

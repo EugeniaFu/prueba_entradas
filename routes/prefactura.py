@@ -16,6 +16,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from num2words import num2words 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import simpleSplit
 
 
 def obtener_folio_consecutivo_prefactura():
@@ -655,7 +656,7 @@ def generar_pdf_prefactura(prefactura_id):
         direccion_completa += f" - C.P. {prefactura['codigo_postal']}"
 
     direccion_texto = f"DIRECCIÓN: {direccion_completa.upper()}"
-    from reportlab.lib.utils import simpleSplit
+    
     direccion_lines = simpleSplit(direccion_texto, "Carlito", 10, 530)
     for line in direccion_lines:
         can.drawString(36, y_cliente, line)

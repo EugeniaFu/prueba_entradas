@@ -164,9 +164,9 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if transferencia.folio and transferencia.tipo in ['Enviado', 'Recibido', 'Alta Equipo', 'Envío a Reparación', 'Finalizar Reparaciones'] %}
+                        {% if transferencia.folio and transferencia.tipo_movimiento in ['transferencia_salida', 'transferencia_entrada', 'alta_equipo', 'reparacion_lote', 'finalizar_reparacion'] %}
                             <button class="btn btn-outline-danger action-btn-transferencias" 
-                                    onclick="verPDFTransferencia('{{ transferencia.tipo }}', '{{ transferencia.folio }}')"
+                                    onclick="verPDFTransferenciaTipoMov('{{ transferencia.tipo_movimiento }}', '{{ transferencia.folio }}')"
                                     title="Ver PDF">
                                 <i class="bi bi-file-earmark-pdf"></i>
                             </button>
@@ -251,29 +251,27 @@ document.addEventListener('DOMContentLoaded', function() {
     filtrarTransferencias();
 });
 
-// Función para ver PDF de transferencia
-function verPDFTransferencia(tipo, folio) {
+// Función para ver PDF según tipo_movimiento real
+function verPDFTransferenciaTipoMov(tipo_movimiento, folio) {
     if (!folio) {
         Swal.fire('Error', 'Folio no disponible', 'error');
         return;
     }
-    
     let endpoint;
-    if (tipo === 'Enviado') {
+    if (tipo_movimiento === 'transferencia_salida') {
         endpoint = 'pdf-transferencia-salida';
-    } else if (tipo === 'Recibido') {
+    } else if (tipo_movimiento === 'transferencia_entrada') {
         endpoint = 'pdf-transferencia-entrada';
-    } else if (tipo === 'Alta Equipo') {
+    } else if (tipo_movimiento === 'alta_equipo') {
         endpoint = 'pdf-alta-equipo';
-    } else if (tipo === 'Envío a Reparación') {
-        endpoint = 'pdf-transferencia-salida';
-    } else if (tipo === 'Finalizar Reparaciones') {
-        endpoint = 'pdf-finalizacion-reparacion';  
+    } else if (tipo_movimiento === 'reparacion_lote') {
+        endpoint = 'pdf-reparacion-lote';
+    } else if (tipo_movimiento === 'finalizar_reparacion') {
+        endpoint = 'pdf-finalizacion-reparacion';
     } else {
         Swal.fire('Error', 'Tipo de documento no reconocido', 'error');
         return;
     }
-    
     const url = `/inventario/${endpoint}/${folio}`;
     window.open(url, '_blank');
 }

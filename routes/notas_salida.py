@@ -12,6 +12,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.lib.utils import simpleSplit
 from utils.datetime_utils import get_local_now, format_datetime_local
 from utils.decorators import requiere_sesion, requiere_permiso
 import os
@@ -370,7 +371,7 @@ def generar_pdf_nota_salida(nota_salida_id):
             direccion_completa += f" - C.P. {nota['codigo_postal']}"
         
         direccion_texto = f"DIRECCIÓN: {direccion_completa.upper()}"
-        from reportlab.lib.utils import simpleSplit
+        
         direccion_lines = simpleSplit(direccion_texto, "Carlito", 10, 530)
         y_direccion = 665
         for line in direccion_lines:
@@ -430,7 +431,7 @@ def generar_pdf_nota_salida(nota_salida_id):
         can.setFont("Helvetica-Bold", 10)
         direccion_obra_texto = f"DIRECCIÓN DE OBRA: {nota['direccion_obra'].upper()}"
         max_width = 550
-        from reportlab.lib.utils import simpleSplit
+        
         obra_lines = simpleSplit(direccion_obra_texto, "Helvetica-Bold", 12, max_width)
         for line in obra_lines:
             can.drawString(36, y_position, line)

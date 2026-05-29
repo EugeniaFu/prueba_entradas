@@ -468,6 +468,17 @@ def obtener_folio_entrada(salida_id):
         return jsonify({'success': False, 'error': f'Error al obtener folio: {str(e)}'})
 
 
+
+
+
+
+
+
+
+
+
+
+
 # ======================= GENERACIÓN DE PDFs =======================
 
 @salidas_internas_bp.route('/pdf-salida/<folio>')
@@ -511,14 +522,25 @@ def generar_pdf_salida_interna(folio):
             conn.close()
             return jsonify({'error': 'No hay productos en esta salida interna'}), 404
         
-        cursor.close()
-        conn.close()
-        
+        # === OBTENER PLANTILLA DE LA SUCURSAL ===
+        plantilla_renta = None
+        try:
+            conn2 = get_db_connection()
+            cursor2 = conn2.cursor(dictionary=True)
+            cursor2.execute("SELECT plantilla_renta FROM sucursales WHERE id = %s", (salida_datos['id_sucursal'],))
+            sucursal_row = cursor2.fetchone()
+            if sucursal_row and sucursal_row.get('plantilla_renta'):
+                plantilla_renta = sucursal_row['plantilla_renta']
+            cursor2.close()
+            conn2.close()
+        except Exception as e:
+            print(f"Error obteniendo plantilla_renta: {e}")
+
         # Crear PDF
         buffer = BytesIO()
         c = canvas.Canvas(buffer, pagesize=letter)
         width, height = letter
-        
+
         try:
             # Registrar fuente personalizada
             font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
@@ -526,35 +548,35 @@ def generar_pdf_salida_interna(folio):
                 pdfmetrics.registerFont(TTFont('Carlito', font_path))
         except:
             pass
-        
+
         # CONFIGURACIÓN INICIAL 
         page_width, page_height = letter
         y_position = page_height - 100
-        
+
         # Folio
         c.setFont("Courier-Bold", 20)
         c.drawRightString(575, 690, f"#{folio}")
-        
+
         # Fecha y hora de emisión
         c.setFont("Carlito", 12)
         fecha_emision = format_datetime_local(salida_datos['fecha_salida'], '%d/%m/%Y - %H:%M:%S')
         c.drawRightString(575, 715, f"{fecha_emision}")
-        
+
         # === DATOS PRINCIPALES ===
         c.setFont("Courier-Bold", 23)
         c.drawString(496, 732, "SALIDA")
-        
+
         c.setFont("Courier-Bold", 15)
         c.drawString(36, 715, "SALIDA INTERNA")
 
         # Datos del responsable y sucursal
         c.setFont("Carlito", 10)
         c.drawString(36, 695, f"SUCURSAL: {salida_datos['sucursal_nombre'].upper()}")
-        
+
         # Responsable y fecha en la misma línea
         c.drawString(36, 680, f"RESPONSABLE: {salida_datos['responsable_entrega'].upper()}")
         c.drawString(350, 680, f"FECHA: {format_datetime_local(salida_datos['fecha_salida'], '%d/%m/%Y %H:%M')}")
-        
+
         # Observaciones si existen
         if salida_datos['observaciones']:
             observaciones_texto = f"OBSERVACIONES: {salida_datos['observaciones'].upper()}"
@@ -567,7 +589,7 @@ def generar_pdf_salida_interna(folio):
             y_position = y_obs - 10
         else:
             y_position = 650
-        
+
         # DATOS DE PIEZAS 
         # Texto descriptivo antes de la tabla
         c.setFont("Carlito", 10)
@@ -575,14 +597,14 @@ def generar_pdf_salida_interna(folio):
         y_position -= 10
         c.drawString(36, y_position, "EL SIGUIENTE EQUIPO:")
         y_position -= 20
-        
+
         # Encabezado de tabla
         c.setFont("Helvetica-Bold", 9)
         c.drawString(36, y_position + 5, "CANT. (PIEZAS)")
         c.drawString(150, y_position + 5, "DESCRIPCIÓN")
         c.drawString(400, y_position + 5, "CATEGORÍA")
         y_position -= 15
-        
+
         c.setFont("Carlito", 10)
         total_piezas = 0
         for producto in productos:
@@ -597,14 +619,14 @@ def generar_pdf_salida_interna(folio):
             c.drawString(400, y_position + 5, (producto['categoria'] or '').upper())
             y_position -= 13
             total_piezas += producto['cantidad']
-        
+
         y_position -= 5
-        
+
         # Total de piezas
         c.setFont("Helvetica-Bold", 9)
         c.drawString(36, y_position, f"TOTAL DE PIEZAS: {total_piezas}")
         y_position -= 20
-        
+
         # === TÉRMINOS Y CONDICIONES ===
         c.setFont("Carlito", 11)
         c.drawString(36, y_position, "TÉRMINOS Y CONDICIONES:")
@@ -612,11 +634,7 @@ def generar_pdf_salida_interna(folio):
 
         # Texto de términos adaptado para salidas internas
         c.setFont("Carlito", 9)
-        terminos_texto = """POR MEDIO DE LA PRESENTE, RECONOZCO HABER RECIBIDO EN PERFECTO ESTADO Y FUNCIONANDO EL EQUIPO DESCRITO ANTERIORMENTE. 
-        ME COMPROMETO A: • HACER USO RESPONSABLE DEL EQUIPO • MANTENER EL EQUIPO EN LAS MISMAS CONDICIONES • DEVOLVER EL
-        EQUIPO COMPLETO EN LA FECHA ACORDADA • RESPONDER POR DAÑOS, PÉRDIDA O ROBO • CUMPLIR CON TODAS LAS CONDICIONES ESTABLECIDAS.
-
-        IMPORTANTE: EL EQUIPO DEBE SER DEVUELTO EN LAS MISMAS CONDICIONES EN QUE SE ENTREGÓ."""
+        terminos_texto = """POR MEDIO DE LA PRESENTE, RECONOZCO HABER RECIBIDO EN PERFECTO ESTADO Y FUNCIONANDO EL EQUIPO DESCRITO ANTERIORMENTE. \n        ME COMPROMETO A: • HACER USO RESPONSABLE DEL EQUIPO • MANTENER EL EQUIPO EN LAS MISMAS CONDICIONES • DEVOLVER EL\n        EQUIPO COMPLETO EN LA FECHA ACORDADA • RESPONDER POR DAÑOS, PÉRDIDA O ROBO • CUMPLIR CON TODAS LAS CONDICIONES ESTABLECIDAS.\n\n        IMPORTANTE: EL EQUIPO DEBE SER DEVUELTO EN LAS MISMAS CONDICIONES EN QUE SE ENTREGÓ."""
 
         from reportlab.lib.utils import simpleSplit
         terminos_lines = simpleSplit(terminos_texto, "Carlito", 9, 520)
@@ -626,21 +644,21 @@ def generar_pdf_salida_interna(folio):
                 y_position = page_height - 60
             c.drawString(36, y_position, line)
             y_position -= 12
-        
+
         y_position -= 30
-        
+
         # === FIRMAS ===
         c.setFont("Carlito", 10)
         # Líneas para firmas
         c.line(60, y_position, 250, y_position)  # Línea empresa
         c.line(350, y_position, 540, y_position)  # Línea responsable
         y_position -= 15
-        
+
         # Etiquetas de firmas
         c.drawString(60, y_position, "ENTREGA: ANDAMIOS COLOSIO")
         c.drawString(350, y_position, f"RECIBE: {salida_datos['responsable_entrega'].upper()}")
         y_position -= 10
-        
+
         # Obtener nombre del usuario actual
         usuario_id = session.get('user_id')
         usuario_nombre = "USUARIO NO IDENTIFICADO"
@@ -659,30 +677,34 @@ def generar_pdf_salida_interna(folio):
             finally:
                 cursor_user.close()
                 conn_user.close()
-        
+
         c.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
         y_position -= 15
-        
+
         # Guardar el canvas
         c.save()
         buffer.seek(0)
-        
-        # --- COMBINAR CON LA PLANTILLA ---
+
+        # --- COMBINAR CON LA PLANTILLA PERSONALIZADA O BASE ---
         try:
             from PyPDF2 import PdfReader, PdfWriter
-            
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(buffer)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-
                 # Primera página: plantilla + overlay
                 page = plantilla_pdf.pages[0]
                 page.merge_page(overlay_pdf.pages[0])
                 output.add_page(page)
-
                 # Páginas siguientes: solo overlay (blanco)
                 for i in range(1, len(overlay_pdf.pages)):
                     output.add_page(overlay_pdf.pages[i])
@@ -701,7 +723,7 @@ def generar_pdf_salida_interna(folio):
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
             download_name=f"salida_interna_{folio}.pdf",
@@ -714,6 +736,11 @@ def generar_pdf_salida_interna(folio):
         if conn:
             conn.close()
         return jsonify({'error': str(e)}), 500
+
+
+
+
+
 
 
 @salidas_internas_bp.route('/pdf-entrada/<folio>')
@@ -765,11 +792,25 @@ def generar_pdf_entrada_interna(folio):
         cursor.close()
         conn.close()
         
+        # === OBTENER PLANTILLA DE LA SUCURSAL ===
+        plantilla_renta = None
+        try:
+            conn2 = get_db_connection()
+            cursor2 = conn2.cursor(dictionary=True)
+            cursor2.execute("SELECT plantilla_renta FROM sucursales WHERE id = %s", (primer_movimiento['id_sucursal'],))
+            sucursal_row = cursor2.fetchone()
+            if sucursal_row and sucursal_row.get('plantilla_renta'):
+                plantilla_renta = sucursal_row['plantilla_renta']
+            cursor2.close()
+            conn2.close()
+        except Exception as e:
+            print(f"Error obteniendo plantilla_renta: {e}")
+
         # Crear PDF
         buffer = BytesIO()
         c = canvas.Canvas(buffer, pagesize=letter)
         width, height = letter
-        
+
         try:
             # Registrar fuente personalizada
             font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
@@ -777,34 +818,34 @@ def generar_pdf_entrada_interna(folio):
                 pdfmetrics.registerFont(TTFont('Carlito', font_path))
         except:
             pass
-        
+
         # CONFIGURACIÓN INICIAL 
         page_width, page_height = letter
         y_position = page_height - 100
-        
+
         # Folio
         c.setFont("Courier-Bold", 20)
         c.drawRightString(575, 690, f"#{folio}")
-        
+
         # Fecha y hora de entrada
         c.setFont("Carlito", 12)
         fecha_entrada = format_datetime_local(primer_movimiento['fecha'], '%d/%m/%Y - %H:%M:%S')
         c.drawRightString(575, 715, f"{fecha_entrada}")
-        
+
         # === DATOS PRINCIPALES ===
         c.setFont("Courier-Bold", 23)
         c.drawString(480, 732, "ENTRADA")
-        
+
         c.setFont("Courier-Bold", 15)
         c.drawString(36, 715, "SALIDA INTERNA")
 
         # Datos de la sucursal y responsable (extraer del primer movimiento)
         c.setFont("Carlito", 10)
         c.drawString(36, 695, f"SUCURSAL: {primer_movimiento['sucursal_nombre'].upper()}")
-        
+
         # Fecha de retorno
         c.drawString(36, 680, f"FECHA DE RETORNO: {format_datetime_local(primer_movimiento['fecha'], '%d/%m/%Y %H:%M')}")
-        
+
         # Observaciones si existen (extraer de la descripción)
         if primer_movimiento['descripcion']:
             observaciones_texto = f"OBSERVACIONES: {primer_movimiento['descripcion'].upper()}"
@@ -817,7 +858,7 @@ def generar_pdf_entrada_interna(folio):
             y_position = y_obs - 10
         else:
             y_position = 650
-        
+
         # DATOS DE PIEZAS 
         # Texto descriptivo antes de la tabla
         c.setFont("Carlito", 10)
@@ -825,14 +866,14 @@ def generar_pdf_entrada_interna(folio):
         y_position -= 10
         c.drawString(36, y_position, "EL SIGUIENTE EQUIPO:")
         y_position -= 25
-        
+
         # Encabezado de tabla (sin columnas de estado)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(36, y_position + 5, "CANT. (PIEZAS)")
         c.drawString(150, y_position + 5, "DESCRIPCIÓN")
         c.drawString(400, y_position + 5, "CATEGORÍA")
         y_position -= 15
-        
+
         c.setFont("Carlito", 10)
         total_piezas = 0
         for mov in movimientos:
@@ -847,14 +888,14 @@ def generar_pdf_entrada_interna(folio):
             c.drawString(400, y_position + 5, (mov['categoria'] or '').upper())
             y_position -= 13
             total_piezas += mov['cantidad']
-        
+
         y_position -= 5
-        
+
         # Total de piezas
         c.setFont("Helvetica-Bold", 9)
         c.drawString(36, y_position, f"TOTAL DE PIEZAS: {total_piezas}")
         y_position -= 20
-        
+
         # === PIE DE NOTA ===
 
         c.setFont("Carlito", 9)
@@ -868,44 +909,48 @@ def generar_pdf_entrada_interna(folio):
                 y_position = page_height - 60
             c.drawString(36, y_position, line)
             y_position -= 12
-        
+
         y_position -= 30
-        
+
         # === FIRMAS ===
         c.setFont("Carlito", 10)
         # Líneas para firmas (invertidas para entrada)
         c.line(60, y_position, 250, y_position)  # Línea empresa
         c.line(350, y_position, 540, y_position)  # Línea responsable
         y_position -= 15
-        
+
         # Etiquetas de firmas (invertidas para entrada)
         c.drawString(60, y_position, "RECIBE: ANDAMIOS COLOSIO")
         c.drawString(350, y_position, "ENTREGA: _______________________")
         y_position -= 10
-        
+
         c.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
         y_position -= 15
-        
+
         # Guardar el canvas
         c.save()
         buffer.seek(0)
-        
-        # --- COMBINAR CON LA PLANTILLA ---
+
+        # --- COMBINAR CON LA PLANTILLA PERSONALIZADA O BASE ---
         try:
             from PyPDF2 import PdfReader, PdfWriter
-            
-            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+            plantilla_path = None
+            if plantilla_renta:
+                plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+                if not os.path.exists(plantilla_path):
+                    plantilla_path = None
+            if not plantilla_path:
+                plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
             overlay_pdf = PdfReader(buffer)
             output = PdfWriter()
 
             if os.path.exists(plantilla_path):
                 plantilla_pdf = PdfReader(plantilla_path)
-
                 # Primera página: plantilla + overlay
                 page = plantilla_pdf.pages[0]
                 page.merge_page(overlay_pdf.pages[0])
                 output.add_page(page)
-
                 # Páginas siguientes: solo overlay (blanco)
                 for i in range(1, len(overlay_pdf.pages)):
                     output.add_page(overlay_pdf.pages[i])
@@ -924,7 +969,7 @@ def generar_pdf_entrada_interna(folio):
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
             download_name=f"entrada_interna_{folio}.pdf",

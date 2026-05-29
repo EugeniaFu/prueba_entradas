@@ -8,6 +8,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from num2words import num2words 
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import simpleSplit
 from utils.datetime_utils import get_local_now
 from utils.decorators import requiere_sesion, requiere_permiso
 
@@ -381,12 +382,12 @@ def guardar_cobro_retraso(renta_id):
 def generar_pdf_cobro_retraso(cobro_retraso_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     # Obtener datos completos del cobro de retraso
     cursor.execute("""
         SELECT ncr.*, ne.folio as folio_entrada, ne.renta_id,
                r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
-               r.traslado, r.costo_traslado,
+               r.traslado, r.costo_traslado, r.id_sucursal,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.correo, c.calle, c.numero_exterior, 
                c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,    
@@ -398,12 +399,12 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         WHERE ncr.id = %s
     """, (cobro_retraso_id,))
     cobro = cursor.fetchone()
-    
+
     if not cobro:
         cursor.close()
         conn.close()
         return "Cobro de retraso no encontrado", 404
-    
+
     # Obtener detalles del cobro de retraso (no de la renta original)
     cursor.execute("""
         SELECT nombre_producto, cantidad, dias_retraso, precio_unitario, subtotal
@@ -411,7 +412,15 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         WHERE cobro_retraso_id = %s
     """, (cobro_retraso_id,))
     detalles = cursor.fetchall()
-    
+
+    # Obtener plantilla_renta de la sucursal
+    plantilla_renta = None
+    if cobro.get('id_sucursal'):
+        cursor.execute("SELECT plantilla_renta FROM sucursales WHERE id = %s", (cobro['id_sucursal'],))
+        sucursal_row = cursor.fetchone()
+        if sucursal_row and sucursal_row.get('plantilla_renta'):
+            plantilla_renta = sucursal_row['plantilla_renta']
+
     # Obtener datos del usuario actual
     usuario_id = session.get('user_id')
     usuario_nombre = "USUARIO NO IDENTIFICADO"
@@ -424,7 +433,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         usuario_row = cursor.fetchone()
         if usuario_row:
             usuario_nombre = usuario_row['nombre_completo'].upper()
-    
+
     cursor.close()
     conn.close()
     
@@ -475,7 +484,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         direccion_completa += f" - C.P. {cobro['codigo_postal']}"
 
     direccion_texto = f"DIRECCIÓN: {direccion_completa.upper()}"
-    from reportlab.lib.utils import simpleSplit
+    
     direccion_lines = simpleSplit(direccion_texto, "Carlito", 10, 530)
     for line in direccion_lines:
         can.drawString(36, y_cliente, line)
@@ -700,26 +709,38 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     can.save()
     packet.seek(0)
 
-    # --- COMBINAR CON LA PLANTILLA ---
+    # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL (plantilla_renta) ---
     try:
-        plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+        plantilla_path = None
+        if plantilla_renta:
+            plantilla_path = os.path.join(current_app.root_path, plantilla_renta)
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+
         if os.path.exists(plantilla_path):
             plantilla_pdf = PdfReader(plantilla_path)
-            overlay_pdf = PdfReader(packet)
-            output = PdfWriter()
-
+            # Primera página: plantilla + overlay
             page = plantilla_pdf.pages[0]
             page.merge_page(overlay_pdf.pages[0])
             output.add_page(page)
+            # Páginas siguientes: solo overlay (blanco)
+            for i in range(1, len(overlay_pdf.pages)):
+                output.add_page(overlay_pdf.pages[i])
         else:
-            overlay_pdf = PdfReader(packet)
-            output = PdfWriter()
-            output.add_page(overlay_pdf.pages[0])
+            # Si no hay plantilla, agrega todas las páginas del overlay
+            for page in overlay_pdf.pages:
+                output.add_page(page)
     except Exception as e:
         print(f"Error con plantilla, usando solo overlay: {e}")
         overlay_pdf = PdfReader(packet)
         output = PdfWriter()
-        output.add_page(overlay_pdf.pages[0])
+        for page in overlay_pdf.pages:
+            output.add_page(page)
 
     output_stream = BytesIO()
     output.write(output_stream)
