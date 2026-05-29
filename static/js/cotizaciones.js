@@ -263,24 +263,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (data.precio) {
                     const precioBase = data.precio;
 
-                    // Lógica de ajuste igual que en rentas
                     // Detectar sucursal Escárcega (ID 4) y permisos
                     const sucursalSelect = document.getElementById('id_sucursal');
                     const sucursalId = sucursalSelect ? sucursalSelect.value : null;
                     const esEscarcega = (sucursalId === '4');
                     const puedeAjustar = window.puedeAjustarPrecios || false;
 
-                    let ajusteTipoDefault, ajusteValorDefault, ajusteValorDisabled, selectDisabled;
+                    let ajusteTipoDefault, ajusteValorDefault, ajusteValorDisabled, selectDisabled, precioFinal;
                     if (esEscarcega) {
                         ajusteTipoDefault = 'porcentaje';
                         ajusteValorDefault = '10';
-                        if (puedeAjustar) {
-                            ajusteValorDisabled = '';
-                            selectDisabled = '';
-                        } else {
-                            ajusteValorDisabled = 'disabled';
-                            selectDisabled = 'disabled';
-                        }
+                        ajusteValorDisabled = 'disabled';
+                        selectDisabled = 'disabled';
+                        precioFinal = precioBase * 1.10; // SIEMPRE 10% de aumento
                     } else {
                         if (puedeAjustar) {
                             ajusteTipoDefault = 'ninguno';
@@ -293,14 +288,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             ajusteValorDisabled = 'disabled';
                             selectDisabled = 'disabled';
                         }
-                    }
-
-                    // Calcular precio final con ajuste
-                    let precioFinal = precioBase;
-                    if (ajusteTipoDefault === 'porcentaje' && ajusteValorDefault !== '0') {
-                        precioFinal = precioBase * (1 + parseFloat(ajusteValorDefault) / 100);
-                    } else if (ajusteTipoDefault === 'fijo' && ajusteValorDefault !== '0') {
-                        precioFinal = precioBase + parseFloat(ajusteValorDefault);
+                        // Calcular precio final con ajuste
+                        precioFinal = precioBase;
+                        if (ajusteTipoDefault === 'porcentaje' && ajusteValorDefault !== '0') {
+                            precioFinal = precioBase * (1 + parseFloat(ajusteValorDefault) / 100);
+                        } else if (ajusteTipoDefault === 'fijo' && ajusteValorDefault !== '0') {
+                            precioFinal = precioBase + parseFloat(ajusteValorDefault);
+                        }
                     }
 
                     const subtotal = cantidad * precioFinal * diasRenta;
@@ -338,16 +332,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         fila.setAttribute('data-producto-id', productoId);
                         fila.innerHTML = `
                             <td>${productoNombre}</td>
-                            <td class="cantidad">${cantidad}</td>
+                            <td><input type="number" class="form-control form-control-sm cantidad-editable" min="1" value="${cantidad}" style="width: 60px;"></td>
                             <td class="dias">${diasRenta}</td>
                             <td class="precio-base">$${precioBase.toFixed(2)}</td>
                             <td>
                                 <select class="ajuste-tipo form-select form-select-sm" style="width: 60px; display:inline-block;" ${selectDisabled}>
-                                    <option value="ninguno" ${ajusteTipoDefault==='ninguno'?'selected':''}>Ninguno</option>
+                                    <option value="ninguno" ${ajusteTipoDefault==='ninguno'?'selected':''}>S/A</option>
                                     <option value="porcentaje" ${ajusteTipoDefault==='porcentaje'?'selected':''}>%</option>
                                     <option value="fijo" ${ajusteTipoDefault==='fijo'?'selected':''}>$</option>
                                 </select>
-                                <input type="number" class="ajuste-valor form-control form-control-sm" style="width: 55px; display:inline-block;" value="${ajusteValorDefault}" ${ajusteValorDisabled}>
+                            </td>
+                            <td>
+                                <input type="number" class="ajuste-valor form-control form-control-sm" style="width: 60px; display:inline-block;" value="${ajusteValorDefault}" ${ajusteValorDisabled}>
                             </td>
                             <td class="precio-final">$${precioFinal.toFixed(2)}</td>
                             <td class="subtotal">$${subtotal.toFixed(2)}</td>
@@ -358,6 +354,17 @@ document.addEventListener('DOMContentLoaded', function () {
                             </td>
                         `;
                         productosTableBody.appendChild(fila);
+
+                        // Listener para cantidad editable
+                        const cantidadEditable = fila.querySelector('.cantidad-editable');
+                        cantidadEditable.addEventListener('input', function() {
+                            const nuevaCantidad = parseFloat(this.value) || 1;
+                            producto.cantidad = nuevaCantidad;
+                            producto.subtotal = nuevaCantidad * producto.precio_final * producto.dias;
+                            fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
+                            calcularTotales();
+                            actualizarHiddenInputs();
+                        });
 
                         // Listeners para recalcular precio final y subtotal al cambiar ajuste
                         const selectAjuste = fila.querySelector('.ajuste-tipo');

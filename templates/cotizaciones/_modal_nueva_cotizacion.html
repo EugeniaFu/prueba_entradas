@@ -26,12 +26,14 @@
                                 {% if es_admin %}
                                 <div class="mb-3">
                                   <label class="form-label">Sucursal *</label>
-                                  <select class="form-select" name="sucursal_id" required>
+                                  <select class="form-select" name="sucursal_id" id="id_sucursal" required>
                                     {% for sucursal in sucursales %}
                                     <option value="{{ sucursal.id }}" {% if sucursal_actual.id == sucursal.id %}selected{% endif %}>{{ sucursal.nombre }}</option>
                                     {% endfor %}
                                   </select>
                                 </div>
+                                {% else %}
+                                <input type="hidden" name="sucursal_id" id="id_sucursal" value="{{ sucursal_actual.id }}">
                                 {% endif %}
                 <div class="mb-3">
                   <label class="form-label">Nombre del Cliente *</label>
@@ -128,10 +130,11 @@
                     <thead class="table-dark sticky-top">
                       <tr>
                         <th style="font-size: 0.75rem;">Producto</th>
-                        <th style="font-size: 0.75rem; width: 60px;">Cant.</th>
+                        <th style="font-size: 0.75rem; width: 70px;">Cant.</th>
                         <th style="font-size: 0.75rem; width: 55px;">Días</th>
                         <th style="font-size: 0.75rem; width: 75px;">Precio Base</th>
-                        <th style="font-size: 0.75rem; width: 90px;">Ajuste</th>
+                        <th style="font-size: 0.75rem; width: 60px;">Tipo Ajuste</th>
+                        <th style="font-size: 0.75rem; width: 70px;">Monto Ajuste</th>
                         <th style="font-size: 0.75rem; width: 75px;">Precio Final</th>
                         <th style="font-size: 0.75rem; width: 75px;">Subtotal</th>
                         <th style="font-size: 0.75rem; width: 40px;"></th>
