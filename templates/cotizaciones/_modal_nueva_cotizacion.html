@@ -23,6 +23,16 @@
                 <h6 class="mb-0"><i class="bi bi-person-fill me-2"></i>Información del Cliente</h6>
               </div>
               <div class="card-body">
+                                {% if es_admin %}
+                                <div class="mb-3">
+                                  <label class="form-label">Sucursal *</label>
+                                  <select class="form-select" name="sucursal_id" required>
+                                    {% for sucursal in sucursales %}
+                                    <option value="{{ sucursal.id }}" {% if sucursal_actual.id == sucursal.id %}selected{% endif %}>{{ sucursal.nombre }}</option>
+                                    {% endfor %}
+                                  </select>
+                                </div>
+                                {% endif %}
                 <div class="mb-3">
                   <label class="form-label">Nombre del Cliente *</label>
                   <input type="text" class="form-control" name="cliente_nombre" required>

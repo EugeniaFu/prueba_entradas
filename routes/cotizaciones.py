@@ -27,35 +27,34 @@ ESTADOS_COTIZACION = {
     'RENTA': 'renta'
 }
 
-def generar_numero_cotizacion():
-    """Genera un número único de cotización"""
+
+def generar_numero_cotizacion(sucursal_id):
+    """Genera un número único de cotización secuencial por sucursal y año"""
     conexion = get_db_connection()
     cursor = conexion.cursor()
-    
-    # Obtener el año actual
     año_actual = get_local_now().year
-    
-    # Buscar el último número de cotización del año
+    sucursal_id_str = str(sucursal_id).zfill(2)  # Siempre dos dígitos
+    # Buscar el último número de cotización de la sucursal y año actual
     cursor.execute("""
         SELECT numero_cotizacion 
         FROM cotizaciones 
-        WHERE numero_cotizacion LIKE %s 
+        WHERE numero_cotizacion LIKE %s AND sucursal_id = %s
         ORDER BY id DESC 
         LIMIT 1
-    """, (f"{año_actual}%",))
-    
+    """, (f"{sucursal_id_str}{año_actual}%", sucursal_id))
     resultado = cursor.fetchone()
-    
     if resultado:
-        ultimo_numero = int(resultado[0].split('-')[1])
+        # El formato esperado es 012026-0001
+        try:
+            ultimo_numero = int(resultado[0].split('-')[1])
+        except Exception:
+            ultimo_numero = 0
         nuevo_numero = ultimo_numero + 1
     else:
         nuevo_numero = 1
-    
     cursor.close()
     conexion.close()
-    
-    return f"{año_actual}-{nuevo_numero:04d}"
+    return f"{sucursal_id_str}{año_actual}-{nuevo_numero:04d}"
 
 
 
@@ -180,11 +179,6 @@ def calcular_precio_por_dias(producto_id, dias_renta):
 
 
 
-
-
-
-
-
 # En routes/cotizaciones.py, agregar estas funciones:
 
 def generar_pdf_cotizacion_buffer(cotizacion_id):
@@ -245,21 +239,21 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     can.setFont("Carlito", 10)
     can.drawString(482, 708, f"{cotizacion['fecha_creacion_local'].strftime('%d/%m/%Y - %H:%M:%S')}")
     
-    can.setFont("Helvetica-Bold", 10)
-    can.drawString(455, 680, f"COTIZACIÓN # {cotizacion['numero_cotizacion']}")
+    can.setFont("Helvetica-Bold", 12)
+    can.drawString(420, 693, f"COTIZACIÓN #{cotizacion['numero_cotizacion']}")
     
     can.setFont("Carlito", 10)
-    can.drawString(455, 670, f"VIGENCIA: {cotizacion['fecha_vigencia'].strftime('%d/%m/%Y')}")
+    can.drawString(483, 680, f"VIGENCIA: {cotizacion['fecha_vigencia'].strftime('%d/%m/%Y')}")
     
     
     # === DATOS DEL CLIENTE (TODOS DE LA TABLA COTIZACIONES) ===
-    y = 675
+    y = 685
     can.setFont("Helvetica-Bold", 11)
     can.drawString(25, y-5, "DATOS DEL CLIENTE")
     y -= 20
 
     # Línea separadora
-    can.line(25, 668, 580, 668)
+    can.line(25, y+12, 580, y+12)
     
     can.setFont("Carlito", 10)
     # Determinar destinatario (empresa o cliente)
@@ -385,8 +379,6 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
         
         subtotal_productos += producto['subtotal']
         y -= 7  # Espacio entre productos
-
-
 
 
 
@@ -529,11 +521,6 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     y -= 24
 
 
-
-
-
-
-
         # === PIE DE PÁGINA ===
     # Línea separadora antes del pie de página
     can.line(25, y+18, 580, y+18)
@@ -595,6 +582,10 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
     return output_stream
 
 
+
+############################################################
+############################################################
+############################################################
 # Mantener la función original para acceso directo
 @cotizaciones_bp.route('/pdf/<int:cotizacion_id>')
 @requiere_sesion()
@@ -842,12 +833,14 @@ def crear_cotizacion():
         iva = subtotal_total * 0.16
         total = subtotal_total + iva
         
-        # Generar número de cotización
-        numero_cotizacion = generar_numero_cotizacion()
-        
+
         # Obtener usuario y sucursal de la sesión
         usuario_id = session.get('user_id')
         sucursal_id = request.form.get('sucursal_id') or session.get('sucursal_id') or 1
+        sucursal_id = int(sucursal_id)
+
+        # Generar número de cotización secuencial por sucursal
+        numero_cotizacion = generar_numero_cotizacion(sucursal_id)
         
         conexion = get_db_connection()
         cursor = conexion.cursor()
