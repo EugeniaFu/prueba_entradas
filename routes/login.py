@@ -81,7 +81,7 @@ def login():
                         return redirect(url_for('dashboard.dashboard'))
             except Exception:
                 pass
-        flash('Usuario o contraseña incorrectos', 'danger')
+        flash('Contraseña incorrecta', 'danger')
         return render_template('login/login.html')
     return render_template('login/login.html')
 

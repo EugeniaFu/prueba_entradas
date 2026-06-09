@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let rentaIdCancelar = null;
         let infoRentaCancelar = null;
         const modalCancelar = new bootstrap.Modal(modalCancelarElem);
-        
+
         document.body.addEventListener('click', function (e) {
             const btn = e.target.closest('.btn-cancelar-renta');
             if (btn) {
@@ -32,23 +32,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('renta-id-cancelar').value = rentaIdCancelar;
                 document.getElementById('motivo-cancelacion').value = '';
                 document.getElementById('monto-reembolso').value = '0';
-                
+
                 // Ocultar todos los campos opcionales inicialmente
                 document.getElementById('info-cancelacion').style.display = 'none';
                 document.getElementById('campo-reembolso').style.display = 'none';
                 document.getElementById('campo-nota-entrada').style.display = 'none';
-                
+
                 // Obtener información de la renta para mostrar campos apropiados
                 fetch(`/rentas/info_cancelar/${rentaIdCancelar}`)
                     .then(resp => resp.json())
                     .then(data => {
                         if (data.status === 'ok') {
                             infoRentaCancelar = data.info;
-                            
+
                             // Mostrar mensaje informativo
                             document.getElementById('mensaje-info-cancelacion').textContent = infoRentaCancelar.mensaje;
                             document.getElementById('info-cancelacion').style.display = 'block';
-                            
+
                             // Mostrar campo de reembolso si aplica
                             if (infoRentaCancelar.requiere_reembolso) {
                                 document.getElementById('campo-reembolso').style.display = 'block';
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 document.getElementById('monto-reembolso').required = false;
                                 document.getElementById('monto-reembolso').value = '0';
                             }
-                            
+
                             // Mostrar opción de nota de entrada si aplica
                             if (infoRentaCancelar.puede_generar_nota_entrada) {
                                 document.getElementById('campo-nota-entrada').style.display = 'block';
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             } else {
                                 document.getElementById('campo-nota-entrada').style.display = 'none';
                             }
-                            
+
                             modalCancelar.show();
                         } else {
                             Swal.fire('Error', data.mensaje || 'No se pudo obtener información de la renta.', 'error');
@@ -81,53 +81,53 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('form-cancelar-renta').addEventListener('submit', function (e) {
             e.preventDefault();
             const motivo = document.getElementById('motivo-cancelacion').value.trim();
-            
+
             if (!motivo) {
                 Swal.fire('Error', 'Debes ingresar el motivo de cancelación.', 'warning');
                 return;
             }
-            
+
             // Validar reembolso solo si está visible
             const campoReembolsoVisible = document.getElementById('campo-reembolso').style.display !== 'none';
             const monto = document.getElementById('monto-reembolso').value;
-            
+
             if (campoReembolsoVisible && (!monto || monto === '')) {
                 Swal.fire('Error', 'Debes ingresar el monto de reembolso.', 'warning');
                 return;
             }
-            
+
             const rentaId = document.getElementById('renta-id-cancelar').value;
-            
+
             // Obtener valor de generar nota de entrada
             let generarNotaEntrada = 'no';
             if (document.getElementById('campo-nota-entrada').style.display !== 'none') {
                 generarNotaEntrada = document.querySelector('input[name="generar_nota_entrada"]:checked').value;
             }
-            
+
             const dataToSend = {
                 motivo_cancelacion: motivo,
                 monto_reembolso: monto || '0',
                 generar_nota_entrada: generarNotaEntrada
             };
-            
+
             fetch(`/rentas/cancelar/${rentaId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(dataToSend)
             })
-            .then(resp => resp.json())
-            .then(data => {
-                if (data.status === 'ok') {
-                    Swal.fire('Cancelada', data.mensaje, 'success').then(() => {
-                        window.location.reload();
-                    });
-                } else {
-                    Swal.fire('Error', data.mensaje || 'No se pudo cancelar la renta.', 'error');
-                }
-            })
-            .catch(() => {
-                Swal.fire('Error', 'Error inesperado al cancelar.', 'error');
-            });
+                .then(resp => resp.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        Swal.fire('Cancelada', data.mensaje, 'success').then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', data.mensaje || 'No se pudo cancelar la renta.', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Error', 'Error inesperado al cancelar.', 'error');
+                });
         });
     }
 
@@ -167,21 +167,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const precioBase = parseFloat(fila.querySelector('.precio-base').value) || 0;
         const tipoAjuste = fila.querySelector('.ajuste-tipo').value;
         const valorAjuste = parseFloat(fila.querySelector('.ajuste-valor').value) || 0;
-        
+
         let precioFinal = precioBase;
-        
+
         if (tipoAjuste === 'porcentaje') {
             precioFinal = precioBase * (1 + valorAjuste / 100);
         } else if (tipoAjuste === 'fijo') {
             precioFinal = precioBase + valorAjuste;
         }
-        
+
         // Asegurar que el precio final no sea negativo
         if (precioFinal < 0) precioFinal = 0;
-        
+
         const costoInput = fila.querySelector('.costo');
         const subtotalInput = fila.querySelector('.subtotal');
-        
+
         costoInput.value = precioFinal.toFixed(2);
         subtotalInput.value = (cantidad * dias * precioFinal).toFixed(2);
     }
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const inputCantidad = document.getElementById('cantidad_producto');
     const tbody = document.querySelector('#tabla-productos tbody');
 
-    
+
     if (btnAgregar && selectProducto && inputCantidad && tbody) {
         btnAgregar.addEventListener('click', function () {
             const productoId = selectProducto.value;
@@ -252,13 +252,13 @@ document.addEventListener('DOMContentLoaded', function () {
             const sucursalSelect = document.getElementById('id_sucursal');
             const sucursalId = sucursalSelect ? sucursalSelect.value : null;
             const esEscarcega = (sucursalId === '4');
-            
+
             // Verificar si el usuario tiene permiso para ajustar precios
             const puedeAjustar = window.puedeAjustarPrecios || false;
 
             // Configurar valores de ajuste según la sucursal Y permisos
             let ajusteTipoDefault, ajusteValorDefault, ajusteValorDisabled, selectDisabled;
-            
+
             if (esEscarcega) {
                 // Escárcega SIEMPRE tiene 10% de aumento
                 ajusteTipoDefault = 'porcentaje';
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     selectDisabled = 'disabled';
                 }
             }
-            
+
             // Calcular precio final con ajuste si aplica
             let precioFinal = precioBase;
             if (esEscarcega) {
@@ -349,14 +349,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 const fila = e.target.closest('tr');
                 const ajusteValorInput = fila.querySelector('.ajuste-valor');
                 const tipoAjuste = e.target.value;
-                
+
                 if (tipoAjuste === 'ninguno') {
                     ajusteValorInput.disabled = true;
                     ajusteValorInput.value = '0';
                 } else {
                     ajusteValorInput.disabled = false;
                 }
-                
+
                 recalcularFilaConAjuste(fila);
                 calcularTotales();
             }
@@ -457,113 +457,114 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
     const tablaRentas = document.getElementById('tablaRentas');
     const tbodyRentas = tablaRentas ? tablaRentas.querySelector('tbody') : null;
+    const tablaPagadas = document.getElementById('pagadas');
+    const tbodyPagadas = tablaPagadas ? tablaPagadas.querySelector('tbody') : null;
 
     // Función para filtrar tabla
     function filtrarTabla() {
-        if (!tbodyRentas) return;
-
         const textoBusqueda = (buscadorRentas.value || '').toLowerCase().trim();
         const estadoSeleccionado = (filtroEstado.value || '').toLowerCase().trim();
-        const filas = tbodyRentas.querySelectorAll('tr');
-        let filasVisibles = 0;
+        let filasVisiblesTotales = 0;
+        let filasTotales = 0;
 
-        filas.forEach(fila => {
-            const celdas = fila.querySelectorAll('td');
-            if (celdas.length === 0) return;
+        // Función interna reutilizable para filtrar cualquier tbody
+        function filtrarTbody(tbody) {
+            if (!tbody) return;
+            const filas = tbody.querySelectorAll('tr');
+            filasTotales += filas.length;
 
-            // Detectar si existe la columna de sucursal para ajustar índices
-            const tieneSucursal = celdas.length > 13; // Si hay más de 13 columnas, incluye sucursal
-            
-            // Definir índices de columnas según si tiene sucursal o no
-            const indices = {
-                folio: 0,
-                fechaRegistro: tieneSucursal ? 2 : 1,
-                nombreCliente: tieneSucursal ? 3 : 2,
-                fechaSalida: tieneSucursal ? 5 : 4,
-                fechaEntrada: tieneSucursal ? 6 : 5,
-                direccionObra: tieneSucursal ? 7 : 6,
-                estadoRenta: tieneSucursal ? 8 : 7,
-                estadoPago: tieneSucursal ? 9 : 8
-            };
+            filas.forEach(fila => {
+                const celdas = fila.querySelectorAll('td');
+                if (celdas.length === 0) return;
 
-            // Extraer texto solo de las columnas específicas para búsqueda
-            const textosBusqueda = [
-                celdas[indices.folio]?.textContent || '',          // Folio
-                celdas[indices.fechaRegistro]?.textContent || '',  // Fecha de registro
-                celdas[indices.nombreCliente]?.textContent || '',  // Nombre del cliente
-                celdas[indices.fechaSalida]?.textContent || '',    // Fecha de salida
-                celdas[indices.fechaEntrada]?.textContent || '',   // Fecha de entrada
-                celdas[indices.direccionObra]?.textContent || ''   // Dirección de obra
-            ];
-            
-            const textoFila = textosBusqueda.join(' ').toLowerCase().trim();
+                const tieneSucursal = celdas.length > 13;
+                const indices = {
+                    folio: 0,
+                    fechaRegistro: tieneSucursal ? 2 : 1,
+                    nombreCliente: tieneSucursal ? 3 : 2,
+                    fechaSalida: tieneSucursal ? 5 : 4,
+                    fechaEntrada: tieneSucursal ? 6 : 5,
+                    direccionObra: tieneSucursal ? 7 : 6,
+                    estadoRenta: tieneSucursal ? 8 : 7,
+                    estadoPago: tieneSucursal ? 9 : 8
+                };
 
-            // Verificar búsqueda por texto
-            const coincideTexto = !textoBusqueda || textoFila.includes(textoBusqueda);
+                const textosBusqueda = [
+                    celdas[indices.folio]?.textContent || '',
+                    celdas[indices.fechaRegistro]?.textContent || '',
+                    celdas[indices.nombreCliente]?.textContent || '',
+                    celdas[indices.fechaSalida]?.textContent || '',
+                    celdas[indices.fechaEntrada]?.textContent || '',
+                    celdas[indices.direccionObra]?.textContent || ''
+                ];
+                const textoFila = textosBusqueda.join(' ').toLowerCase().trim();
 
-            // Verificar filtro por estado
-            let coincideEstado = true;
-            if (estadoSeleccionado) {
-                const estadoRenta = celdas[indices.estadoRenta]?.textContent.toLowerCase().trim() || '';
-                const estadoPago = celdas[indices.estadoPago]?.textContent.toLowerCase().trim() || '';
-                
-                // Estados específicos que requieren lógica especial
-                if (estadoSeleccionado === 'activo') {
-                    coincideEstado = estadoRenta.includes('activo');
-                } else if (estadoSeleccionado === 'en curso') {
-                    coincideEstado = estadoRenta.includes('en curso');
-                } else if (estadoSeleccionado === 'programada') {
-                    coincideEstado = estadoRenta.includes('programada');
-                } else if (estadoSeleccionado === 'finalizadas') {
-                    coincideEstado = estadoRenta.includes('finalizada');
-                } else if (estadoSeleccionado === 'cancelada') {
-                    coincideEstado = estadoRenta.includes('cancelada');
-                } else if (estadoSeleccionado === 'en recolección') {
-                    coincideEstado = estadoRenta.includes('en recolección');
-                } else if (estadoSeleccionado === 'renta parcial') {
-                    coincideEstado = estadoRenta.includes('renta parcial');
-                } else if (estadoSeleccionado === 'activa renovacion') {
-                    coincideEstado = estadoRenta.includes('activa renovacion');
-                } else if (estadoSeleccionado === 'piezas pendientes') {
-                    coincideEstado = estadoRenta.includes('piezas pendientes');
-                } else if (estadoSeleccionado === 'pago pendiente') {
-                    coincideEstado = estadoPago.includes('pago pendiente');
-                } else if (estadoSeleccionado === 'saldo pendiente') {
-                    coincideEstado = estadoPago.includes('saldo pendiente');
-                } else if (estadoSeleccionado === 'pago realizado') {
-                    coincideEstado = estadoPago.includes('pago realizado');
-                } else if (estadoSeleccionado === 'retraso pendiente') {
-                    coincideEstado = estadoPago.includes('retraso pendiente') || estadoRenta.includes('retraso pendiente');
-                } else if (estadoSeleccionado === 'retraso pagado') {
-                    coincideEstado = estadoPago.includes('retraso pagado') || estadoRenta.includes('retraso pagado');
-                } else if (estadoSeleccionado === 'extra pendiente') {
-                    coincideEstado = estadoPago.includes('extra pendiente') || estadoRenta.includes('extra pendiente');
-                } else if (estadoSeleccionado === 'extra pagado') {
-                    coincideEstado = estadoPago.includes('extra pagado') || estadoRenta.includes('extra pagado');
-                } else if (estadoSeleccionado === 'retrasadas') {
-                    // Buscar indicadores de retraso
-                    coincideEstado = textoFila.includes('vence hoy') || 
-                                   textoFila.includes('días de retraso') ||
-                                   textoFila.includes('retraso');
-                } else {
-                    // Para cualquier otro estado, buscar en ambas columnas de estado
-                    coincideEstado = estadoRenta.includes(estadoSeleccionado) || 
-                                   estadoPago.includes(estadoSeleccionado);
+                const coincideTexto = !textoBusqueda || textoFila.includes(textoBusqueda);
+
+                let coincideEstado = true;
+                if (estadoSeleccionado) {
+                    const estadoRenta = celdas[indices.estadoRenta]?.textContent.toLowerCase().trim() || '';
+                    const estadoPago = celdas[indices.estadoPago]?.textContent.toLowerCase().trim() || '';
+
+                    if (estadoSeleccionado === 'activo') {
+                        coincideEstado = estadoRenta.includes('activo');
+                    } else if (estadoSeleccionado === 'en curso') {
+                        coincideEstado = estadoRenta.includes('en curso');
+                    } else if (estadoSeleccionado === 'programada') {
+                        coincideEstado = estadoRenta.includes('programada');
+                    } else if (estadoSeleccionado === 'finalizadas') {
+                        coincideEstado = estadoRenta.includes('finalizada');
+                    } else if (estadoSeleccionado === 'cancelada') {
+                        coincideEstado = estadoRenta.includes('cancelada');
+                    } else if (estadoSeleccionado === 'en recolección') {
+                        coincideEstado = estadoRenta.includes('en recolección');
+                    } else if (estadoSeleccionado === 'renta parcial') {
+                        coincideEstado = estadoRenta.includes('renta parcial');
+                    } else if (estadoSeleccionado === 'activa renovacion') {
+                        coincideEstado = estadoRenta.includes('activa renovacion');
+                    } else if (estadoSeleccionado === 'piezas pendientes') {
+                        coincideEstado = estadoRenta.includes('piezas pendientes');
+                    } else if (estadoSeleccionado === 'pago pendiente') {
+                        coincideEstado = estadoPago.includes('pago pendiente');
+                    } else if (estadoSeleccionado === 'saldo pendiente') {
+                        coincideEstado = estadoPago.includes('saldo pendiente');
+                    } else if (estadoSeleccionado === 'pago realizado') {
+                        coincideEstado = estadoPago.includes('pago realizado');
+                    } else if (estadoSeleccionado === 'retraso pendiente') {
+                        coincideEstado = estadoPago.includes('retraso pendiente') || estadoRenta.includes('retraso pendiente');
+                    } else if (estadoSeleccionado === 'retraso pagado') {
+                        coincideEstado = estadoPago.includes('retraso pagado') || estadoRenta.includes('retraso pagado');
+                    } else if (estadoSeleccionado === 'extra pendiente') {
+                        coincideEstado = estadoPago.includes('extra pendiente') || estadoRenta.includes('extra pendiente');
+                    } else if (estadoSeleccionado === 'extra pagado') {
+                        coincideEstado = estadoPago.includes('extra pagado') || estadoRenta.includes('extra pagado');
+                    } else if (estadoSeleccionado === 'retrasadas') {
+                        coincideEstado = textoFila.includes('vence hoy') ||
+                            textoFila.includes('días de retraso') ||
+                            textoFila.includes('retraso');
+                    } else {
+                        coincideEstado = estadoRenta.includes(estadoSeleccionado) ||
+                            estadoPago.includes(estadoSeleccionado);
+                    }
                 }
-            }
 
-            // Mostrar/ocultar fila
-            if (coincideTexto && coincideEstado) {
-                fila.style.display = '';
-                filasVisibles++;
-            } else {
-                fila.style.display = 'none';
-            }
-        });
+                if (coincideTexto && coincideEstado) {
+                    fila.style.display = '';
+                    filasVisiblesTotales++;
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+        }
 
-        // Actualizar indicador de resultados
-        actualizarContadorResultados(filasVisibles, filas.length);
+        filtrarTbody(tbodyRentas);   // Tabla activas
+        filtrarTbody(tbodyPagadas);  // Tabla finalizadas
+
+        actualizarContadorResultados(filasVisiblesTotales, filasTotales);
     }
+
+
+
 
     // Función para actualizar contador de resultados
     function actualizarContadorResultados(visibles, total) {
@@ -576,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 tablaRentas.parentNode.insertBefore(contador, tablaRentas);
             }
         }
-        
+
         if (visibles === total) {
             contador.textContent = `Mostrando ${total} renta${total !== 1 ? 's' : ''}`;
         } else {
@@ -596,14 +597,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Botón limpiar: recargar página
     if (btnLimpiarFiltros) {
-        btnLimpiarFiltros.addEventListener('click', function() {
+        btnLimpiarFiltros.addEventListener('click', function () {
             window.location.reload();
         });
     }
 
     // Inicializar contador al cargar
     if (tbodyRentas) {
-        const totalFilas = tbodyRentas.querySelectorAll('tr').length;
+        const totalFilas = (tbodyRentas ? tbodyRentas.querySelectorAll('tr').length : 0)
+            + (tbodyPagadas ? tbodyPagadas.querySelectorAll('tr').length : 0);
         actualizarContadorResultados(totalFilas, totalFilas);
     }
 
