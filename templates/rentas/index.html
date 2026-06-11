@@ -255,7 +255,7 @@
                   <br>
                   <span class="badge bg-warning text-dark">Piezas pendientes</span>
                   {% endif %}
-                  {% if renta[22] and renta[22] > 0  %}
+                  {% if renta[22] and renta[22] > 0 %}
                   <br>
                   <span class="badge bg-info text-white">
                     <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
@@ -300,7 +300,8 @@
                 <!-- COLUMNA MÉTODO DE PAGO -->
                 <td><small>{{ renta[6] or 'N/A' }}</small></td>
                 <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
-                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{% endif %}</td>
+                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{%
+                  endif %}</td>
 
                 <!-- COLUMNA DE ACCIONES -->
                 <td>
@@ -381,18 +382,17 @@
                       </button>
                       <ul class="dropdown-menu">
                         <li>
-                          <a class="dropdown-item btn-nota-salida " href="#"
-                            data-renta-id="{{ renta[0] }}">
+                          <a class="dropdown-item btn-nota-salida{% if renta[29] %} disabled{% endif %}" href="#"
+                            data-renta-id="{{ renta[0] }}" {% if renta[29] %}tabindex="-1" aria-disabled="true"
+                            title="Nota de Salida Generada" {% endif %}>
                             <i
-                              class="bi bi-arrow-right-circle me-2 text-danger"></i>
-                            Crear Nota de Salida
+                              class="bi bi-arrow-right-circle me-2 {% if renta[29] %}text-muted{% else %}text-danger{% endif %}"></i>
+                            {% if renta[29] %}Nota de Salida Generada{% else %}Crear Nota de Salida{% endif %}
                           </a>
                         </li>
                         <li>
-                          <a class="dropdown-item btn-nota-entrada " href="#"
-                            data-renta-id="{{ renta[0] }}">
-                            <i
-                              class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
+                          <a class="dropdown-item btn-nota-entrada " href="#" data-renta-id="{{ renta[0] }}">
+                            <i class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
                             Nota de Entrada
                           </a>
                         </li>
@@ -566,9 +566,9 @@
                       {{ renta[17]['texto'] }}
                     </span>
                     {% endif %}
-                    {% if renta[29] %}
-                    <span class="badge {{ renta[29]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                      {{ renta[29]['texto'] }}
+                    {% if renta[30] %}
+                    <span class="badge {{ renta[30]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                      {{ renta[30]['texto'] }}
                     </span>
                     {% endif %}
                   </div>
@@ -616,7 +616,7 @@
                   <br>
                   <span class="badge bg-warning text-dark">Piezas pendientes</span>
                   {% endif %}
-                  {% if renta[22] and renta[22] > 0  %}
+                  {% if renta[22] and renta[22] > 0 %}
                   <br>
                   <span class="badge bg-info text-white">
                     <i class="bi bi-arrow-repeat me-1"></i>Renta en renovación
@@ -661,7 +661,8 @@
                 <!-- COLUMNA MÉTODO DE PAGO -->
                 <td><small>{{ renta[6] or 'N/A' }}</small></td>
                 <td><strong>${{ '%.2f'|format(renta[7]) }}</strong></td>
-                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{% endif %}</td>
+                <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[23]) }}</strong>{% else %}-{%
+                  endif %}</td>
 
                 <!-- COLUMNA DE ACCIONES -->
                 <td>
@@ -742,18 +743,17 @@
                       </button>
                       <ul class="dropdown-menu">
                         <li>
-                          <a class="dropdown-item btn-nota-salida " href="#"
-                            data-renta-id="{{ renta[0] }}">
+                          <a class="dropdown-item btn-nota-salida{% if renta[29] %} disabled{% endif %}" href="#"
+                            data-renta-id="{{ renta[0] }}" {% if renta[29] %}tabindex="-1" aria-disabled="true"
+                            title="Nota de Salida Generada" {% endif %}>
                             <i
-                              class="bi bi-arrow-right-circle me-2 text-danger"></i>
-                            Crear Nota de Salida
+                              class="bi bi-arrow-right-circle me-2 {% if renta[29] %}text-muted{% else %}text-danger{% endif %}"></i>
+                            {% if renta[29] %}Nota de alida Generada{% else %}Crear Nota de Salida{% endif %}
                           </a>
                         </li>
                         <li>
-                          <a class="dropdown-item btn-nota-entrada " href="#"
-                            data-renta-id="{{ renta[0] }}">
-                            <i
-                              class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
+                          <a class="dropdown-item btn-nota-entrada " href="#" data-renta-id="{{ renta[0] }}">
+                            <i class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
                             Nota de Entrada
                           </a>
                         </li>
