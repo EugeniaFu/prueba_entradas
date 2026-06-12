@@ -67,55 +67,31 @@ def preview_cobro_retraso(renta_id):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Verificar si es una renovación para buscar la nota de entrada en la renta original
-        # Obtener datos de la renta actual
-        cursor.execute("SELECT id_sucursal, renta_asociada_id, traslado, fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
+        # Obtener datos de la renta actual (puede ser una renovación)
+        cursor.execute("SELECT id_sucursal, traslado, fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
         renta_actual = cursor.fetchone()
         if not renta_actual:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Renta no encontrada'}), 404
 
-        print(f"DEBUG: renta_id llamado: {renta_id}")
-        print(f"DEBUG: renta_actual: {renta_actual}")
-
-        # Si es una renta asociada (renovación), obtener la renta padre
-        renta_padre_id = renta_actual['renta_asociada_id'] if renta_actual['renta_asociada_id'] else renta_id
-        print(f"DEBUG: renta_padre_id calculado: {renta_padre_id}")
-        
-        # Obtener datos de la renta padre para fechas y demás
-        cursor.execute("SELECT id, fecha_entrada, traslado FROM rentas WHERE id = %s", (renta_padre_id,))
-        renta_padre = cursor.fetchone()
-        if not renta_padre:
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'Renta padre no encontrada'}), 404
-        print(f"DEBUG: renta_padre: {renta_padre}")
-        
-        # Obtener nota de entrada (siempre de la renta padre/original)
+        # Obtener nota de entrada de esta renta (la renovación genera su propia nota de entrada)
         cursor.execute("""
             SELECT ne.id AS nota_entrada_id, ne.estado_retraso, ne.fecha_entrada_real
             FROM notas_entrada ne
             WHERE ne.renta_id = %s
             ORDER BY ne.id DESC LIMIT 1
-        """, (renta_padre_id,))
+        """, (renta_id,))
         nota = cursor.fetchone()
         if not nota:
             cursor.close()
             conn.close()
             return jsonify({'error': 'No hay nota de entrada para esta renta'}), 404
 
-
-        # LÓGICA CORREGIDA: Usar la fecha de la renta desde donde se está cobrando el retraso
-        # - Si se cobra desde la renta original: usa fecha original
-        # - Si se cobra desde una renovación: usa fecha de renovación
-        # Esto permite cobrar el retraso de devoluciones parciales correctamente
-        print(f"DEBUG: Calculando retraso para renta_id: {renta_id}")
-        
-        fecha_base = renta_actual['fecha_entrada']  # Usar la fecha de la renta que se está cobrando
-        print(f"DEBUG: Usando fecha de entrada de renta {renta_id}: {fecha_base}")
-
-        tipo_traslado = (renta_padre['traslado'] or 'ninguno').lower()
+        # Usar la fecha de entrada y traslado de la renta que se está cobrando
+        # (puede ser la renta original o una renovación con su propia nota de entrada)
+        fecha_base = renta_actual['fecha_entrada']
+        tipo_traslado = (renta_actual['traslado'] or 'ninguno').lower()
 
         # Calcular días de retraso desde la fecha de entrada de la renta actual
         dias_retraso = 0
@@ -123,16 +99,11 @@ def preview_cobro_retraso(renta_id):
             if isinstance(fecha_base, datetime):
                 fecha_base = fecha_base.date()
             fecha_limite_dt = datetime.combine(fecha_base + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
-            
-            print(f"DEBUG: fecha_limite_dt calculada: {fecha_limite_dt}")
-            print(f"DEBUG: nota fecha_entrada_real: {nota['fecha_entrada_real']}")
-            
+
             if nota['fecha_entrada_real'] > fecha_limite_dt:
                 delta = nota['fecha_entrada_real'] - fecha_limite_dt
                 dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
-            
-            print(f"DEBUG: dias_retraso calculados: {dias_retraso}")
-        
+
         # Si no hay retraso, no hay nada que cobrar
         if dias_retraso <= 0:
             cursor.close()
@@ -367,8 +338,6 @@ def guardar_cobro_retraso(renta_id):
             cursor.close()
             conn.close()
         return jsonify({'success': False, 'error': f'Error al guardar: {str(e)}'}), 500
-
-
 
 
 #############################################################

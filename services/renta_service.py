@@ -24,12 +24,13 @@ class RentasService:
                 filtro_estado = """
                 HAVING (
                     LOWER(TRIM(estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'en recolección', 'programada')
-                    
+
                     OR (
                         LOWER(TRIM(estado_renta)) = 'finalizada'
                         AND LOWER(TRIM(estado_pago)) IN ('pago pendiente', 'saldo pendiente')
                     )
                     OR piezas_pendientes > 0
+                    OR estado_retraso = 'Retraso Pendiente'
                 )
                 """
             elif estado_filtro == 'pagadas':
@@ -38,6 +39,7 @@ class RentasService:
                     (LOWER(TRIM(estado_renta)) = 'finalizada' AND LOWER(TRIM(estado_pago)) = 'pago realizado' AND piezas_pendientes = 0)
                     OR LOWER(TRIM(estado_renta)) = 'cancelada'
                 )
+                AND (estado_retraso IS NULL OR estado_retraso != 'Retraso Pendiente')
                 """
             else:
                 filtro_estado = ""
