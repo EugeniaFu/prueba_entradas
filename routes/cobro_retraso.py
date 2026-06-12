@@ -17,38 +17,31 @@ from routes.caja import registrar_movimiento_automatico
 import os
 
 
-def obtener_folio_consecutivo_prefactura():
+def obtener_folio_consecutivo_prefactura(sucursal_id):
     """
-    Obtiene el próximo folio consecutivo para cualquier tipo de cobro.
-    Considera folios de prefacturas, cobros extra y cobros de retraso.
+    Obtiene el próximo folio consecutivo para una sucursal específica.
+    Cada sucursal tiene su propia secuencia (inicia en 1), considerando
+    folios de prefacturas, cobros extra y cobros de retraso de esa sucursal.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
-        # Obtener el folio más alto de todas las tablas de cobros
         cursor.execute("""
             SELECT COALESCE(MAX(folio), 0) as max_folio FROM (
-                SELECT COALESCE(folio, 0) as folio FROM prefacturas
+                SELECT folio FROM prefacturas WHERE id_sucursal = %s
                 UNION ALL
-                SELECT COALESCE(folio, 0) as folio FROM notas_cobro_extra
-                UNION ALL  
-                SELECT COALESCE(folio, 0) as folio FROM notas_cobro_retraso
+                SELECT folio FROM notas_cobro_extra WHERE id_sucursal = %s
+                UNION ALL
+                SELECT folio FROM notas_cobro_retraso WHERE id_sucursal = %s
             ) AS todos_folios
-        """)
+        """, (sucursal_id, sucursal_id, sucursal_id))
         resultado = cursor.fetchone()
         max_folio = resultado[0] if resultado else 0
-        
+
         # El próximo folio es el máximo + 1
         return max_folio + 1
-        
-    except Exception as e:
-        # Si alguna tabla no tiene el campo folio, usar solo prefacturas
-        print(f"Error al obtener folio unificado: {e}")
-        cursor.execute("SELECT COALESCE(MAX(folio), 0) + 1 FROM notas_cobro_retraso")
-        resultado = cursor.fetchone()
-        return resultado[0] if resultado else 1
-        
+
     finally:
         cursor.close()
         conn.close()
@@ -183,9 +176,9 @@ def guardar_cobro_retraso(renta_id):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # VALIDACIÓN ADICIONAL: Verificar tipo de traslado
+        # VALIDACIÓN ADICIONAL: Verificar tipo de traslado y obtener sucursal de la renta
         cursor.execute("""
-            SELECT r.traslado
+            SELECT r.traslado, r.id_sucursal
             FROM notas_entrada ne
             JOIN rentas r ON ne.renta_id = r.id
             WHERE ne.id = %s
@@ -195,9 +188,10 @@ def guardar_cobro_retraso(renta_id):
             cursor.close()
             conn.close()
             return jsonify({'success': False, 'error': 'Nota de entrada no encontrada'}), 404
-        
+
         tipo_traslado = (renta_info['traslado'] or 'ninguno').lower()
-        
+        sucursal_id = renta_info['id_sucursal'] or session.get('sucursal_id') or 1
+
         # Sin importar el tipo de traslado, se permite cobrar retraso si el usuario lo decide
         # (El checkbox del frontend controla si se cobra o no)
 
@@ -245,17 +239,17 @@ def guardar_cobro_retraso(renta_id):
             numero_seguimiento = ''
 
         # Insertar cobro retraso
-        # Obtener el próximo folio
-        folio = obtener_folio_consecutivo_prefactura()
-        
+        # Obtener el próximo folio (secuencia independiente por sucursal)
+        folio = obtener_folio_consecutivo_prefactura(sucursal_id)
+
         cursor.execute("""
             INSERT INTO notas_cobro_retraso (
                 nota_entrada_id, fecha, subtotal, iva, total, metodo_pago, monto_recibido, cambio,
-                observaciones, facturable, traslado_extra, costo_traslado_extra, estado_pago, numero_seguimiento, folio
-            ) VALUES ( %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s )
+                observaciones, facturable, traslado_extra, costo_traslado_extra, estado_pago, numero_seguimiento, folio, id_sucursal
+            ) VALUES ( %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s )
         """, (
             nota_entrada_id, subtotal, iva, total, metodo_pago.upper(), monto_recibido, cambio,
-            observaciones, facturable, traslado_extra, costo_traslado_extra, 'Retraso Pagado', numero_seguimiento, folio
+            observaciones, facturable, traslado_extra, costo_traslado_extra, 'Retraso Pagado', numero_seguimiento, folio, sucursal_id
         ))
         cobro_retraso_id = cursor.lastrowid
 
@@ -263,23 +257,7 @@ def guardar_cobro_retraso(renta_id):
         if metodo_pago.upper() == 'EFECTIVO':
             concepto = f"Cobro retraso #{folio} - Nota entrada #{nota_entrada_id}"
             usuario_id = session.get('user_id')
-            
-            # Obtener la sucursal de la renta para asignarle el movimiento de caja
-            cursor.execute("""
-                SELECT r.id_sucursal 
-                FROM rentas r 
-                JOIN notas_entrada ne ON r.id = ne.renta_id 
-                WHERE ne.id = %s
-            """, (nota_entrada_id,))
-            renta_info = cursor.fetchone()
-            
-            if isinstance(renta_info, dict):
-                sucursal_id = renta_info['id_sucursal']
-            elif isinstance(renta_info, tuple) or isinstance(renta_info, list):
-                sucursal_id = renta_info[0]
-            else:
-                sucursal_id = session.get('sucursal_id') or 1
-            
+
             resultado_caja = registrar_movimiento_automatico(
                 tipo='ingreso',
                 concepto=concepto,

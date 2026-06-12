@@ -19,38 +19,31 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import simpleSplit
 
 
-def obtener_folio_consecutivo_prefactura():
+def obtener_folio_consecutivo_prefactura(sucursal_id):
     """
-    Obtiene el próximo folio consecutivo para cualquier tipo de cobro.
-    Considera folios de prefacturas, cobros extra y cobros de retraso.
+    Obtiene el próximo folio consecutivo para una sucursal específica.
+    Cada sucursal tiene su propia secuencia (inicia en 1), considerando
+    folios de prefacturas, cobros extra y cobros de retraso de esa sucursal.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
-        # Obtener el folio más alto de todas las tablas de cobros
         cursor.execute("""
             SELECT COALESCE(MAX(folio), 0) as max_folio FROM (
-                SELECT COALESCE(folio, 0) as folio FROM prefacturas
+                SELECT folio FROM prefacturas WHERE id_sucursal = %s
                 UNION ALL
-                SELECT COALESCE(folio, 0) as folio FROM notas_cobro_extra
-                UNION ALL  
-                SELECT COALESCE(folio, 0) as folio FROM notas_cobro_retraso
+                SELECT folio FROM notas_cobro_extra WHERE id_sucursal = %s
+                UNION ALL
+                SELECT folio FROM notas_cobro_retraso WHERE id_sucursal = %s
             ) AS todos_folios
-        """)
+        """, (sucursal_id, sucursal_id, sucursal_id))
         resultado = cursor.fetchone()
         max_folio = resultado[0] if resultado else 0
-        
+
         # El próximo folio es el máximo + 1
         return max_folio + 1
-        
-    except Exception as e:
-        # Si alguna tabla no tiene el campo folio, usar solo prefacturas
-        print(f"Error al obtener folio unificado: {e}")
-        cursor.execute("SELECT COALESCE(MAX(folio), 0) + 1 FROM prefacturas")
-        resultado = cursor.fetchone()
-        return resultado[0] if resultado else 1
-        
+
     finally:
         cursor.close()
         conn.close()
@@ -319,18 +312,30 @@ def registrar_pago_prefactura(renta_id):
             print(f"cambio_final: {cambio}")
             print("========================")
                 
-        # Obtener el próximo folio
-        folio = obtener_folio_consecutivo_prefactura()
-        
+        # Obtener la sucursal de la renta (para el folio por sucursal y el movimiento de caja)
+        cursor.execute("SELECT id_sucursal FROM rentas WHERE id = %s", (renta_id,))
+        renta_info = cursor.fetchone()
+
+        if isinstance(renta_info, dict):
+            sucursal_id = renta_info['id_sucursal']
+        elif isinstance(renta_info, tuple) or isinstance(renta_info, list):
+            sucursal_id = renta_info[0]
+        else:
+            sucursal_id = session.get('sucursal_id') or 1
+        sucursal_id = sucursal_id or session.get('sucursal_id') or 1
+
+        # Obtener el próximo folio (secuencia independiente por sucursal)
+        folio = obtener_folio_consecutivo_prefactura(sucursal_id)
+
         # Insertar la prefactura (abono o inicial) CON EL FOLIO
         cursor.execute("""
             INSERT INTO prefacturas (
-            renta_id, fecha_emision, tipo, pagada, metodo_pago, monto, 
-            monto_recibido, cambio, numero_seguimiento, generada, facturable, folio
-        ) VALUES (%s, NOW(), %s, 1, %s, %s, %s, %s, %s, 1, %s, %s)
+            renta_id, fecha_emision, tipo, pagada, metodo_pago, monto,
+            monto_recibido, cambio, numero_seguimiento, generada, facturable, folio, id_sucursal
+        ) VALUES (%s, NOW(), %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
         """, (
-            renta_id, tipo, metodo.upper(), monto, monto_recibido, cambio, 
-            numero_seguimiento, facturable_int, folio  
+            renta_id, tipo, metodo.upper(), monto, monto_recibido, cambio,
+            numero_seguimiento, facturable_int, folio, sucursal_id
         ))
         prefactura_id = cursor.lastrowid
 
@@ -338,18 +343,7 @@ def registrar_pago_prefactura(renta_id):
         if metodo.upper() == 'EFECTIVO':
             concepto = f"Pago prefactura #{folio} - Renta #{renta_id} ({tipo})"
             usuario_id = session.get('user_id')
-            
-            # Obtener la sucursal de la renta para asignarle el movimiento de caja
-            cursor.execute("SELECT id_sucursal FROM rentas WHERE id = %s", (renta_id,))
-            renta_info = cursor.fetchone()
-            
-            if isinstance(renta_info, dict):
-                sucursal_id = renta_info['id_sucursal']
-            elif isinstance(renta_info, tuple) or isinstance(renta_info, list):
-                sucursal_id = renta_info[0]
-            else:
-                sucursal_id = session.get('sucursal_id') or 1
-            
+
             resultado_caja = registrar_movimiento_automatico(
                 tipo='ingreso',
                 concepto=concepto,

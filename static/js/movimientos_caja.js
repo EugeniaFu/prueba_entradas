@@ -95,20 +95,6 @@ $(document).ready(function() {
             e.preventDefault();
             guardarMovimiento();
         });
-
-        // ====== MODAL SALDO INICIAL ======
-        $('#btnConfigurarSaldoInicial').click(function() {
-            abrirModalSaldoInicial();
-        });
-
-        $('#formSaldoInicial').submit(function(e) {
-            e.preventDefault();
-            guardarSaldoInicial();
-        });
-
-        $('#sucursalSaldoInicial').change(function() {
-            cargarConfigSaldoInicial();
-        });
     }
     
     // ========================================================================
@@ -455,94 +441,6 @@ $(document).ready(function() {
         });
     }
     
-    // ========================================================================
-    // FUNCIONES DE SALDO INICIAL (ADMIN)
-    // ========================================================================
-
-    function cargarConfigSaldoInicial() {
-        const sucursalId = $('#sucursalSaldoInicial').val();
-
-        $.ajax({
-            url: '/caja/api/saldo_inicial',
-            method: 'GET',
-            data: { sucursal_id: sucursalId },
-            success: function(response) {
-                if (response.success) {
-                    if (response.config) {
-                        $('#fechaInicioSaldoInicial').val(response.config.fecha_inicio);
-                        $('#montoSaldoInicial').val(response.config.saldo_inicial);
-                    } else {
-                        $('#fechaInicioSaldoInicial').val(getFechaLocal());
-                        $('#montoSaldoInicial').val('0.00');
-                    }
-                } else {
-                    mostrarError('Error al cargar configuración: ' + response.error);
-                }
-            },
-            error: function(xhr) {
-                mostrarError('Error de conexión al cargar la configuración de saldo inicial');
-                console.error('Error:', xhr);
-            }
-        });
-    }
-
-    function abrirModalSaldoInicial() {
-        // Preseleccionar la sucursal actualmente filtrada (si existe)
-        const sucursalActual = $('#filtroSucursalEfectivo').length ? $('#filtroSucursalEfectivo').val() : '';
-        if (sucursalActual) {
-            $('#sucursalSaldoInicial').val(sucursalActual);
-        }
-
-        cargarConfigSaldoInicial();
-
-        $('#modalSaldoInicial').modal('show');
-    }
-
-    function guardarSaldoInicial() {
-        const form = $('#formSaldoInicial');
-        const data = {
-            sucursal_id: $('#sucursalSaldoInicial').val(),
-            fecha_inicio: $('#fechaInicioSaldoInicial').val(),
-            saldo_inicial: parseFloat($('#montoSaldoInicial').val())
-        };
-
-        if (!data.sucursal_id || !data.fecha_inicio || isNaN(data.saldo_inicial)) {
-            mostrarError('Todos los campos marcados con * son obligatorios');
-            return;
-        }
-
-        const btnGuardar = form.find('button[type="submit"]');
-        const textoOriginal = btnGuardar.html();
-        btnGuardar.prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-1"></i>Guardando...');
-
-        $.ajax({
-            url: '/caja/api/saldo_inicial',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function(response) {
-                if (response.success) {
-                    mostrarExito(response.message);
-                    $('#modalSaldoInicial').modal('hide');
-                    cargarResumenEfectivo();
-                } else {
-                    mostrarError('Error: ' + response.error);
-                }
-            },
-            error: function(xhr) {
-                let mensaje = 'Error al guardar el saldo inicial';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    mensaje = xhr.responseJSON.error;
-                }
-                mostrarError(mensaje);
-                console.error('Error:', xhr);
-            },
-            complete: function() {
-                btnGuardar.prop('disabled', false).html(textoOriginal);
-            }
-        });
-    }
-
     // Función global para ver detalle de movimiento
     window.verDetalleMovimiento = function(movimientoId) {
         $.ajax({
