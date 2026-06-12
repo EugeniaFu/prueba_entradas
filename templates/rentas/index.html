@@ -142,6 +142,9 @@
 
             <tbody>
               {% for renta in rentas %}
+              {% set tiene_nota_salida = renta[29] %}
+              {% set estado_bloqueado_nota_salida = renta[4]|lower in ['cancelada', 'activa renovacion'] %}
+              {% set bloquear_nota_salida = tiene_nota_salida or estado_bloqueado_nota_salida %}
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
@@ -205,9 +208,9 @@
                       {{ renta[17]['texto'] }}
                     </span>
                     {% endif %}
-                    {% if renta[29] %}
-                    <span class="badge {{ renta[29]['clase'] }} mt-1" style="font-size: 0.7rem;">
-                      {{ renta[29]['texto'] }}
+                    {% if renta[30] %}
+                    <span class="badge {{ renta[30]['clase'] }} mt-1" style="font-size: 0.7rem;">
+                      {{ renta[30]['texto'] }}
                     </span>
                     {% endif %}
                   </div>
@@ -382,18 +385,18 @@
                       </button>
                       <ul class="dropdown-menu">
                         <li>
-                          <a class="dropdown-item btn-nota-salida{% if renta[29] %} disabled{% endif %}" href="#"
-                            data-renta-id="{{ renta[0] }}" {% if renta[29] %}tabindex="-1" aria-disabled="true"
-                            title="Nota de Salida Generada" {% endif %}>
+                          <a class="dropdown-item btn-nota-salida{% if bloquear_nota_salida %} disabled{% endif %}" href="#"
+                            data-renta-id="{{ renta[0] }}" {% if bloquear_nota_salida %}tabindex="-1" aria-disabled="true"
+                            title="{% if tiene_nota_salida %}Nota de Salida Generada{% else %}No disponible para esta renta{% endif %}" {% endif %}>
                             <i
-                              class="bi bi-arrow-right-circle me-2 {% if renta[29] %}text-muted{% else %}text-danger{% endif %}"></i>
-                            {% if renta[29] %}Nota de Salida Generada{% else %}Crear Nota de Salida{% endif %}
+                              class="bi bi-arrow-right-circle me-2 {% if bloquear_nota_salida %}text-muted{% else %}text-danger{% endif %}"></i>
+                            {% if tiene_nota_salida %}Nota de Salida Generada{% elif estado_bloqueado_nota_salida %}Salida No Disponible{% else %}Generar Nota de Salida{% endif %}
                           </a>
                         </li>
                         <li>
                           <a class="dropdown-item btn-nota-entrada " href="#" data-renta-id="{{ renta[0] }}">
-                            <i class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
-                            Nota de Entrada
+                            <i class="bi bi-arrow-left-circle me-2 text-primary"></i>
+                            Generar Nota de Entrada
                           </a>
                         </li>
                         <li>
@@ -503,6 +506,9 @@
 
             <tbody>
               {% for renta in rentas_pagadas %}
+              {% set tiene_nota_salida = renta[29] %}
+              {% set estado_bloqueado_nota_salida = renta[4]|lower in ['cancelada', 'activa renovacion'] %}
+              {% set bloquear_nota_salida = tiene_nota_salida or estado_bloqueado_nota_salida %}
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
@@ -735,58 +741,7 @@
                     </div>
 
                     <!-- Botón de Notas -->
-                    <div class="dropdown">
-                      <button class="btn btn-sm btn-warning text-dark dropdown-toggle no-caret rounded rounded-circle"
-                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
-                        data-bs-toggle="tooltip" title="Gestionar notas ">
-                        <i class="bi bi-journal-text"></i>
-                      </button>
-                      <ul class="dropdown-menu">
-                        <li>
-                          <a class="dropdown-item btn-nota-salida{% if renta[29] %} disabled{% endif %}" href="#"
-                            data-renta-id="{{ renta[0] }}" {% if renta[29] %}tabindex="-1" aria-disabled="true"
-                            title="Nota de Salida Generada" {% endif %}>
-                            <i
-                              class="bi bi-arrow-right-circle me-2 {% if renta[29] %}text-muted{% else %}text-danger{% endif %}"></i>
-                            {% if renta[29] %}Nota de alida Generada{% else %}Crear Nota de Salida{% endif %}
-                          </a>
-                        </li>
-                        <li>
-                          <a class="dropdown-item btn-nota-entrada " href="#" data-renta-id="{{ renta[0] }}">
-                            <i class="bi bi-arrow-left-circle me-2 text-primary"></i>Crear
-                            Nota de Entrada
-                          </a>
-                        </li>
-                        <li>
-                          <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                          <a class="dropdown-item btn-prefactura {% if renta[5]|lower == 'pago realizado' %}disabled{% endif %}"
-                            href="#" data-renta-id="{{ renta[0] }}" data-fecha-salida="{{ renta[2] }}"
-                            data-fecha-entrada="{{ renta[3].strftime('%Y-%m-%d') if renta[3] else '' }}" {% if
-                            renta[5]|lower=='pago realizado' %}tabindex="-1" aria-disabled="true" {% endif %}>
-                            <i class="bi bi-journal-check me-2 text-success"></i>{% if renta[5]|lower == 'saldo
-                            pendiente'
-                            %}Abonar{% else %}Generar Prefactura{% endif %}
-                          </a>
-                        </li>
-                        {% if renta[17] == 'Extra Pendiente' %}
-                        <li>
-                          <a class="dropdown-item btn-cobro-extra" href="#" data-renta-id="{{ renta[0] }}">
-                            <i class="bi bi-cash-coin me-2 text-warning"></i>Cobrar Extra
-                          </a>
-                        </li>
-                        {% endif %}
-
-                        {% if renta[20] == 'Retraso Pendiente' %}
-                        <li>
-                          <a class="dropdown-item btn-cobro-retraso" href="#" data-renta-id="{{ renta[0] }}">
-                            <i class="bi bi-clock-history me-2 text-danger"></i>Cobrar Retraso
-                          </a>
-                        </li>
-                        {% endif %}
-                      </ul>
-                    </div>
+                    
 
 
                     <!-- Botón de Eliminar -->

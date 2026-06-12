@@ -108,7 +108,8 @@ class RentasService:
                 (SELECT COUNT(*) FROM rentas r2 WHERE r2.id_sucursal = r.id_sucursal AND r2.id <= r.id) AS folio_sucursal,
                 s.nombre AS sucursal_nombre,
                 ncr.id AS cobro_retraso_id,
-                (SELECT COUNT(*) FROM rentas r3 WHERE r3.id_sucursal = r.id_sucursal AND r3.id <= r.renta_asociada_id) AS folio_asociado
+                (SELECT COUNT(*) FROM rentas r3 WHERE r3.id_sucursal = r.id_sucursal AND r3.id <= r.renta_asociada_id) AS folio_asociado,
+                (SELECT COUNT(*) FROM notas_salida ns WHERE ns.renta_id = r.id) AS tiene_nota_salida
 
             FROM rentas r
             JOIN clientes c ON r.cliente_id = c.id
