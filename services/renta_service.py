@@ -1,4 +1,5 @@
 from utils.db import get_db_connection
+from utils.folios import obtener_siguiente_folio_renta_sucursal
 
 class RentasService:
     @staticmethod
@@ -107,10 +108,10 @@ class RentasService:
                 ) AS tiene_renovaciones,
                 r.renta_asociada_id,
                 r.id_sucursal,
-                (SELECT COUNT(*) FROM rentas r2 WHERE r2.id_sucursal = r.id_sucursal AND r2.id <= r.id) AS folio_sucursal,
+                r.folio AS folio_sucursal,
                 s.nombre AS sucursal_nombre,
                 ncr.id AS cobro_retraso_id,
-                (SELECT COUNT(*) FROM rentas r3 WHERE r3.id_sucursal = r.id_sucursal AND r3.id <= r.renta_asociada_id) AS folio_asociado,
+                (SELECT r3.folio FROM rentas r3 WHERE r3.id = r.renta_asociada_id) AS folio_asociado,
                 (SELECT COUNT(*) FROM notas_salida ns WHERE ns.renta_id = r.id) AS tiene_nota_salida
 
             FROM rentas r
@@ -159,20 +160,23 @@ class RentasService:
             estado_pago = 'Pago pendiente'
             metodo_pago = 'Pendiente'
             
+            # Obtener el folio consecutivo de la sucursal (inicia en 1 por sucursal)
+            folio = obtener_siguiente_folio_renta_sucursal(cursor, sucursal_para_renta)
+
             # Insertar cabecera de Renta (inicialmente en 0)
             cursor.execute("""
                 INSERT INTO rentas (
                     cliente_id, fecha_registro, fecha_salida, fecha_entrada,
                     direccion_obra, estado_renta, estado_pago, metodo_pago,
                     total, iva, total_con_iva, observaciones, fecha_programada, id_sucursal,
-                    costo_traslado, traslado
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    costo_traslado, traslado, folio
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                datos_renta['cliente_id'], datos_renta['fecha_registro'], datos_renta['fecha_salida'], 
-                datos_renta['fecha_entrada'], datos_renta['direccion_obra'], estado_renta, 
-                estado_pago, metodo_pago, 0, 0, 0, datos_renta['observaciones'], 
-                datos_renta['fecha_programada'], sucursal_para_renta, 
-                datos_renta['costo_traslado'], datos_renta['traslado']
+                datos_renta['cliente_id'], datos_renta['fecha_registro'], datos_renta['fecha_salida'],
+                datos_renta['fecha_entrada'], datos_renta['direccion_obra'], estado_renta,
+                estado_pago, metodo_pago, 0, 0, 0, datos_renta['observaciones'],
+                datos_renta['fecha_programada'], sucursal_para_renta,
+                datos_renta['costo_traslado'], datos_renta['traslado'], folio
             ))
 
             renta_id = cursor.lastrowid
@@ -212,11 +216,11 @@ class RentasService:
             """, (total, iva, total_con_iva, renta_id))
 
             conn.commit()
-            return True, renta_id, sucursal_para_renta, None
-            
+            return True, renta_id, sucursal_para_renta, folio, None
+
         except Exception as e:
             conn.rollback()
-            return False, None, None, str(e)
+            return False, None, None, None, str(e)
         finally:
             cursor.close()
             conn.close()
@@ -778,18 +782,21 @@ class RentasService:
             # Heredar el padre raíz (Logica 1)
             padre_real_id = renta_asociada_id_db if renta_asociada_id_db else renta_id
 
+            # Obtener el folio consecutivo de la sucursal (inicia en 1 por sucursal)
+            folio = obtener_siguiente_folio_renta_sucursal(cursor, sucursal_id)
+
             cursor.execute("""
                 INSERT INTO rentas (
                     cliente_id, fecha_registro, fecha_salida, fecha_entrada,
                     direccion_obra, estado_renta, estado_pago, metodo_pago,
                     total, iva, total_con_iva, observaciones, fecha_programada, id_sucursal,
-                    costo_traslado, traslado, renta_asociada_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    costo_traslado, traslado, renta_asociada_id, folio
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 cliente_id, current_time, nueva_fecha_salida, fecha_entrada,
                 direccion_obra, 'activa renovacion', 'Pago pendiente', 'Pendiente',
                 0, 0, 0, observaciones, None, sucursal_id,
-                costo_traslado, traslado, padre_real_id
+                costo_traslado, traslado, padre_real_id, folio
             ))
             nueva_renta_id = cursor.lastrowid
 

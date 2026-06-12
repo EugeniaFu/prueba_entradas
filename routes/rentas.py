@@ -237,20 +237,6 @@ def modulo_rentas(sucursal_id=None):
 
 
 # ======================= UTILIDADES =======================
-def obtener_siguiente_folio_sucursal(cursor, sucursal_id):
-    """
-    Obtiene el siguiente folio consecutivo para una sucursal específica
-    """
-    cursor.execute("""
-        SELECT COALESCE(MAX(
-            (SELECT COUNT(*) FROM rentas r2 WHERE r2.id_sucursal = %s AND r2.id <= r.id)
-        ), 0) + 1 
-        FROM rentas r 
-        WHERE r.id_sucursal = %s
-    """, (sucursal_id, sucursal_id))
-    resultado = cursor.fetchone()
-    return resultado[0] if resultado else 1
-
 def generar_folio_display(sucursal_id, folio_numero):
     """
     Genera el folio formateado para mostrar
@@ -321,20 +307,13 @@ def crear_renta():
         valores_ajuste = request.form.getlist('ajuste_valor[]')
 
         # Delegar al servicio
-        success, renta_id, su_id_usada, err_msg = RentasService.crear_nueva_renta(
+        success, renta_id, su_id_usada, folio, err_msg = RentasService.crear_nueva_renta(
             datos_renta, sucursal_para_renta, es_admin, productos, cantidades, dias, costos,
             precios_base, tipos_ajuste, valores_ajuste
         )
 
         if success:
-            # Reutilizamos las funciones utilitarias que ya tienes en el controlador
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            folio_numero = obtener_siguiente_folio_sucursal(cursor, su_id_usada)
-            folio_display = generar_folio_display(su_id_usada, folio_numero)
-            cursor.close()
-            conn.close()
-            
+            folio_display = generar_folio_display(su_id_usada, folio)
             flash(f"Renta {folio_display} registrada con éxito.", "success")
         else:
             flash(f"Error al guardar la renta: {err_msg}", "danger")

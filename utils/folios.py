@@ -49,3 +49,24 @@ def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
 
     resultado = cursor.fetchone()
     return resultado['siguiente_folio'] if resultado and resultado.get('siguiente_folio') else 1
+
+
+def obtener_siguiente_folio_renta_sucursal(cursor, sucursal_id):
+    """
+    Obtiene el siguiente folio consecutivo para una renta de una sucursal específica.
+    Cada sucursal tiene su propia secuencia, inicia en 1.
+
+    Args:
+        cursor: Cursor de base de datos MySQL (tipo tupla)
+        sucursal_id: ID de la sucursal
+
+    Returns:
+        int: Siguiente número de folio disponible
+    """
+    cursor.execute("""
+        SELECT IFNULL(MAX(folio), 0) + 1
+        FROM rentas
+        WHERE id_sucursal = %s
+    """, (sucursal_id,))
+    resultado = cursor.fetchone()
+    return resultado[0] if resultado and resultado[0] else 1
