@@ -116,10 +116,15 @@
                 <!-- Resumen Efectivo -->
                 <div class="col-md-4">
                     <div class="card h-100">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="card-title mb-0">
                                 <i class="bi bi-graph-up me-2"></i>Resumen de Caja
                             </h5>
+                            {% if es_admin %}
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnConfigurarSaldoInicial" title="Configurar saldo inicial">
+                                <i class="bi bi-gear"></i>
+                            </button>
+                            {% endif %}
                         </div>
                         <div class="card-body">
                             <div class="row text-center">
@@ -139,8 +144,15 @@
                                 </div>
                                 <div class="col-12">
                                     <div class="p-3 bg-primary bg-opacity-10 rounded">
-                                        <h6 class="text-primary mb-1">Saldo en Caja</h6>
-                                        <h4 class="text-primary mb-0" id="saldoCaja">$0.00</h4>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Saldo Inicial</small>
+                                            <strong class="text-primary" id="saldoInicialPeriodo">$0.00</strong>
+                                        </div>
+                                        <hr class="my-1">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="text-primary mb-0">Saldo Final</h6>
+                                            <h4 class="text-primary mb-0" id="saldoCaja">$0.00</h4>
+                                        </div>
                                         <small class="text-muted" id="fechaResumenEfectivo">Hoy</small>
                                     </div>
                                 </div>
@@ -347,6 +359,9 @@
 <!-- Incluir Modales -->
 {% include 'caja/_modal_nuevo_movimiento.html' %}
 {% include 'caja/_modal_detalle_movimiento.html' %}
+{% if es_admin %}
+{% include 'caja/_modal_saldo_inicial.html' %}
+{% endif %}
 
 {% endblock %}
 

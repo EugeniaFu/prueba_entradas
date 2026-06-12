@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, session, send_file, url_for, flash, redirect
 from utils.db import get_db_connection
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from utils.datetime_utils import get_local_now, format_datetime_local
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
@@ -65,6 +65,32 @@ def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_
     except Exception as e:
         print(f"Error al registrar movimiento automático: {e}")
         return {'success': False, 'error': str(e)}
+
+
+def obtener_saldo_acumulado_hasta(cursor, sucursal_id, fecha):
+    """Saldo acumulado de caja (efectivo) al final de `fecha` para una sucursal,
+    a partir del saldo inicial configurado en caja_saldo_inicial."""
+    cursor.execute(
+        "SELECT fecha_inicio, saldo_inicial FROM caja_saldo_inicial WHERE sucursal_id = %s",
+        (sucursal_id,)
+    )
+    config = cursor.fetchone()
+    if not config:
+        return 0.0
+
+    fecha_inicio_tracking = config['fecha_inicio']
+    saldo_base = float(config['saldo_inicial'])
+
+    if fecha < fecha_inicio_tracking:
+        return saldo_base
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE -monto END), 0) AS neto
+        FROM movimientos_caja
+        WHERE sucursal_id = %s AND DATE(fecha_hora) BETWEEN %s AND %s
+    """, (sucursal_id, fecha_inicio_tracking, fecha))
+    neto = float(cursor.fetchone()['neto'])
+    return saldo_base + neto
 
 @caja_bp.route('/')
 @requiere_sesion()
@@ -384,7 +410,11 @@ def obtener_resumen():
                 count_egresos = resultado['cantidad']
         
         saldo_neto = total_ingresos - total_egresos
-        
+
+        fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+        saldo_inicial_periodo = obtener_saldo_acumulado_hasta(cursor, sucursal_id, fecha_inicio_dt - timedelta(days=1))
+        saldo_final_periodo = saldo_inicial_periodo + total_ingresos - total_egresos
+
         if fecha_inicio == fecha_fin == date.today().strftime('%Y-%m-%d'):
             cursor.execute("""
                 SELECT metodo_pago, tipo, COALESCE(SUM(monto), 0) as total
@@ -407,6 +437,8 @@ def obtener_resumen():
                 'total_ingresos': total_ingresos,
                 'total_egresos': total_egresos,
                 'saldo_neto': saldo_neto,
+                'saldo_inicial_periodo': saldo_inicial_periodo,
+                'saldo_final_periodo': saldo_final_periodo,
                 'count_ingresos': count_ingresos,
                 'count_egresos': count_egresos,
                 'desglose_metodos': desglose_metodos,
@@ -417,6 +449,92 @@ def obtener_resumen():
         
     except Exception as e:
         print(f"Error al obtener resumen: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@caja_bp.route('/api/saldo_inicial')
+@requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
+def obtener_saldo_inicial():
+    try:
+        # Detectar si es admin
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+
+        if es_admin:
+            sucursal_id = request.args.get('sucursal_id', type=int)
+            if sucursal_id is None:
+                return jsonify({'success': False, 'error': 'Debe especificar la sucursal'}), 400
+        else:
+            sucursal_id = sucursal_id_usuario
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT fecha_inicio, saldo_inicial FROM caja_saldo_inicial WHERE sucursal_id = %s",
+            (sucursal_id,)
+        )
+        config = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if config:
+            config['fecha_inicio'] = config['fecha_inicio'].strftime('%Y-%m-%d')
+            config['saldo_inicial'] = float(config['saldo_inicial'])
+
+        return jsonify({'success': True, 'config': config})
+
+    except Exception as e:
+        print(f"Error al obtener saldo inicial: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@caja_bp.route('/api/saldo_inicial', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_movimiento_caja')
+def guardar_saldo_inicial():
+    try:
+        # Solo administradores pueden configurar el saldo inicial
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        if not es_admin:
+            return jsonify({'success': False, 'error': 'Solo los administradores pueden configurar el saldo inicial'}), 403
+
+        data = request.get_json()
+        sucursal_id = data.get('sucursal_id')
+        fecha_inicio = data.get('fecha_inicio')
+        saldo_inicial = data.get('saldo_inicial')
+
+        if not sucursal_id or not fecha_inicio or saldo_inicial is None:
+            return jsonify({'success': False, 'error': 'Debe especificar sucursal, fecha de inicio y saldo inicial'}), 400
+
+        try:
+            saldo_inicial = float(saldo_inicial)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Saldo inicial inválido'}), 400
+
+        usuario_id = session.get('user_id')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO caja_saldo_inicial (sucursal_id, fecha_inicio, saldo_inicial, actualizado_por)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                fecha_inicio = VALUES(fecha_inicio),
+                saldo_inicial = VALUES(saldo_inicial),
+                actualizado_por = VALUES(actualizado_por)
+        """, (sucursal_id, fecha_inicio, saldo_inicial, usuario_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'success': True, 'message': 'Saldo inicial configurado correctamente'})
+
+    except Exception as e:
+        print(f"Error al guardar saldo inicial: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @caja_bp.route('/api/ingresos-digitales')
@@ -646,10 +764,14 @@ def generar_pdf_movimientos():
                 count_egresos = resultado['cantidad']
         
         saldo_neto = total_ingresos - total_egresos
-        
+
+        fecha_inicio_dt = datetime.strptime(fecha_inicio, '%Y-%m-%d').date()
+        saldo_inicial_periodo = obtener_saldo_acumulado_hasta(cursor, sucursal_id, fecha_inicio_dt - timedelta(days=1))
+        saldo_final_periodo = saldo_inicial_periodo + total_ingresos - total_egresos
+
         cursor.close()
         conn.close()
-        
+
         # --- GENERAR PDF ---
         packet = BytesIO()
         can = canvas.Canvas(packet, pagesize=letter)
@@ -701,13 +823,14 @@ def generar_pdf_movimientos():
         y_pos -= 20
         
         can.setFont("Carlito", 10)
+        can.drawString(60, y_pos, f"SALDO INICIAL DEL PERÍODO: ${saldo_inicial_periodo:,.2f}")
+        y_pos -= 15
         can.drawString(60, y_pos, f"TOTAL INGRESOS: ${total_ingresos:,.2f} ({count_ingresos} movimientos)")
         y_pos -= 15
         can.drawString(60, y_pos, f"TOTAL EGRESOS: ${total_egresos:,.2f} ({count_egresos} movimientos)")
         y_pos -= 15
         can.setFont("Helvetica-Bold", 11)
-        color_saldo = "green" if saldo_neto >= 0 else "red"
-        can.drawString(60, y_pos, f"SALDO NETO: ${saldo_neto:,.2f}")
+        can.drawString(60, y_pos, f"SALDO FINAL DEL PERÍODO: ${saldo_final_periodo:,.2f}")
         y_pos -= 30
         
         # === FILTROS APLICADOS ===

@@ -1,0 +1,55 @@
+<!-- Modal para Configurar Saldo Inicial -->
+<div class="modal fade" id="modalSaldoInicial" tabindex="-1" aria-labelledby="modalSaldoInicialLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalSaldoInicialLabel">
+                    <i class="bi bi-gear me-2"></i>Configurar Saldo Inicial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formSaldoInicial">
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        Saldo en efectivo con el que inicia esta sucursal en la fecha indicada.
+                        A partir de esa fecha, el sistema solo sumará y restará los movimientos
+                        registrados, sin necesidad de hacer cortes diarios.
+                    </p>
+                    <div class="mb-3">
+                        <label for="sucursalSaldoInicial" class="form-label">
+                            Sucursal <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="sucursalSaldoInicial" name="sucursal_id" required>
+                            {% for s in sucursales %}
+                            <option value="{{ s.id }}">{{ s.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fechaInicioSaldoInicial" class="form-label">
+                            Fecha de Inicio <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" class="form-control" id="fechaInicioSaldoInicial" name="fecha_inicio" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="montoSaldoInicial" class="form-label">
+                            Saldo Inicial <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="montoSaldoInicial" name="saldo_inicial" step="0.01" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer modal-footer-azul">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle me-1"></i>Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
