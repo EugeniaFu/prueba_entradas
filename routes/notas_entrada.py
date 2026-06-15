@@ -24,6 +24,26 @@ from reportlab.pdfbase.ttfonts import TTFont
 notas_entrada_bp = Blueprint('notas_entrada', __name__, url_prefix='/notas_entrada')
 
 
+@notas_entrada_bp.route('/cargadores')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
+def listar_cargadores():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT u.id, CONCAT(u.nombre, ' ', u.apellido1, ' ', u.apellido2) AS nombre_completo,
+               s.nombre AS sucursal_nombre
+        FROM usuarios u
+        LEFT JOIN sucursales s ON u.sucursal_id = s.id
+        WHERE u.rol_id = 4 AND u.estado = 'activo'
+        ORDER BY u.nombre, u.apellido1
+    """)
+    cargadores = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(cargadores)
+
+
 @notas_entrada_bp.route('/preview/<int:renta_id>')
 @requiere_sesion()
 @requiere_permiso('ver_notas_entrada')
@@ -218,6 +238,7 @@ def crear_nota_entrada(renta_id):
     observaciones = data.get('observaciones', '')
     piezas = data.get('piezas', [])
     accion_devolucion = data.get('accion_devolucion', 'no')
+    chofer_recoleccion_id = data.get('chofer_id') or None
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -276,23 +297,32 @@ def crear_nota_entrada(renta_id):
         if nota_existente:
             nota_entrada_id = nota_existente['id']
             # Actualizar cabecera
-            cursor.execute("""
-                UPDATE notas_entrada
-                SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW()
-                WHERE id=%s
-            """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, nota_entrada_id))
+            if chofer_recoleccion_id:
+                # Solo se sobrescribe el chofer si esta entrega trae uno nuevo,
+                # para no perder el registro de quien recolectó el equipo
+                cursor.execute("""
+                    UPDATE notas_entrada
+                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW(), chofer_recoleccion_id=%s
+                    WHERE id=%s
+                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, chofer_recoleccion_id, nota_entrada_id))
+            else:
+                cursor.execute("""
+                    UPDATE notas_entrada
+                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW()
+                    WHERE id=%s
+                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, nota_entrada_id))
             # Eliminar detalles anteriores
             cursor.execute("DELETE FROM notas_entrada_detalle WHERE nota_entrada_id=%s", (nota_entrada_id,))
         else:
-            # Insertar nota de entrada 
+            # Insertar nota de entrada
             cursor.execute("""
                 INSERT INTO notas_entrada (
                     folio, renta_id, nota_salida_id, fecha_entrada_real,
-                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion
-                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s)
+                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion, chofer_recoleccion_id
+                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s)
             """, (
                 folio, renta_id, nota_salida_id, requiere_traslado_extra,
-                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion
+                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion, chofer_recoleccion_id
             ))
             nota_entrada_id = cursor.lastrowid
 
@@ -504,13 +534,15 @@ def generar_pdf_nota_entrada(nota_entrada_id):
          SELECT ne.folio, ne.fecha_entrada_real, ne.requiere_traslado_extra, ne.costo_traslado_extra, ne.observaciones,
              r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.estado_renta, r.id_sucursal,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
-               c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, 
+               c.codigo_cliente, c.telefono, c.calle, c.numero_exterior,
                c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,
-               s.plantilla_renta
+               s.plantilla_renta,
+               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_nombre
         FROM notas_entrada ne
         JOIN rentas r ON ne.renta_id = r.id
         JOIN clientes c ON r.cliente_id = c.id
         JOIN sucursales s ON r.id_sucursal = s.id
+        LEFT JOIN usuarios uc ON ne.chofer_recoleccion_id = uc.id
         WHERE ne.id = %s
     """, (nota_entrada_id,))
     nota = cursor.fetchone()
@@ -710,7 +742,8 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     can.drawString(350, y_position, "ENTREGA: _______________________")
     y_position -= 10
     
-    can.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
+    nombre_recibe = nota['chofer_nombre'].upper() if nota.get('chofer_nombre') else usuario_nombre
+    can.drawString(60, y_position, f"NOMBRE: {nombre_recibe}")
     y_position -= 15
 
     # Observaciones si existen

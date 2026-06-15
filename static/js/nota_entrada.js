@@ -4,6 +4,32 @@ document.addEventListener('DOMContentLoaded', function () {
     window.notaEntradaPiezas = [];
     window.notaEntradaNotaSalidaId = null;
     window.notaEntradaEnRecoleccion = false;
+    window.notaEntradaCargadores = null;
+
+
+    function cargarCargadores() {
+        const select = document.getElementById('select-chofer-recoleccion');
+        if (window.notaEntradaCargadores) {
+            return Promise.resolve(window.notaEntradaCargadores);
+        }
+        return fetch('/notas_entrada/cargadores')
+            .then(resp => resp.json())
+            .then(cargadores => {
+                window.notaEntradaCargadores = cargadores;
+                cargadores.forEach(cargador => {
+                    const option = document.createElement('option');
+                    option.value = cargador.id;
+                    option.textContent = cargador.sucursal_nombre
+                        ? `${cargador.nombre_completo} (${cargador.sucursal_nombre})`
+                        : cargador.nombre_completo;
+                    select.appendChild(option);
+                });
+                return cargadores;
+            })
+            .catch(err => {
+                console.error('Error al cargar cargadores:', err);
+            });
+    }
 
 
     function revisarCobroExtra() {
@@ -117,6 +143,8 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('observaciones-entrada').value = '';
             document.getElementById('tabla-piezas-salieron').innerHTML = '<tr><td colspan="3" class="text-center text-muted">Cargando...</td></tr>';
             document.getElementById('tabla-evaluacion-piezas').innerHTML = '';
+            document.getElementById('div-chofer-recoleccion').classList.add('d-none');
+            document.getElementById('select-chofer-recoleccion').value = '';
 
             // Fetch datos para el modal
             fetch(`/notas_entrada/preview/${rentaId}`)
@@ -163,6 +191,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     checkboxRecoleccion.addEventListener('change', function () {
                         const deshabilitar = checkboxRecoleccion.checked;
                         window.notaEntradaEnRecoleccion = deshabilitar;
+
+                        // Muestra/oculta el selector de chofer/cargador
+                        const divChofer = document.getElementById('div-chofer-recoleccion');
+                        const selectChofer = document.getElementById('select-chofer-recoleccion');
+                        if (deshabilitar) {
+                            divChofer.classList.remove('d-none');
+                            cargarCargadores();
+                        } else {
+                            divChofer.classList.add('d-none');
+                            selectChofer.value = '';
+                        }
+
                         // Deshabilita/limpia todos los campos de cantidades
                         document.querySelectorAll('.cantidad-recibida, .cantidad-buena, .cantidad-danada, .cantidad-sucia, .cantidad-perdida').forEach(input => {
                             input.disabled = deshabilitar;
@@ -357,6 +397,18 @@ document.addEventListener('DOMContentLoaded', function () {
     if (form) {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            // Si está en recolección, exige seleccionar el chofer/cargador
+            const selectChofer = document.getElementById('select-chofer-recoleccion');
+            if (window.notaEntradaEnRecoleccion && !selectChofer.value) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Selecciona al chofer que recogerá el equipo.'
+                });
+                return;
+            }
+
             const btn = document.getElementById('btn-generar-nota-entrada');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
@@ -408,7 +460,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 observaciones,
                 piezas,
                 cobrar_retraso: cobrarRetraso,
-                accion_devolucion: accionDevolucion
+                accion_devolucion: accionDevolucion,
+                chofer_id: window.notaEntradaEnRecoleccion ? (selectChofer.value || null) : null
             };
 
 
