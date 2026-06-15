@@ -32,6 +32,7 @@ class RentasService:
                     )
                     OR piezas_pendientes > 0
                     OR estado_retraso = 'Retraso Pendiente'
+                    OR estado_cobro_extra = 'Extra Pendiente'
                 )
                 """
             elif estado_filtro == 'pagadas':
@@ -41,6 +42,7 @@ class RentasService:
                     OR LOWER(TRIM(estado_renta)) = 'cancelada'
                 )
                 AND (estado_retraso IS NULL OR estado_retraso != 'Retraso Pendiente')
+                AND (estado_cobro_extra IS NULL OR estado_cobro_extra != 'Extra Pendiente')
                 """
             else:
                 filtro_estado = ""

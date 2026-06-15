@@ -318,11 +318,11 @@ def crear_nota_entrada(renta_id):
             cursor.execute("""
                 INSERT INTO notas_entrada (
                     folio, renta_id, nota_salida_id, fecha_entrada_real,
-                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion, chofer_recoleccion_id
-                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s)
+                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion, chofer_recoleccion_id, usuario_id
+                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
             """, (
                 folio, renta_id, nota_salida_id, requiere_traslado_extra,
-                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion, chofer_recoleccion_id
+                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion, chofer_recoleccion_id, session.get('user_id')
             ))
             nota_entrada_id = cursor.lastrowid
 
@@ -537,12 +537,15 @@ def generar_pdf_nota_entrada(nota_entrada_id):
                c.codigo_cliente, c.telefono, c.calle, c.numero_exterior,
                c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,
                s.plantilla_renta,
-               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_nombre
+               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_nombre,
+               ne.usuario_id AS creador_id,
+               CONCAT(uo.nombre, ' ', uo.apellido1, ' ', uo.apellido2) AS creador_nombre
         FROM notas_entrada ne
         JOIN rentas r ON ne.renta_id = r.id
         JOIN clientes c ON r.cliente_id = c.id
         JOIN sucursales s ON r.id_sucursal = s.id
         LEFT JOIN usuarios uc ON ne.chofer_recoleccion_id = uc.id
+        LEFT JOIN usuarios uo ON ne.usuario_id = uo.id
         WHERE ne.id = %s
     """, (nota_entrada_id,))
     nota = cursor.fetchone()
@@ -571,18 +574,22 @@ def generar_pdf_nota_entrada(nota_entrada_id):
         for pieza in piezas
     )
 
-    # Obtener datos del usuario actual
-    usuario_id = session.get('user_id')
+    # Nombre de quien recibió el equipo: el usuario que generó la nota originalmente.
+    # Si la nota es de antes de registrar usuario_id, se usa el usuario en sesión como respaldo.
     usuario_nombre = "USUARIO NO IDENTIFICADO"
-    if usuario_id:
-        cursor.execute("""
-            SELECT CONCAT(nombre, ' ', apellido1, ' ', apellido2) as nombre_completo
-            FROM usuarios 
-            WHERE id = %s
-        """, (usuario_id,))
-        usuario_row = cursor.fetchone()
-        if usuario_row:
-            usuario_nombre = usuario_row['nombre_completo'].upper()
+    if nota.get('creador_nombre'):
+        usuario_nombre = nota['creador_nombre'].upper()
+    else:
+        usuario_id = session.get('user_id')
+        if usuario_id:
+            cursor.execute("""
+                SELECT CONCAT(nombre, ' ', apellido1, ' ', apellido2) as nombre_completo
+                FROM usuarios
+                WHERE id = %s
+            """, (usuario_id,))
+            usuario_row = cursor.fetchone()
+            if usuario_row:
+                usuario_nombre = usuario_row['nombre_completo'].upper()
 
     cursor.close()
     conn.close()
