@@ -1,6 +1,28 @@
 document.addEventListener('DOMContentLoaded', function () {
     // Variable global para guardar el rentaId actual
     window.rentaIdNotaSalidaActual = null;
+    window.notaSalidaRequiereChofer = false;
+    window.notaSalidaCargadores = null;
+
+    function cargarCargadoresSalida() {
+        const select = document.getElementById('select-chofer-entrega');
+        if (window.notaSalidaCargadores) {
+            return Promise.resolve(window.notaSalidaCargadores);
+        }
+        return fetch('/notas_salida/cargadores')
+            .then(resp => resp.json())
+            .then(cargadores => {
+                window.notaSalidaCargadores = cargadores;
+                select.innerHTML = '<option value="">Selecciona un chofer...</option>';
+                cargadores.forEach(cargador => {
+                    const option = document.createElement('option');
+                    option.value = cargador.id;
+                    option.textContent = `${cargador.nombre_completo} (${cargador.sucursal_nombre || 'Sin sucursal'})`;
+                    select.appendChild(option);
+                });
+                return cargadores;
+            });
+    }
 
     // Abrir modal y cargar datos
     document.body.addEventListener('click', function (e) {
@@ -21,6 +43,11 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('nota-salida-periodo').textContent = '--/--/---- a indefinido';
             document.getElementById('nota-salida-piezas').innerHTML = '<tr><td colspan="2" class="text-center text-muted">Cargando...</td></tr>';
 
+            // Reinicia selección de chofer de entrega
+            window.notaSalidaRequiereChofer = false;
+            document.getElementById('div-chofer-entrega').classList.add('d-none');
+            document.getElementById('select-chofer-entrega').value = '';
+
             fetch(`/notas_salida/preview/${rentaId}`)
                 .then(resp => resp.json())
                 .then(data => {
@@ -35,6 +62,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('nota-salida-celular').textContent = data.celular;
                     document.getElementById('nota-salida-direccion').textContent = data.direccion_obra;
                     document.getElementById('nota-salida-periodo').textContent = data.periodo;
+
+                    // Si la renta requiere traslado (medio o redondo), pedir el chofer que entrega
+                    window.notaSalidaRequiereChofer = (data.traslado === 'medio' || data.traslado === 'redondo');
+                    if (window.notaSalidaRequiereChofer) {
+                        document.getElementById('div-chofer-entrega').classList.remove('d-none');
+                        cargarCargadoresSalida();
+                    } else {
+                        document.getElementById('div-chofer-entrega').classList.add('d-none');
+                    }
 
                     let piezasHtml = '';
 
@@ -114,11 +150,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const numero_referencia = document.getElementById('nota-salida-referencia').value;
             const observaciones = document.getElementById('nota-salida-observaciones').value;
+            const selectChofer = document.getElementById('select-chofer-entrega');
+
+            if (window.notaSalidaRequiereChofer && !selectChofer.value) {
+                Swal.fire('Falta información', 'Selecciona el chofer que entregará el equipo.', 'warning');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-right-circle"></i> Generar Nota de Salida';
+                return;
+            }
 
             const payload = {
                 numero_referencia,
                 observaciones,
-                piezas
+                piezas,
+                chofer_id: window.notaSalidaRequiereChofer ? (selectChofer.value || null) : null
             };
 
             try {

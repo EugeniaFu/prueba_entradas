@@ -42,7 +42,7 @@ def preview_nota_salida(renta_id):
 
     # 2. Datos de la renta y cliente
     cursor.execute("""
-        SELECT r.fecha_salida, r.fecha_entrada, r.direccion_obra,
+        SELECT r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.traslado,
                c.nombre, c.apellido1, c.apellido2, c.telefono
         FROM rentas r
         JOIN clientes c ON r.cliente_id = c.id
@@ -118,8 +118,29 @@ def preview_nota_salida(renta_id):
         'celular': renta['telefono'],
         'direccion_obra': renta['direccion_obra'],
         'periodo': periodo,
-        'piezas': piezas_list
+        'piezas': piezas_list,
+        'traslado': renta['traslado']
     })
+
+
+@notas_salida_bp.route('/cargadores')
+@requiere_sesion()
+@requiere_permiso('ver_notas_salida')
+def listar_cargadores():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT u.id, CONCAT(u.nombre, ' ', u.apellido1, ' ', u.apellido2) AS nombre_completo,
+               s.nombre AS sucursal_nombre
+        FROM usuarios u
+        LEFT JOIN sucursales s ON u.sucursal_id = s.id
+        WHERE u.rol_id = 4 AND u.estado = 'activo'
+        ORDER BY u.nombre, u.apellido1
+    """)
+    cargadores = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(cargadores)
 
 
 @notas_salida_bp.route('/crear/<int:renta_id>', methods=['POST'])
@@ -130,6 +151,7 @@ def crear_nota_salida(renta_id):
     numero_referencia = data.get('numero_referencia')
     observaciones = data.get('observaciones')
     piezas = data.get('piezas', [])
+    chofer_entrega_id = data.get('chofer_id') or None
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -207,9 +229,9 @@ def crear_nota_salida(renta_id):
 
         # Insertar nota de salida
         cursor.execute("""
-            INSERT INTO notas_salida (folio, renta_id, fecha, numero_referencia, observaciones)
-            VALUES (%s, %s, NOW(), %s, %s)
-                       """, (folio, renta_id, numero_referencia, observaciones))
+            INSERT INTO notas_salida (folio, renta_id, fecha, numero_referencia, observaciones, chofer_entrega_id)
+            VALUES (%s, %s, NOW(), %s, %s, %s)
+                       """, (folio, renta_id, numero_referencia, observaciones, chofer_entrega_id))
         
         nota_salida_id = cursor.lastrowid
 
@@ -274,13 +296,15 @@ def generar_pdf_nota_salida(nota_salida_id):
             SELECT ns.folio, ns.fecha, ns.numero_referencia, ns.observaciones,
                    r.fecha_salida, r.fecha_entrada, r.direccion_obra, r.id_sucursal,
                    CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
-                   c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, 
+                   c.codigo_cliente, c.telefono, c.calle, c.numero_exterior,
                    c.numero_interior, c.entre_calles, c.colonia, c.codigo_postal,
-                   s.plantilla_renta
+                   s.plantilla_renta,
+                   CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_nombre
             FROM notas_salida ns
             JOIN rentas r ON ns.renta_id = r.id
             JOIN clientes c ON r.cliente_id = c.id
             JOIN sucursales s ON r.id_sucursal = s.id
+            LEFT JOIN usuarios uc ON ns.chofer_entrega_id = uc.id
             WHERE ns.id = %s
         """, (nota_salida_id,))
         nota = cursor.fetchone()
@@ -475,7 +499,8 @@ def generar_pdf_nota_salida(nota_salida_id):
         can.drawString(350, y_position, "RECIBE: _______________________")
         y_position -= 10
         
-        can.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
+        nombre_entrega = nota['chofer_nombre'].upper() if nota.get('chofer_nombre') else usuario_nombre
+        can.drawString(60, y_position, f"NOMBRE: {nombre_entrega}")
         y_position -= 15
 
         # Observaciones si existen
