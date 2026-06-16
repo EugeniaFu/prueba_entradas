@@ -36,6 +36,18 @@ def preview_nota_salida(renta_id):
 
     sucursal_id = sucursal_row['id_sucursal']
 
+    # Verificar si ya existe una nota de salida y si la entrega fue finalizada
+    cursor.execute("""
+        SELECT id, es_entrega_parcial FROM notas_salida
+        WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+    """, (renta_id,))
+    ultima_nota_salida = cursor.fetchone()
+
+    if ultima_nota_salida is not None and not ultima_nota_salida['es_entrega_parcial']:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Entrega finalizada', 'message': 'No se pueden generar más notas de salida para esta renta.'}), 409
+
     # Folio consecutivo por sucursal
     folio_siguiente = obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id)
     folio = str(folio_siguiente).zfill(5)
@@ -106,6 +118,25 @@ def preview_nota_salida(renta_id):
         disponibles = inventario_row['disponibles'] if inventario_row else 0
         piezas_dict[id_pieza]['disponibles'] = disponibles
 
+    # Si hay entregas previas (parciales), mostrar solo la cantidad restante
+    if ultima_nota_salida:
+        cursor.execute("""
+            SELECT nsd.id_pieza, SUM(nsd.cantidad) AS ya_entregado
+            FROM notas_salida ns
+            JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
+            WHERE ns.renta_id = %s
+            GROUP BY nsd.id_pieza
+        """, (renta_id,))
+        for row in cursor.fetchall():
+            id_pieza = row['id_pieza']
+            if id_pieza in piezas_dict:
+                piezas_dict[id_pieza]['cantidad'] -= row['ya_entregado']
+        piezas_dict = {k: v for k, v in piezas_dict.items() if v['cantidad'] > 0}
+        if not piezas_dict:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Sin piezas pendientes', 'message': 'Todo el equipo de esta renta ya fue entregado.'}), 409
+
     piezas_list = list(piezas_dict.values())
 
     cursor.close()
@@ -152,6 +183,7 @@ def crear_nota_salida(renta_id):
     observaciones = data.get('observaciones')
     piezas = data.get('piezas', [])
     chofer_entrega_id = data.get('chofer_id') or None
+    es_entrega_parcial = bool(data.get('es_entrega_parcial', False))
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -162,6 +194,15 @@ def crear_nota_salida(renta_id):
         sucursal_row = cursor.fetchone()
         if not sucursal_row:
             return jsonify({'success': False, 'error': 'Renta no encontrada'})
+
+        # Gate: bloquear si la entrega ya fue finalizada
+        cursor.execute("""
+            SELECT id, es_entrega_parcial FROM notas_salida
+            WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+        """, (renta_id,))
+        ultima = cursor.fetchone()
+        if ultima and not ultima['es_entrega_parcial']:
+            return jsonify({'success': False, 'error': 'La entrega de esta renta ya fue finalizada.'})
 
         sucursal_id = sucursal_row['id_sucursal']
 
@@ -229,9 +270,9 @@ def crear_nota_salida(renta_id):
 
         # Insertar nota de salida
         cursor.execute("""
-            INSERT INTO notas_salida (folio, renta_id, fecha, numero_referencia, observaciones, chofer_entrega_id)
-            VALUES (%s, %s, NOW(), %s, %s, %s)
-                       """, (folio, renta_id, numero_referencia, observaciones, chofer_entrega_id))
+            INSERT INTO notas_salida (folio, renta_id, fecha, numero_referencia, observaciones, chofer_entrega_id, es_entrega_parcial)
+            VALUES (%s, %s, NOW(), %s, %s, %s, %s)
+                       """, (folio, renta_id, numero_referencia, observaciones, chofer_entrega_id, es_entrega_parcial))
         
         nota_salida_id = cursor.lastrowid
 
@@ -258,11 +299,11 @@ def crear_nota_salida(renta_id):
                 """, (cantidad, cantidad, id_sucursal, id_pieza))
                 print("Filas afectadas:", cursor.rowcount)
 
-        # Cambiar estado de la renta a "Activo"
+        # Estado según si es entrega parcial o definitiva
+        nuevo_estado_renta = 'Entrega Parcial' if es_entrega_parcial else 'Activo'
         cursor.execute("""
-                       
-            UPDATE rentas SET estado_renta = 'Activo' WHERE id = %s
-        """, (renta_id,))
+            UPDATE rentas SET estado_renta = %s WHERE id = %s
+        """, (nuevo_estado_renta, renta_id))
 
         conn.commit()
         return jsonify({'success': True, 'folio': folio, 'nota_salida_id': nota_salida_id})

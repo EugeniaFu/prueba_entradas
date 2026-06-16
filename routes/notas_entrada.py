@@ -151,38 +151,50 @@ def preview_nota_entrada(renta_id):
             delta = ahora_naive - fecha_limite_dt
             dias_retraso = delta.days + (1 if delta.seconds > 0 else 0)
 
-    # Piezas que salieron (de la nota de salida)
+    # Piezas que salieron (suma de TODAS las notas de salida de la renta)
     piezas_salida = []
     if nota_salida_id:
         cursor.execute("""
-            SELECT nsd.id_pieza, p.nombre_pieza, nsd.cantidad AS cantidad_esperada
-            FROM notas_salida_detalle nsd
+            SELECT nsd.id_pieza, p.nombre_pieza, SUM(nsd.cantidad) AS cantidad_esperada
+            FROM notas_salida ns
+            JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
             JOIN piezas p ON nsd.id_pieza = p.id_pieza
-            WHERE nsd.nota_salida_id = %s
-        """, (nota_salida_id,))
+            WHERE ns.renta_id = %s
+            GROUP BY nsd.id_pieza, p.nombre_pieza
+        """, (padre_real_id,))
         piezas_salida = cursor.fetchall()
 
     # Verifica si ya existe alguna nota de entrada
     cursor.execute("SELECT COUNT(*) AS total FROM notas_entrada WHERE renta_id = %s", (renta_id,))
     existe_entrada = cursor.fetchone()['total'] > 0
 
-    # Consulta de piezas pendientes mejorada (funciona con cualquier estado de renta)
+    # Piezas pendientes: compara total entregado vs total recibido a través de todas las notas
     cursor.execute("""
         SELECT
-            nsd.id_pieza,
-            p.nombre_pieza,
-            nsd.cantidad AS cantidad_salida,
-            IFNULL(SUM(ned.cantidad_recibida), 0) AS cantidad_recibida_total,
-            (nsd.cantidad - IFNULL(SUM(ned.cantidad_recibida), 0)) AS cantidad_pendiente
-        FROM notas_salida_detalle nsd
-        JOIN piezas p ON nsd.id_pieza = p.id_pieza
-        LEFT JOIN notas_entrada ne ON (ne.renta_id = %s OR ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s))
-        LEFT JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne.id AND ned.id_pieza = nsd.id_pieza
-        WHERE nsd.nota_salida_id = %s
-        GROUP BY nsd.id_pieza, p.nombre_pieza, nsd.cantidad
+            entregado.id_pieza,
+            entregado.nombre_pieza,
+            entregado.cantidad_salida,
+            IFNULL(recibido.cantidad_recibida_total, 0) AS cantidad_recibida_total,
+            (entregado.cantidad_salida - IFNULL(recibido.cantidad_recibida_total, 0)) AS cantidad_pendiente
+        FROM (
+            SELECT nsd.id_pieza, p.nombre_pieza, SUM(nsd.cantidad) AS cantidad_salida
+            FROM notas_salida ns
+            JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
+            JOIN piezas p ON nsd.id_pieza = p.id_pieza
+            WHERE ns.renta_id = %s
+            GROUP BY nsd.id_pieza, p.nombre_pieza
+        ) entregado
+        LEFT JOIN (
+            SELECT ned.id_pieza, SUM(ned.cantidad_recibida) AS cantidad_recibida_total
+            FROM notas_entrada ne
+            JOIN notas_entrada_detalle ned ON ne.id = ned.nota_entrada_id
+            WHERE ne.renta_id = %s OR ne.renta_id = %s
+                OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s)
+            GROUP BY ned.id_pieza
+        ) recibido ON entregado.id_pieza = recibido.id_pieza
         HAVING cantidad_pendiente > 0
-        ORDER BY p.nombre_pieza
-    """, (renta_id, padre_real_id, padre_real_id, nota_salida_id))
+        ORDER BY entregado.nombre_pieza
+    """, (padre_real_id, renta_id, padre_real_id, padre_real_id))
     piezas_pendientes = cursor.fetchall()
 
     # Si hay piezas pendientes, muestra solo esas
@@ -266,12 +278,13 @@ def crear_nota_entrada(renta_id):
         renta_row = cursor.fetchone()
         padre_real_id = renta_row['renta_asociada_id'] if renta_row and renta_row['renta_asociada_id'] else renta_id
 
-        # Obtener piezas de la nota de salida (todas las piezas que salieron del padre inicial)
+        # Sumar piezas entregadas a través de TODAS las notas de salida del padre
         cursor.execute("""
-            SELECT nsd.id_pieza, nsd.cantidad AS cantidad_salida
+            SELECT nsd.id_pieza, SUM(nsd.cantidad) AS cantidad_salida
             FROM notas_salida ns
             JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
             WHERE ns.renta_id = %s
+            GROUP BY nsd.id_pieza
         """, (padre_real_id,))
         piezas_salida = cursor.fetchall()
         total_piezas_salida = sum([p['cantidad_salida'] for p in piezas_salida])
@@ -417,17 +430,27 @@ def crear_nota_entrada(renta_id):
             # Usar la misma lógica que el preview para consistencia
             cursor.execute("""
                 SELECT
-                    nsd.id_pieza,
-                    nsd.cantidad AS cantidad_salida,
-                    IFNULL(SUM(ned.cantidad_recibida), 0) AS cantidad_recibida_total,
-                    (nsd.cantidad - IFNULL(SUM(ned.cantidad_recibida), 0)) AS cantidad_pendiente
-                FROM notas_salida_detalle nsd
-                LEFT JOIN notas_entrada ne ON (ne.renta_id = %s OR ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s))
-                LEFT JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne.id AND ned.id_pieza = nsd.id_pieza
-                WHERE nsd.nota_salida_id = %s
-                GROUP BY nsd.id_pieza, nsd.cantidad
+                    entregado.id_pieza,
+                    entregado.cantidad_salida,
+                    IFNULL(recibido.cantidad_recibida_total, 0) AS cantidad_recibida_total,
+                    (entregado.cantidad_salida - IFNULL(recibido.cantidad_recibida_total, 0)) AS cantidad_pendiente
+                FROM (
+                    SELECT nsd.id_pieza, SUM(nsd.cantidad) AS cantidad_salida
+                    FROM notas_salida ns
+                    JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
+                    WHERE ns.renta_id = %s
+                    GROUP BY nsd.id_pieza
+                ) entregado
+                LEFT JOIN (
+                    SELECT ned.id_pieza, SUM(ned.cantidad_recibida) AS cantidad_recibida_total
+                    FROM notas_entrada ne
+                    JOIN notas_entrada_detalle ned ON ne.id = ned.nota_entrada_id
+                    WHERE ne.renta_id = %s OR ne.renta_id = %s
+                        OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s)
+                    GROUP BY ned.id_pieza
+                ) recibido ON entregado.id_pieza = recibido.id_pieza
                 HAVING cantidad_pendiente > 0
-            """, (renta_id, padre_real_id, padre_real_id, nota_salida_id))
+            """, (padre_real_id, renta_id, padre_real_id, padre_real_id))
             piezas_pendientes = cursor.fetchall()
 
             if len(piezas_pendientes) == 0:

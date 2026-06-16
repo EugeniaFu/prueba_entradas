@@ -24,7 +24,7 @@ class RentasService:
             if estado_filtro == 'activas':
                 filtro_estado = """
                 HAVING (
-                    LOWER(TRIM(estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'en recolección', 'programada')
+                    LOWER(TRIM(estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'en recolección', 'programada', 'entrega parcial')
 
                     OR (
                         LOWER(TRIM(estado_renta)) = 'finalizada'
@@ -114,7 +114,14 @@ class RentasService:
                 s.nombre AS sucursal_nombre,
                 ncr.id AS cobro_retraso_id,
                 (SELECT r3.folio FROM rentas r3 WHERE r3.id = r.renta_asociada_id) AS folio_asociado,
-                (SELECT COUNT(*) FROM notas_salida ns WHERE ns.renta_id = r.id) AS tiene_nota_salida
+                (
+                    SELECT CASE
+                        WHEN COUNT(*) = 0 THEN 0
+                        WHEN (SELECT es_entrega_parcial FROM notas_salida WHERE renta_id = r.id ORDER BY id DESC LIMIT 1) = 1 THEN 0
+                        ELSE 1
+                    END
+                    FROM notas_salida ns WHERE ns.renta_id = r.id
+                ) AS tiene_nota_salida
 
             FROM rentas r
             JOIN clientes c ON r.cliente_id = c.id

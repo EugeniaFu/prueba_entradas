@@ -43,10 +43,11 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('nota-salida-periodo').textContent = '--/--/---- a indefinido';
             document.getElementById('nota-salida-piezas').innerHTML = '<tr><td colspan="2" class="text-center text-muted">Cargando...</td></tr>';
 
-            // Reinicia selección de chofer de entrega
+            // Reinicia selección de chofer de entrega y checkbox parcial
             window.notaSalidaRequiereChofer = false;
             document.getElementById('div-chofer-entrega').classList.add('d-none');
             document.getElementById('select-chofer-entrega').value = '';
+            document.getElementById('check-entrega-parcial').checked = false;
 
             fetch(`/notas_salida/preview/${rentaId}`)
                 .then(resp => resp.json())
@@ -163,7 +164,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 numero_referencia,
                 observaciones,
                 piezas,
-                chofer_id: window.notaSalidaRequiereChofer ? (selectChofer.value || null) : null
+                chofer_id: window.notaSalidaRequiereChofer ? (selectChofer.value || null) : null,
+                es_entrega_parcial: document.getElementById('check-entrega-parcial').checked
             };
 
             try {

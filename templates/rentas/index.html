@@ -74,12 +74,12 @@
         <option value="programada">Programadas</option>
         <option value="finalizadas">Finalizadas</option>
         <option value="cancelada">Canceladas</option>
-        <option value="en recolección">En recolección</option> <!-- No found -->
+        <option value="en recolección">En Recolección</option> <!-- No found -->
         <option value="renta parcial">Renta parcial</option> <!-- No found -->
-        <option value="activa renovacion">Activa renovación</option>
-        <option value="piezas pendientes">Piezas pendientes</option> <!-- No found -->
+        <option value="activa renovacion">Activa Renovación</option>
+        <option value="piezas pendientes">Piezas Pendientes</option> <!-- No found -->
         <option value="activa renovacion">Renta en renovación</option>
-        <option value="pago pendiente">Pago pendiente</option>
+        <option value="pago pendiente">Pago Pendiente</option>
         <option value="saldo pendiente">Saldo pendiente</option> <!-- No found -->
         <option value="pago realizado">Pago realizado</option>
         <option value="retraso pendiente">Retraso pendiente</option> <!-- No found -->
@@ -247,7 +247,7 @@
                   <span class="badge
                     {% if renta[4]|lower in ['activo', 'activa renovacion'] %}bg-success
                     {% elif renta[4]|lower == 'finalizada' %}bg-dark
-                    {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
+                    {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial', 'entrega parcial'] %}bg-warning
                     {% elif renta[4]|lower == 'en curso' %}bg-primary
                     {% else %}bg-secondary
                     {% endif %}">
@@ -611,7 +611,7 @@
                   <span class="badge
                       {% if renta[4]|lower in ['activo', 'activa renovacion'] %}bg-success
                       {% elif renta[4]|lower == 'finalizada' %}bg-dark
-                      {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial'] %}bg-warning
+                      {% elif renta[4]|lower in ['programada', 'en recolección', 'renta parcial', 'entrega parcial'] %}bg-warning
                       {% elif renta[4]|lower == 'en curso' %}bg-primary
                       {% else %}bg-secondary
                       {% endif %}">
