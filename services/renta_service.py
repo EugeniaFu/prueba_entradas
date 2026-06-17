@@ -1,5 +1,6 @@
+from flask import session
 from utils.db import get_db_connection
-from utils.folios import obtener_siguiente_folio_renta_sucursal
+from utils.folios import obtener_siguiente_folio_renta_sucursal, obtener_siguiente_folio_nota_sucursal
 
 class RentasService:
     @staticmethod
@@ -331,191 +332,230 @@ class RentasService:
             conn.close()
 
     @staticmethod
+    def _calcular_piezas_pendientes_renta(cursor, padre_real_id):
+        """
+        Suma todas las notas de salida de la renta (raíz) menos todas las notas de
+        entrada ya registradas (incluyendo renovaciones), por pieza.
+        """
+        cursor.execute("""
+            SELECT
+                entregado.id_pieza,
+                (entregado.cantidad_salida - IFNULL(recibido.cantidad_recibida_total, 0)) AS cantidad_pendiente
+            FROM (
+                SELECT nsd.id_pieza, SUM(nsd.cantidad) AS cantidad_salida
+                FROM notas_salida ns
+                JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
+                WHERE ns.renta_id = %s
+                GROUP BY nsd.id_pieza
+            ) entregado
+            LEFT JOIN (
+                SELECT ned.id_pieza, SUM(ned.cantidad_recibida) AS cantidad_recibida_total
+                FROM notas_entrada ne
+                JOIN notas_entrada_detalle ned ON ne.id = ned.nota_entrada_id
+                WHERE ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s)
+                GROUP BY ned.id_pieza
+            ) recibido ON entregado.id_pieza = recibido.id_pieza
+            HAVING cantidad_pendiente > 0
+        """, (padre_real_id, padre_real_id, padre_real_id))
+        return cursor.fetchall()
+
+    @staticmethod
     def info_cancelar_renta(renta_id):
         """
-        Analiza el estado de la renta y devuelve información para decidir cómo cancelar
+        Analiza el estado de la renta y devuelve información para decidir cómo cancelar.
+        Distingue entre renta original y renovación.
         """
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            # Obtener información de la renta
             cursor.execute("""
-                SELECT estado_renta, estado_pago, id_sucursal
+                SELECT estado_renta, estado_pago, id_sucursal, renta_asociada_id
                 FROM rentas WHERE id = %s
             """, (renta_id,))
             renta = cursor.fetchone()
-            
+
             if not renta:
                 return {'error': 'Renta no encontrada'}
-            
-            # Verificar si tiene nota de salida (equipo salió de bodega)
-            cursor.execute("SELECT id FROM notas_salida WHERE renta_id = %s", (renta_id,))
-            nota_salida = cursor.fetchone()
-            
-            # Verificar si tiene nota de entrada (equipo ya regresó)
-            cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
-            nota_entrada = cursor.fetchone()
-            
+
+            es_renovacion = renta['renta_asociada_id'] is not None
+            padre_real_id = renta['renta_asociada_id'] if es_renovacion else renta_id
+
             info = {
                 'estado_renta': renta['estado_renta'],
                 'estado_pago': renta['estado_pago'],
-                'tiene_nota_salida': nota_salida is not None,
-                'tiene_nota_entrada': nota_entrada is not None,
-                'requiere_devolver_inventario': False,
-                'puede_generar_nota_entrada': False,
+                'es_renovacion': es_renovacion,
+                'tiene_piezas_pendientes': False,
                 'requiere_reembolso': False,
                 'mensaje': ''
             }
-            
-            # Determinar acciones necesarias
-            if renta['estado_renta'] == 'Activo':
-                if nota_salida and not nota_entrada:
-                    # Equipo está afuera, hay que devolverlo
-                    info['requiere_devolver_inventario'] = True
-                    info['puede_generar_nota_entrada'] = True
-                    info['mensaje'] = 'Esta renta tiene equipo fuera. Se devolverá al inventario.'
-                elif nota_entrada:
-                    # Equipo ya regresó
-                    info['mensaje'] = 'El equipo ya regresó. Solo se marcará como cancelada.'
-                else:
-                    # No tiene nota de salida (equipo nunca salió)
-                    info['mensaje'] = 'Esta renta no tiene equipo registrado como salido. Se cancelará sin afectar inventario.'
+
+            if es_renovacion:
+                info['mensaje'] = ('Esta es una renovación. Al cancelarla se reactivará la renta '
+                                    'anterior para que puedas generarle nota de entrada, cancelarla o renovarla de nuevo.')
             else:
-                info['mensaje'] = f'Esta renta está en estado "{renta["estado_renta"]}". Se marcará como cancelada.'
-            
-            # Verificar si requiere reembolso
-            estado_pago_lower = renta['estado_pago'].lower().strip()
+                if (renta['estado_renta'] or '').lower() == 'finalizada':
+                    info['mensaje'] = 'Esta renta ya está finalizada (el equipo ya regresó). Solo se procesará el reembolso si aplica.'
+                else:
+                    pendientes = RentasService._calcular_piezas_pendientes_renta(cursor, padre_real_id)
+                    if pendientes:
+                        info['tiene_piezas_pendientes'] = True
+                        info['mensaje'] = ('Esta renta tiene equipo pendiente de regresar. Se generará una nota '
+                                            'de entrada automática y se actualizará el inventario.')
+                    else:
+                        info['mensaje'] = 'Esta renta no tiene equipo pendiente de regresar. Se cancelará sin afectar inventario.'
+
+            estado_pago_lower = (renta['estado_pago'] or '').lower().strip()
             if 'realizado' in estado_pago_lower or 'pagado' in estado_pago_lower or 'anticipo' in estado_pago_lower:
                 info['requiere_reembolso'] = True
-            
+
             return info
-            
+
         finally:
             cursor.close()
             conn.close()
 
     @staticmethod
-    def cancelar_renta(renta_id, motivo, monto_reembolso, generar_nota_entrada=False):
+    def cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso=None):
         """
-        Cancela una renta con manejo inteligente de inventario y reembolsos
-        
-        Args:
-            renta_id: ID de la renta a cancelar
-            motivo: Motivo de la cancelación
-            monto_reembolso: Monto a reembolsar (puede ser None si no aplica)
-            generar_nota_entrada: Si se debe generar nota de entrada automática
+        Cancela una renta original o una renovación.
+
+        - Renta original: si no está finalizada y tiene piezas pendientes (de cualquiera
+          de sus notas de salida), genera automáticamente una nota de entrada con
+          observación "Renta cancelada" y regresa el inventario.
+        - Renovación: reactiva la renta inmediatamente anterior en la cadena (puede ser
+          la original o otra renovación) para que el usuario pueda seguir operándola.
+        - En ambos casos, si el pago estaba realizado, se procesa el reembolso manual. El
+          reembolso puede darse en efectivo o por transferencia independientemente de cómo
+          se haya pagado originalmente la renta (ej. se pagó con tarjeta pero se reembolsa
+          en efectivo, o se pagó en efectivo pero no hay fondos en caja y se reembolsa por
+          transferencia). Solo el reembolso en efectivo afecta el corte de caja física.
         """
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             conn.start_transaction()
-            
-            # Obtener información de la renta
+
             cursor.execute("""
-                SELECT estado_renta, estado_pago, id_sucursal
+                SELECT estado_renta, estado_pago, id_sucursal, renta_asociada_id, folio
                 FROM rentas WHERE id = %s
             """, (renta_id,))
             renta = cursor.fetchone()
-            
+
             if not renta:
                 return False, "Renta no encontrada"
-            
-            # Verificar notas
-            cursor.execute("SELECT id FROM notas_salida WHERE renta_id = %s", (renta_id,))
-            nota_salida = cursor.fetchone()
-            
-            cursor.execute("SELECT id FROM notas_entrada WHERE renta_id = %s", (renta_id,))
-            nota_entrada = cursor.fetchone()
-            
-            # Si la renta está activa y tiene equipo afuera (nota salida pero no entrada)
-            if renta['estado_renta'] == 'Activo' and nota_salida and not nota_entrada:
-                # Devolver inventario
+
+            es_renovacion = renta['renta_asociada_id'] is not None
+            padre_real_id = renta['renta_asociada_id'] if es_renovacion else renta_id
+            descripcion_extra = ""
+
+            if es_renovacion:
+                # Buscar la renta inmediatamente anterior dentro de la cadena (por id)
                 cursor.execute("""
-                    SELECT nsd.id_pieza, nsd.cantidad
-                    FROM notas_salida_detalle nsd
-                    JOIN notas_salida ns ON nsd.nota_salida_id = ns.id
-                    WHERE ns.renta_id = %s
-                """, (renta_id,))
-                piezas = cursor.fetchall()
-                
-                id_sucursal = renta['id_sucursal']
-                
-                for pieza in piezas:
-                    # Devolver al inventario: aumentar disponibles, disminuir rentadas
+                    SELECT id FROM rentas
+                    WHERE (id = %s OR renta_asociada_id = %s) AND id < %s
+                    ORDER BY id DESC LIMIT 1
+                """, (padre_real_id, padre_real_id, renta_id))
+                anterior = cursor.fetchone()
+                if anterior:
                     cursor.execute("""
-                        UPDATE inventario_sucursal
-                        SET disponibles = disponibles + %s,
-                            rentadas = rentadas - %s
-                        WHERE id_sucursal = %s AND id_pieza = %s
-                    """, (pieza['cantidad'], pieza['cantidad'], id_sucursal, pieza['id_pieza']))
-                
-                # Si se solicita generar nota de entrada automática
-                if generar_nota_entrada:
-                    from utils.folios import obtener_siguiente_folio_nota_sucursal
-                    
-                    # Obtener siguiente folio
-                    folio_siguiente = obtener_siguiente_folio_nota_sucursal(cursor, id_sucursal)
-                    folio = str(folio_siguiente).zfill(5)
-                    
-                    # Crear nota de entrada automática
-                    cursor.execute("""
-                        INSERT INTO notas_entrada (
-                            folio, renta_id, nota_salida_id, fecha_entrada_real,
-                            requiere_traslado_extra, costo_traslado_extra, 
-                            observaciones, estado, created_at, estado_retraso, accion_devolucion
-                        ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s)
-                    """, (
-                        folio, renta_id, nota_salida['id'], 'ninguno', 0,
-                        'Generada automáticamente por cancelación de renta', 'cancelacion',
-                        'Sin Retraso', 'no'
-                    ))
-                    nota_entrada_id = cursor.lastrowid
-                    
-                    # Crear detalle de nota de entrada con todas las piezas en buenas
-                    for pieza in piezas:
+                        UPDATE rentas SET estado_renta = 'Activo' WHERE id = %s
+                    """, (anterior['id'],))
+                    descripcion_extra = f" | Renta anterior reactivada (ID {anterior['id']})"
+            else:
+                if (renta['estado_renta'] or '').lower() != 'finalizada':
+                    pendientes = RentasService._calcular_piezas_pendientes_renta(cursor, padre_real_id)
+                    if pendientes:
+                        id_sucursal = renta['id_sucursal']
+                        folio_siguiente = obtener_siguiente_folio_nota_sucursal(cursor, id_sucursal)
+                        folio = str(folio_siguiente).zfill(5)
+
                         cursor.execute("""
-                            INSERT INTO notas_entrada_detalle (
-                                nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
-                                cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida, observaciones_pieza
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            SELECT id FROM notas_salida WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+                        """, (padre_real_id,))
+                        ultima_nota_salida = cursor.fetchone()
+                        nota_salida_id = ultima_nota_salida['id'] if ultima_nota_salida else None
+
+                        cursor.execute("""
+                            INSERT INTO notas_entrada (
+                                folio, renta_id, nota_salida_id, fecha_entrada_real,
+                                requiere_traslado_extra, costo_traslado_extra,
+                                observaciones, estado, created_at, estado_retraso, accion_devolucion, usuario_id
+                            ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s)
                         """, (
-                            nota_entrada_id, pieza['id_pieza'], pieza['cantidad'], pieza['cantidad'],
-                            pieza['cantidad'], 0, 0, 0, 'Entrada automática por cancelación'
+                            folio, renta_id, nota_salida_id, 'ninguno', 0,
+                            'Renta cancelada', 'normal',
+                            'Sin Retraso', 'no', session.get('user_id')
                         ))
-            
-            # Determinar estado de pago según si requiere reembolso
-            estado_pago_lower = renta['estado_pago'].lower().strip()
+                        nota_entrada_id = cursor.lastrowid
+
+                        for pieza in pendientes:
+                            cantidad = pieza['cantidad_pendiente']
+                            cursor.execute("""
+                                INSERT INTO notas_entrada_detalle (
+                                    nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
+                                    cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida, observaciones_pieza
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                nota_entrada_id, pieza['id_pieza'], cantidad, cantidad,
+                                cantidad, 0, 0, 0, 'Entrada automática por cancelación'
+                            ))
+                            cursor.execute("""
+                                UPDATE inventario_sucursal
+                                SET disponibles = disponibles + %s, rentadas = rentadas - %s
+                                WHERE id_sucursal = %s AND id_pieza = %s
+                            """, (cantidad, cantidad, id_sucursal, pieza['id_pieza']))
+
+                        descripcion_extra = " | Nota de entrada generada automáticamente (Renta cancelada)"
+
+            # Determinar estado de pago según si hay reembolso manual
+            estado_pago_lower = (renta['estado_pago'] or '').lower().strip()
             if monto_reembolso and float(monto_reembolso) > 0:
                 nuevo_estado_pago = 'Reembolsado'
             elif 'pendiente' in estado_pago_lower:
                 nuevo_estado_pago = 'Cancelado sin pago'
             else:
-                nuevo_estado_pago = renta['estado_pago']  # Mantener estado actual
-            
-            # Marcar la renta como cancelada
+                nuevo_estado_pago = renta['estado_pago']
+
             cursor.execute("""
-                UPDATE rentas 
-                SET estado_renta = 'cancelada', estado_pago = %s 
+                UPDATE rentas
+                SET estado_renta = 'cancelada', estado_pago = %s
                 WHERE id = %s
             """, (nuevo_estado_pago, renta_id))
-            
-            # Registrar en historial de rentas
+
             descripcion = f"Cancelación de renta. Motivo: {motivo}"
             if monto_reembolso and float(monto_reembolso) > 0:
                 descripcion += f" | Reembolso: ${monto_reembolso}"
-            if generar_nota_entrada:
-                descripcion += " | Nota de entrada generada automáticamente"
-            else:
-                descripcion += " | Inventario devuelto sin nota de entrada"
-                
+            descripcion += descripcion_extra
+
             cursor.execute("""
                 INSERT INTO historial_rentas (renta_id, accion, descripcion, fecha)
                 VALUES (%s, %s, %s, NOW())
             """, (renta_id, 'cancelacion', descripcion))
-            
+
             conn.commit()
+
+            # Registrar el reembolso como egreso en movimientos de caja (fuera de la
+            # transacción principal: si esto falla no debe revertir la cancelación ya confirmada)
+            if monto_reembolso and float(monto_reembolso) > 0:
+                try:
+                    from routes.caja import registrar_movimiento_automatico
+                    folio_display = f"SUC{renta['id_sucursal']}-{int(renta['folio']):04d}" if renta['folio'] else f"#{renta_id}"
+                    registrar_movimiento_automatico(
+                        tipo='egreso',
+                        concepto=f"Reembolso renta {folio_display} - Cancelación",
+                        monto=float(monto_reembolso),
+                        metodo_pago=(metodo_reembolso or 'EFECTIVO').upper(),
+                        usuario_id=session.get('user_id'),
+                        sucursal_id=renta['id_sucursal'],
+                        referencia_tabla='rentas',
+                        referencia_id=renta_id,
+                        observaciones=f"Motivo de cancelación: {motivo}"
+                    )
+                except Exception as e:
+                    print(f"Error al registrar movimiento de caja por reembolso: {e}")
+
             return True, "Renta cancelada correctamente."
-            
+
         except Exception as e:
             conn.rollback()
             return False, str(e)

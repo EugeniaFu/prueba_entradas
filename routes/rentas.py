@@ -70,9 +70,9 @@ def cancelar_renta(renta_id):
     data = request.get_json() if request.is_json else request.form
     motivo = data.get('motivo_cancelacion', '')
     monto_reembolso = data.get('monto_reembolso', None)
-    generar_nota_entrada = data.get('generar_nota_entrada', 'no') == 'si'
-    
-    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso, generar_nota_entrada)
+    metodo_reembolso = data.get('metodo_reembolso', None)
+
+    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso)
     if success:
         return jsonify({"status": "ok", "mensaje": msg})
     else:

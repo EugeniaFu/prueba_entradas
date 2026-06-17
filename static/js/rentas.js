@@ -32,11 +32,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('renta-id-cancelar').value = rentaIdCancelar;
                 document.getElementById('motivo-cancelacion').value = '';
                 document.getElementById('monto-reembolso').value = '0';
+                document.getElementById('reembolso-efectivo').checked = true;
 
                 // Ocultar todos los campos opcionales inicialmente
                 document.getElementById('info-cancelacion').style.display = 'none';
                 document.getElementById('campo-reembolso').style.display = 'none';
-                document.getElementById('campo-nota-entrada').style.display = 'none';
 
                 // Obtener información de la renta para mostrar campos apropiados
                 fetch(`/rentas/info_cancelar/${rentaIdCancelar}`)
@@ -57,14 +57,6 @@ document.addEventListener('DOMContentLoaded', function () {
                                 document.getElementById('campo-reembolso').style.display = 'none';
                                 document.getElementById('monto-reembolso').required = false;
                                 document.getElementById('monto-reembolso').value = '0';
-                            }
-
-                            // Mostrar opción de nota de entrada si aplica
-                            if (infoRentaCancelar.puede_generar_nota_entrada) {
-                                document.getElementById('campo-nota-entrada').style.display = 'block';
-                                document.getElementById('nota-entrada-si').checked = true;
-                            } else {
-                                document.getElementById('campo-nota-entrada').style.display = 'none';
                             }
 
                             modalCancelar.show();
@@ -98,16 +90,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const rentaId = document.getElementById('renta-id-cancelar').value;
 
-            // Obtener valor de generar nota de entrada
-            let generarNotaEntrada = 'no';
-            if (document.getElementById('campo-nota-entrada').style.display !== 'none') {
-                generarNotaEntrada = document.querySelector('input[name="generar_nota_entrada"]:checked').value;
+            let metodoReembolso = null;
+            if (campoReembolsoVisible) {
+                const radioSeleccionado = document.querySelector('input[name="metodo_reembolso"]:checked');
+                metodoReembolso = radioSeleccionado ? radioSeleccionado.value : 'EFECTIVO';
             }
 
             const dataToSend = {
                 motivo_cancelacion: motivo,
                 monto_reembolso: monto || '0',
-                generar_nota_entrada: generarNotaEntrada
+                metodo_reembolso: metodoReembolso
             };
 
             fetch(`/rentas/cancelar/${rentaId}`, {
