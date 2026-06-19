@@ -58,7 +58,26 @@ function guardarNota() {
 
 // Función mejorada para eliminar nota
 function eliminarNota(id) {
-    if (confirm('¿Estás seguro de que deseas eliminar esta nota?')) {
+    Swal.fire({
+        title: '¿Eliminar nota?',
+        text: 'Esta acción no se puede deshacer.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="bi bi-trash3"></i> Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        reverseButtons: true,
+        focusCancel: true,
+        customClass: {
+            popup: 'rounded-4 shadow-lg',
+            confirmButton: 'btn btn-danger px-4 mx-2',
+            cancelButton: 'btn btn-secondary px-4 mx-2'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+
         const notaElement = document.querySelector(`[data-id="${id}"]`);
         notaElement.style.opacity = '0.5';
 
@@ -80,7 +99,7 @@ function eliminarNota(id) {
                 mostrarToast('Error de conexión', 'danger');
                 notaElement.style.opacity = '1';
             });
-    }
+    });
 }
 
 // Sistema de notificaciones toast mejorado

@@ -219,4 +219,7 @@ __marimo__/
 #BD
 Dump2026.sql
 
+# Archivos subidos por usuarios (no deben ir a producción vía git)
+static/uploads/clientes/
+
 

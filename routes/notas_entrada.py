@@ -168,6 +168,23 @@ def preview_nota_entrada(renta_id):
     cursor.execute("SELECT COUNT(*) AS total FROM notas_entrada WHERE renta_id = %s", (renta_id,))
     existe_entrada = cursor.fetchone()['total'] > 0
 
+    # ¿Esta renta requiere que el chofer recolecte el equipo (traslado redondo o medio_regreso)?
+    requiere_recoleccion = (renta['traslado'] or '').lower() in ('redondo', 'medio_regreso')
+
+    # ¿Ya se hizo la recolección (existe una nota de entrada con todas las piezas en 0,
+    # esperando que la secretaria capture lo que el chofer reportó manualmente)?
+    cursor.execute("""
+        SELECT ne.id FROM notas_entrada ne
+        WHERE ne.renta_id = %s
+        AND (
+            SELECT COUNT(*) FROM notas_entrada_detalle ned
+            WHERE ned.nota_entrada_id = ne.id
+            AND (ned.cantidad_recibida IS NULL OR ned.cantidad_recibida = 0)
+        ) = (SELECT COUNT(*) FROM notas_entrada_detalle WHERE nota_entrada_id = ne.id)
+        LIMIT 1
+    """, (renta_id,))
+    ya_paso_recoleccion = cursor.fetchone() is not None
+
     # Piezas pendientes: compara total entregado vs total recibido a través de todas las notas
     cursor.execute("""
         SELECT
@@ -227,7 +244,9 @@ def preview_nota_entrada(renta_id):
         'fecha_limite': fecha_limite,
         'estado': estado,
         'dias_retraso': dias_retraso,
-        'piezas': piezas
+        'piezas': piezas,
+        'requiere_recoleccion': requiere_recoleccion,
+        'ya_paso_recoleccion': ya_paso_recoleccion
     })
 
 
@@ -251,18 +270,26 @@ def crear_nota_entrada(renta_id):
     piezas = data.get('piezas', [])
     accion_devolucion = data.get('accion_devolucion', 'no')
     chofer_recoleccion_id = data.get('chofer_id') or None
+    chofer_traslado_extra_id = data.get('chofer_traslado_extra_id') or None
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     try:
         # Verificar si la renta ya está finalizada
-        cursor.execute("SELECT estado_renta FROM rentas WHERE id = %s", (renta_id,))
+        cursor.execute("SELECT estado_renta, traslado FROM rentas WHERE id = %s", (renta_id,))
         renta_check = cursor.fetchone()
         if renta_check and renta_check['estado_renta'] in ['finalizada', 'renovación finalizada', 'cancelada']:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': 'No se puede crear nota de entrada porque la renta ya está finalizada o cancelada.'
+            }), 403
+
+        # Validar chofer obligatorio para traslado extra
+        if requiere_traslado_extra in ('medio', 'redondo') and not chofer_traslado_extra_id:
+            return jsonify({
+                'success': False,
+                'error': 'Selecciona el chofer que realizará el traslado extra.'
             }), 403
 
         # --- Lógica para distinguir renovación total vs parcial ---
@@ -307,6 +334,27 @@ def crear_nota_entrada(renta_id):
         """, (renta_id,))
         nota_existente = cursor.fetchone()
 
+        # Gate: si la renta salió con traslado redondo o medio_regreso, la PRIMERA nota de
+        # entrada debe ser obligatoriamente la de recolección (con chofer), para que la
+        # secretaria no pueda finalizar la entrada con cantidades sin que el chofer haya
+        # verificado físicamente el equipo.
+        requiere_recoleccion = (renta_check['traslado'] or '').lower() in ('redondo', 'medio_regreso') if renta_check else False
+        es_recoleccion_actual = all(
+            (pieza.get('cantidad_recibida', 0) in [0, '', None]) for pieza in piezas
+        ) if piezas else False
+
+        if requiere_recoleccion and not nota_existente and not es_recoleccion_actual:
+            return jsonify({
+                'success': False,
+                'error': 'Esta renta requiere que un chofer recolecte el equipo primero. Marca "En recolección" y selecciona el chofer antes de capturar las cantidades reales.'
+            }), 403
+
+        if requiere_recoleccion and es_recoleccion_actual and not chofer_recoleccion_id:
+            return jsonify({
+                'success': False,
+                'error': 'Selecciona el chofer que recogerá el equipo.'
+            }), 403
+
         if nota_existente:
             nota_entrada_id = nota_existente['id']
             # Actualizar cabecera
@@ -315,15 +363,15 @@ def crear_nota_entrada(renta_id):
                 # para no perder el registro de quien recolectó el equipo
                 cursor.execute("""
                     UPDATE notas_entrada
-                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW(), chofer_recoleccion_id=%s
+                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW(), chofer_recoleccion_id=%s, chofer_traslado_extra_id=%s
                     WHERE id=%s
-                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, chofer_recoleccion_id, nota_entrada_id))
+                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, chofer_recoleccion_id, chofer_traslado_extra_id, nota_entrada_id))
             else:
                 cursor.execute("""
                     UPDATE notas_entrada
-                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW()
+                    SET requiere_traslado_extra=%s, costo_traslado_extra=%s, observaciones=%s, estado_retraso=%s, accion_devolucion=%s, fecha_entrada_real=NOW(), chofer_traslado_extra_id=%s
                     WHERE id=%s
-                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, nota_entrada_id))
+                """, (requiere_traslado_extra, costo_traslado_extra, observaciones, estado_retraso, accion_devolucion, chofer_traslado_extra_id, nota_entrada_id))
             # Eliminar detalles anteriores
             cursor.execute("DELETE FROM notas_entrada_detalle WHERE nota_entrada_id=%s", (nota_entrada_id,))
         else:
@@ -331,11 +379,11 @@ def crear_nota_entrada(renta_id):
             cursor.execute("""
                 INSERT INTO notas_entrada (
                     folio, renta_id, nota_salida_id, fecha_entrada_real,
-                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion, chofer_recoleccion_id, usuario_id
-                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s, %s)
+                    requiere_traslado_extra, costo_traslado_extra, observaciones, estado, created_at, estado_retraso, accion_devolucion, chofer_recoleccion_id, chofer_traslado_extra_id, usuario_id
+                ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), %s, %s, %s, %s, %s)
             """, (
                 folio, renta_id, nota_salida_id, requiere_traslado_extra,
-                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion, chofer_recoleccion_id, session.get('user_id')
+                costo_traslado_extra, observaciones, 'normal', estado_retraso, accion_devolucion, chofer_recoleccion_id, chofer_traslado_extra_id, session.get('user_id')
             ))
             nota_entrada_id = cursor.lastrowid
 

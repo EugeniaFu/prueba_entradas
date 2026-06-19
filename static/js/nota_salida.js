@@ -64,8 +64,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('nota-salida-direccion').textContent = data.direccion_obra;
                     document.getElementById('nota-salida-periodo').textContent = data.periodo;
 
-                    // Si la renta requiere traslado (medio o redondo), pedir el chofer que entrega
-                    window.notaSalidaRequiereChofer = (data.traslado === 'medio' || data.traslado === 'redondo');
+                    // Traslado medio_ida o redondo: nuestro chofer va a llevar el equipo
+                    window.notaSalidaRequiereChofer = (data.traslado === 'medio_ida' || data.traslado === 'redondo');
                     if (window.notaSalidaRequiereChofer) {
                         document.getElementById('div-chofer-entrega').classList.remove('d-none');
                         cargarCargadoresSalida();

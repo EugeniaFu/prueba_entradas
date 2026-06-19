@@ -7,23 +7,29 @@ document.addEventListener('DOMContentLoaded', function () {
     window.notaEntradaCargadores = null;
 
 
-    function cargarCargadores() {
-        const select = document.getElementById('select-chofer-recoleccion');
+    function poblarSelectCargadores(select, cargadores) {
+        select.innerHTML = '<option value="">Selecciona un chofer...</option>';
+        cargadores.forEach(cargador => {
+            const option = document.createElement('option');
+            option.value = cargador.id;
+            option.textContent = cargador.sucursal_nombre
+                ? `${cargador.nombre_completo} (${cargador.sucursal_nombre})`
+                : cargador.nombre_completo;
+            select.appendChild(option);
+        });
+    }
+
+    function cargarCargadores(selectId = 'select-chofer-recoleccion') {
+        const select = document.getElementById(selectId);
         if (window.notaEntradaCargadores) {
+            poblarSelectCargadores(select, window.notaEntradaCargadores);
             return Promise.resolve(window.notaEntradaCargadores);
         }
         return fetch('/notas_entrada/cargadores')
             .then(resp => resp.json())
             .then(cargadores => {
                 window.notaEntradaCargadores = cargadores;
-                cargadores.forEach(cargador => {
-                    const option = document.createElement('option');
-                    option.value = cargador.id;
-                    option.textContent = cargador.sucursal_nombre
-                        ? `${cargador.nombre_completo} (${cargador.sucursal_nombre})`
-                        : cargador.nombre_completo;
-                    select.appendChild(option);
-                });
+                poblarSelectCargadores(select, cargadores);
                 return cargadores;
             })
             .catch(err => {
@@ -145,6 +151,9 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('tabla-evaluacion-piezas').innerHTML = '';
             document.getElementById('div-chofer-recoleccion').classList.add('d-none');
             document.getElementById('select-chofer-recoleccion').value = '';
+            document.getElementById('checkbox-recoleccion').disabled = false;
+            document.getElementById('div-chofer-traslado-extra').classList.add('d-none');
+            document.getElementById('select-chofer-traslado-extra').value = '';
 
             // Fetch datos para el modal
             fetch(`/notas_entrada/preview/${rentaId}`)
@@ -185,16 +194,47 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('traslado-original').textContent = data.traslado_original;
                     const divCheckboxRecoleccion = document.getElementById('div-checkbox-recoleccion');
                     const checkboxRecoleccion = document.getElementById('checkbox-recoleccion');
-                    divCheckboxRecoleccion.classList.remove('d-none');
-                    checkboxRecoleccion.checked = false;
+                    const divChofer = document.getElementById('div-chofer-recoleccion');
+                    const selectChofer = document.getElementById('select-chofer-recoleccion');
 
-                    checkboxRecoleccion.addEventListener('change', function () {
+                    window.notaEntradaRequiereRecoleccion = !!data.requiere_recoleccion;
+                    window.notaEntradaYaPasoRecoleccion = !!data.ya_paso_recoleccion;
+
+                    if (data.requiere_recoleccion && !data.ya_paso_recoleccion) {
+                        // Traslado redondo/medio_regreso y aún no se recolectó: se fuerza la
+                        // recolección, no se puede desmarcar ni capturar cantidades a mano.
+                        divCheckboxRecoleccion.classList.remove('d-none');
+                        checkboxRecoleccion.checked = true;
+                        checkboxRecoleccion.disabled = true;
+                        window.notaEntradaEnRecoleccion = true;
+                        divChofer.classList.remove('d-none');
+                        cargarCargadores();
+                        document.querySelectorAll('.cantidad-recibida, .cantidad-buena, .cantidad-danada, .cantidad-sucia, .cantidad-perdida').forEach(input => {
+                            input.disabled = true;
+                            input.value = '';
+                        });
+                    } else if (data.requiere_recoleccion && data.ya_paso_recoleccion) {
+                        // Ya se recolectó: ahora se capturan las cantidades reales que el
+                        // chofer reportó manualmente. No se vuelve a pedir recolección.
+                        divCheckboxRecoleccion.classList.add('d-none');
+                        checkboxRecoleccion.checked = false;
+                        checkboxRecoleccion.disabled = false;
+                        window.notaEntradaEnRecoleccion = false;
+                        divChofer.classList.add('d-none');
+                        selectChofer.value = '';
+                    } else {
+                        // No requiere recolección forzada: comportamiento normal/opcional
+                        divCheckboxRecoleccion.classList.remove('d-none');
+                        checkboxRecoleccion.checked = false;
+                        checkboxRecoleccion.disabled = false;
+                        window.notaEntradaEnRecoleccion = false;
+                    }
+
+                    checkboxRecoleccion.removeEventListener('change', checkboxRecoleccion.changeHandlerRecoleccion);
+                    checkboxRecoleccion.changeHandlerRecoleccion = function () {
                         const deshabilitar = checkboxRecoleccion.checked;
                         window.notaEntradaEnRecoleccion = deshabilitar;
 
-                        // Muestra/oculta el selector de chofer/cargador
-                        const divChofer = document.getElementById('div-chofer-recoleccion');
-                        const selectChofer = document.getElementById('select-chofer-recoleccion');
                         if (deshabilitar) {
                             divChofer.classList.remove('d-none');
                             cargarCargadores();
@@ -219,7 +259,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                 }
                             }
                         });
-                    });
+                    };
+                    checkboxRecoleccion.addEventListener('change', checkboxRecoleccion.changeHandlerRecoleccion);
 
 
                     document.getElementById('fecha-hora-entrada').textContent = data.fecha_hora;
@@ -359,16 +400,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const trasladoExtraSelect = document.getElementById('traslado-extra');
     const costoTrasladoExtraDiv = document.getElementById('costo-traslado-extra').parentElement;
     const costoTrasladoExtraInput = document.getElementById('costo-traslado-extra');
+    const divChoferTrasladoExtra = document.getElementById('div-chofer-traslado-extra');
+    const selectChoferTrasladoExtra = document.getElementById('select-chofer-traslado-extra');
 
-    // Función para mostrar/ocultar el campo de costo
+    // Función para mostrar/ocultar el campo de costo y el chofer del traslado extra
     function actualizarTrasladoExtra() {
         if (trasladoExtraSelect.value === 'medio' || trasladoExtraSelect.value === 'redondo') {
             costoTrasladoExtraDiv.style.display = '';
             costoTrasladoExtraInput.disabled = false;
+            divChoferTrasladoExtra.classList.remove('d-none');
+            cargarCargadores('select-chofer-traslado-extra');
         } else {
             costoTrasladoExtraDiv.style.display = 'none';
             costoTrasladoExtraInput.value = '';
             costoTrasladoExtraInput.disabled = true;
+            divChoferTrasladoExtra.classList.add('d-none');
+            selectChoferTrasladoExtra.value = '';
         }
     }
 
@@ -405,6 +452,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     icon: 'error',
                     title: 'Error',
                     text: 'Selecciona al chofer que recogerá el equipo.'
+                });
+                return;
+            }
+
+            // Si hay traslado extra, exige seleccionar el chofer que lo hará
+            const trasladoExtraValue = document.getElementById('traslado-extra').value;
+            const selectChoferTrasladoExtra = document.getElementById('select-chofer-traslado-extra');
+            if ((trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo') && !selectChoferTrasladoExtra.value) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Selecciona al chofer que realizará el traslado extra.'
                 });
                 return;
             }
@@ -461,7 +520,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 piezas,
                 cobrar_retraso: cobrarRetraso,
                 accion_devolucion: accionDevolucion,
-                chofer_id: window.notaEntradaEnRecoleccion ? (selectChofer.value || null) : null
+                chofer_id: window.notaEntradaEnRecoleccion ? (selectChofer.value || null) : null,
+                chofer_traslado_extra_id: (trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo')
+                    ? (selectChoferTrasladoExtra.value || null) : null
             };
 
 

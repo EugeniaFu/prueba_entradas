@@ -383,7 +383,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function actualizarTipoTraslado() {
         let texto = '';
         if (trasladoSelect) {
-            if (trasladoSelect.value === 'medio') texto = '(Medio)';
+            if (trasladoSelect.value === 'medio_ida') texto = '(Medio - Ida)';
+            else if (trasladoSelect.value === 'medio_regreso') texto = '(Medio - Regreso)';
             else if (trasladoSelect.value === 'redondo') texto = '(Redondo)';
             else texto = '(Ninguno)';
         }
