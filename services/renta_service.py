@@ -360,6 +360,15 @@ class RentasService:
         return cursor.fetchall()
 
     @staticmethod
+    def _puede_cancelar_renta(estado_renta, estado_pago):
+        estado_renta_lower = (estado_renta or '').lower().strip()
+        estado_pago_lower = (estado_pago or '').lower().strip()
+        return (
+            estado_renta_lower in ('en curso', 'activo', 'activa renovacion', 'programada')
+            and estado_pago_lower in ('pago pendiente', 'pago realizado')
+        )
+
+    @staticmethod
     def info_cancelar_renta(renta_id):
         """
         Analiza el estado de la renta y devuelve información para decidir cómo cancelar.
@@ -376,6 +385,9 @@ class RentasService:
 
             if not renta:
                 return {'error': 'Renta no encontrada'}
+
+            if not RentasService._puede_cancelar_renta(renta['estado_renta'], renta['estado_pago']):
+                return {'error': 'Esta renta ya no se puede cancelar en su estado actual.'}
 
             es_renovacion = renta['renta_asociada_id'] is not None
             padre_real_id = renta['renta_asociada_id'] if es_renovacion else renta_id
@@ -443,6 +455,9 @@ class RentasService:
 
             if not renta:
                 return False, "Renta no encontrada"
+
+            if not RentasService._puede_cancelar_renta(renta['estado_renta'], renta['estado_pago']):
+                return False, "Esta renta ya no se puede cancelar en su estado actual."
 
             es_renovacion = renta['renta_asociada_id'] is not None
             padre_real_id = renta['renta_asociada_id'] if es_renovacion else renta_id
@@ -555,6 +570,201 @@ class RentasService:
                     print(f"Error al registrar movimiento de caja por reembolso: {e}")
 
             return True, "Renta cancelada correctamente."
+
+        except Exception as e:
+            conn.rollback()
+            return False, str(e)
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def _puede_editar_renta(estado_renta, estado_pago, es_renovacion):
+        estado_renta_lower = (estado_renta or '').lower().strip()
+        estado_pago_lower = (estado_pago or '').lower().strip()
+        if es_renovacion:
+            return estado_renta_lower == 'activa renovacion' and estado_pago_lower == 'pago pendiente'
+        return estado_renta_lower in ('en curso', 'programada') and estado_pago_lower == 'pago pendiente'
+
+    @staticmethod
+    def info_editar_renta(renta_id):
+        """
+        Devuelve los datos actuales de la renta para precargar el modal de edición.
+        Distingue entre renta original (editable por completo, menos cliente/sucursal)
+        y renovación (solo fechas y dirección de obra).
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT estado_renta, estado_pago, renta_asociada_id, fecha_salida, fecha_entrada,
+                       fecha_programada, direccion_obra, traslado, costo_traslado, observaciones, id_sucursal
+                FROM rentas WHERE id = %s
+            """, (renta_id,))
+            renta = cursor.fetchone()
+            if not renta:
+                return {'error': 'Renta no encontrada'}
+
+            es_renovacion = renta['renta_asociada_id'] is not None
+            if not RentasService._puede_editar_renta(renta['estado_renta'], renta['estado_pago'], es_renovacion):
+                return {'error': 'Esta renta ya no se puede editar. Si necesitas hacer cambios, cancélala y crea una nueva.'}
+
+            info = {
+                'tipo': 'renovacion' if es_renovacion else 'original',
+                'fecha_salida': renta['fecha_salida'].strftime('%Y-%m-%d') if renta['fecha_salida'] else None,
+                'fecha_entrada': renta['fecha_entrada'].strftime('%Y-%m-%d') if renta['fecha_entrada'] else None,
+                'direccion_obra': renta['direccion_obra']
+            }
+
+            if es_renovacion:
+                return info
+
+            info['fecha_programada'] = renta['fecha_programada'].strftime('%Y-%m-%d') if renta['fecha_programada'] else None
+            info['traslado'] = renta['traslado'] or 'ninguno'
+            info['costo_traslado'] = float(renta['costo_traslado'] or 0)
+            info['observaciones'] = renta['observaciones'] or ''
+            info['id_sucursal'] = renta['id_sucursal']
+
+            cursor.execute("""
+                SELECT id_producto, cantidad, dias_renta, costo_unitario, precio_base, ajuste_tipo, ajuste_valor
+                FROM renta_detalle WHERE renta_id = %s
+            """, (renta_id,))
+            info['productos'] = cursor.fetchall()
+
+            return info
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def editar_renta(renta_id, data):
+        """
+        Aplica la edición de una renta original o de una renovación, revalidando en
+        backend que la renta todavía cumpla las condiciones para ser editada.
+        """
+        from datetime import datetime
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            conn.start_transaction()
+
+            cursor.execute("""
+                SELECT estado_renta, estado_pago, renta_asociada_id, id_sucursal
+                FROM rentas WHERE id = %s
+            """, (renta_id,))
+            renta = cursor.fetchone()
+            if not renta:
+                return False, "Renta no encontrada"
+
+            es_renovacion = renta['renta_asociada_id'] is not None
+            if not RentasService._puede_editar_renta(renta['estado_renta'], renta['estado_pago'], es_renovacion):
+                return False, "Esta renta ya no se puede editar (ya tiene salida, cobro o pago registrado). Cancélala si necesitas hacer cambios."
+
+            fecha_salida = data.get('fecha_salida')
+            fecha_entrada = data.get('fecha_entrada') or None
+            direccion_obra = data.get('direccion_obra', '')
+
+            if not fecha_salida:
+                return False, "La fecha de inicio es requerida"
+
+            if es_renovacion:
+                # Solo fechas y dirección de obra; recalcular días y totales con las
+                # mismas piezas/precios que ya tenía la renovación
+                cursor.execute("""
+                    UPDATE rentas SET fecha_salida=%s, fecha_entrada=%s, direccion_obra=%s
+                    WHERE id=%s
+                """, (fecha_salida, fecha_entrada, direccion_obra, renta_id))
+
+                if fecha_entrada:
+                    dias_renta = max(1, (datetime.strptime(fecha_entrada, '%Y-%m-%d') - datetime.strptime(fecha_salida, '%Y-%m-%d')).days + 1)
+                else:
+                    dias_renta = 1
+
+                cursor.execute("SELECT id, id_producto, cantidad FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+                detalles = cursor.fetchall()
+                total = 0
+                for detalle in detalles:
+                    cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (detalle['id_producto'],))
+                    precios = cursor.fetchone()
+                    cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (detalle['id_producto'],))
+                    precio_unico_row = cursor.fetchone()
+                    precio_unico = precio_unico_row['precio_unico'] if precio_unico_row else 0
+
+                    if precio_unico == 1:
+                        costo_unitario = float(precios['precio_dia'])
+                    elif dias_renta <= 2:
+                        costo_unitario = float(precios['precio_dia'])
+                    elif dias_renta <= 14:
+                        costo_unitario = float(precios['precio_14_dias'])
+                    elif dias_renta <= 29:
+                        costo_unitario = float(precios['precio_29_dias'])
+                    else:
+                        costo_unitario = float(precios['precio_30_dias'])
+
+                    subtotal = detalle['cantidad'] * dias_renta * costo_unitario
+                    cursor.execute("""
+                        UPDATE renta_detalle SET dias_renta=%s, costo_unitario=%s, subtotal=%s WHERE id=%s
+                    """, (dias_renta, costo_unitario, subtotal, detalle['id']))
+                    total += subtotal
+
+                iva = total * 0.16
+                total_con_iva = total + iva
+                cursor.execute("""
+                    UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
+                """, (total, iva, total_con_iva, renta_id))
+
+            else:
+                # Renta original: se puede editar todo menos cliente y sucursal
+                traslado = data.get('traslado') or 'ninguno'
+                costo_traslado = float(data.get('costo_traslado') or 0)
+                observaciones = data.get('observaciones', '')
+                fecha_programada = data.get('fecha_programada') or None
+                productos = data.get('productos', [])
+
+                cursor.execute("""
+                    UPDATE rentas
+                    SET fecha_salida=%s, fecha_entrada=%s, fecha_programada=%s, direccion_obra=%s,
+                        traslado=%s, costo_traslado=%s, observaciones=%s
+                    WHERE id=%s
+                """, (fecha_salida, fecha_entrada, fecha_programada, direccion_obra,
+                      traslado, costo_traslado, observaciones, renta_id))
+
+                # Reemplazar por completo el detalle de productos
+                cursor.execute("DELETE FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+
+                total = 0
+                for prod in productos:
+                    id_producto = int(prod['id_producto'])
+                    cantidad = int(prod['cantidad'])
+                    dias_renta = max(1, int(prod.get('dias_renta') or 1))
+                    costo_unitario = float(prod.get('costo_unitario') or 0)
+                    precio_base = float(prod.get('precio_base') or costo_unitario)
+                    ajuste_tipo = prod.get('ajuste_tipo', 'ninguno')
+                    ajuste_valor = float(prod.get('ajuste_valor') or 0)
+                    subtotal = cantidad * dias_renta * costo_unitario
+                    total += subtotal
+
+                    cursor.execute("""
+                        INSERT INTO renta_detalle (
+                            renta_id, id_producto, cantidad, dias_renta,
+                            costo_unitario, subtotal, precio_base, ajuste_tipo, ajuste_valor
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (renta_id, id_producto, cantidad, dias_renta, costo_unitario, subtotal, precio_base, ajuste_tipo, ajuste_valor))
+
+                total += costo_traslado
+                iva = total * 0.16
+                total_con_iva = total + iva
+                cursor.execute("""
+                    UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
+                """, (total, iva, total_con_iva, renta_id))
+
+            cursor.execute("""
+                INSERT INTO historial_rentas (renta_id, accion, descripcion, fecha)
+                VALUES (%s, %s, %s, NOW())
+            """, (renta_id, 'edicion', 'Renta editada por el usuario.'))
+
+            conn.commit()
+            return True, "Renta actualizada correctamente."
 
         except Exception as e:
             conn.rollback()

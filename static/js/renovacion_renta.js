@@ -2,23 +2,46 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalEl = document.getElementById('modalNuevaRentaRenovacion');
     const botones = document.querySelectorAll('.btn-abrir-modal-renovacion');
     const formRenovar = document.getElementById('form-renovar-renta');
-    
+
+    // null = modal en modo "crear renovación" (comportamiento normal).
+    // Con valor = modal en modo "editar" esta renovación (solo fechas/dirección, sin productos).
+    let modoEdicionId = null;
+
     // Función global para abrir modal de renovación
     window.abrirModalRenovacion = function(rentaId, tipo = 'completa') {
+        modoEdicionId = null;
         formRenovar.action = `/rentas/renovar/${rentaId}`;
         document.getElementById('renta_id_hidden').value = rentaId;
-        
+
         // Actualizar título según tipo
         const titulo = document.querySelector('#modalNuevaRentaRenovacionLabel');
         if (titulo) {
-            titulo.innerHTML = tipo === 'parcial' 
+            titulo.innerHTML = tipo === 'parcial'
                 ? '<i class="bi bi-arrow-repeat"></i> Renovar Equipos Pendientes'
                 : '<i class="bi bi-arrow-repeat"></i> Renovar Renta Completa';
         }
-        
-        const modal = new bootstrap.Modal(modalEl);
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
         modal.show();
         cargarDatosRenta(rentaId, tipo);
+    };
+
+    // Función global para abrir el modal en modo edición de una renovación existente
+    // (solo se pueden cambiar fechas y dirección de obra; productos quedan bloqueados).
+    window.abrirModalEditarRenovacion = function(rentaId) {
+        modoEdicionId = rentaId;
+        formRenovar.action = '#';
+        document.getElementById('renta_id_hidden').value = rentaId;
+
+        const titulo = document.querySelector('#modalNuevaRentaRenovacionLabel');
+        if (titulo) titulo.innerHTML = '<i class="bi bi-pencil"></i> Editar Renovación';
+
+        const btn = document.getElementById('btn-guardar-renovacion');
+        if (btn) btn.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Cambios';
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        cargarDatosRenta(rentaId, 'completa');
     };
     const fechaInicioInput = document.getElementById('fecha_salida_modal');
     const fechaFinInput = document.getElementById('fecha_entrada_modal');
@@ -122,14 +145,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         // SIEMPRE usar precio original guardado en costo_unitario
                         const precio = p.costo_unitario !== undefined ? parseFloat(p.costo_unitario) : 0;
 
+                        // En modo edición, los productos no se pueden tocar (solo fechas/dirección)
+                        const cantidadAttrs = modoEdicionId ? 'readonly' : '';
+                        const ocultarQuitar = modoEdicionId ? 'style="display:none;"' : '';
+
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
                             <td><input type="hidden" name="producto_id[]" value="${p.id_producto}">${p.nombre}</td>
-                            <td><input type="number" name="cantidad[]" class="form-control cantidad" min="1" value="${cantidad}"></td>
+                            <td><input type="number" name="cantidad[]" class="form-control cantidad" min="1" value="${cantidad}" ${cantidadAttrs}></td>
                             <td><input type="number" name="dias_renta[]" class="form-control dias" min="1" value="${dias}" readonly style="width:50px;"></td>
                             <td><input type="number" name="costo_unitario[]" class="form-control costo" step="0.01" min="0" value="${precio.toFixed(2)}" readonly data-fijo="1"></td>
                             <td><input type="number" class="form-control subtotal" step="0.01" min="0" value="${(cantidad*dias*precio).toFixed(2)}" readonly></td>
-                            <td><button type="button" class="btn btn-danger btn-sm btn-quitar"><i class="bi bi-trash"></i></button></td>
+                            <td><button type="button" class="btn btn-danger btn-sm btn-quitar" ${ocultarQuitar}><i class="bi bi-trash"></i></button></td>
                         `;
                         tbody.appendChild(tr);
                     });
@@ -173,9 +200,55 @@ document.addEventListener('DOMContentLoaded', function () {
     // Protección contra clicks múltiples en el botón de guardar
     const btnGuardarRenovacion = document.getElementById('btn-guardar-renovacion');
     if (formRenovar && btnGuardarRenovacion) {
-        formRenovar.addEventListener('submit', function () {
+        formRenovar.addEventListener('submit', function (e) {
+            // En modo edición no se crea una renovación nueva: se manda como edición (JSON)
+            // de fechas/dirección de la renovación existente.
+            if (modoEdicionId) {
+                e.preventDefault();
+                btnGuardarRenovacion.disabled = true;
+                btnGuardarRenovacion.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+                const payload = {
+                    fecha_salida: fechaInicioInput.value,
+                    fecha_entrada: fechaFinInput.value || null,
+                    direccion_obra: document.getElementById('direccion_obra_modal').value
+                };
+
+                fetch(`/rentas/editar/${modoEdicionId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                    .then(res => res.json())
+                    .then(json => {
+                        if (json.status === 'ok') {
+                            Swal.fire('Listo', json.mensaje, 'success').then(() => window.location.reload());
+                        } else {
+                            Swal.fire('Error', json.mensaje || 'No se pudo guardar la edición.', 'error');
+                            btnGuardarRenovacion.disabled = false;
+                            btnGuardarRenovacion.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Cambios';
+                        }
+                    })
+                    .catch(() => {
+                        Swal.fire('Error', 'Error inesperado al guardar los cambios.', 'error');
+                        btnGuardarRenovacion.disabled = false;
+                        btnGuardarRenovacion.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Cambios';
+                    });
+                return;
+            }
+
             btnGuardarRenovacion.disabled = true;
             btnGuardarRenovacion.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
         });
     }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        if (modoEdicionId) {
+            modoEdicionId = null;
+            if (btnGuardarRenovacion) {
+                btnGuardarRenovacion.disabled = false;
+                btnGuardarRenovacion.innerHTML = '<i class="bi bi-check2-circle"></i> Guardar Renovación';
+            }
+        }
+    });
 });

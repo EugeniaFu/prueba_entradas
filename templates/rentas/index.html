@@ -318,9 +318,13 @@
                         <i class="bi bi-three-dots"></i>
                       </button>
                       <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                        {% if renta[31] %}
+                        <li><a class="dropdown-item btn-editar-renta" href="#" data-renta-id="{{ renta[0] }}"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                        {% endif %}
+                        {% if renta[32] %}
                         <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
                               class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                        {% endif %}
                         {% if renta[4]|lower in ['activo', 'activa renovacion', 'renta parcial'] %}
                         <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#"
                             data-renta-id="{{ renta[0] }}"><i class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
@@ -682,9 +686,13 @@
                         <i class="bi bi-three-dots"></i>
                       </button>
                       <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                        {% if renta[31] %}
+                        <li><a class="dropdown-item btn-editar-renta" href="#" data-renta-id="{{ renta[0] }}"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
+                        {% endif %}
+                        {% if renta[32] %}
                         <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
                               class="bi bi-ban me-2"></i>Cancelar renta</a></li>
+                        {% endif %}
                         {% if renta[4]|lower in ['activo', 'activa renovacion', 'renta parcial'] %}
                         <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#"
                             data-renta-id="{{ renta[0] }}"><i class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
@@ -1044,6 +1052,7 @@
 </script>
 
 <script src="{{ url_for('static', filename='js/rentas.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editar_renta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_salida.js') }}"></script>
 <script src="{{ url_for('static', filename='js/prefactura.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nota_cobro_retraso.js') }}"></script>

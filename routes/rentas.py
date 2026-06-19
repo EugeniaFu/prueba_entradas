@@ -79,6 +79,35 @@ def cancelar_renta(renta_id):
         return jsonify({"status": "error", "mensaje": msg})
 
 
+###########################################################
+###########################################################
+###########################################################
+# ======================= EDICIÓN DE RENTAS =======================
+@rentas_bp.route('/info_editar/<int:renta_id>', methods=['GET'])
+@requiere_sesion()
+@requiere_permiso('editar_renta')
+def info_editar_renta(renta_id):
+    """
+    Obtiene los datos actuales de la renta para precargar el modal de edición.
+    """
+    info = RentasService.info_editar_renta(renta_id)
+    if 'error' in info:
+        return jsonify({"status": "error", "mensaje": info['error']}), 404
+    return jsonify({"status": "ok", "info": info})
+
+
+@rentas_bp.route('/editar/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('editar_renta')
+def editar_renta(renta_id):
+    data = request.get_json()
+    success, msg = RentasService.editar_renta(renta_id, data)
+    if success:
+        return jsonify({"status": "ok", "mensaje": msg})
+    else:
+        return jsonify({"status": "error", "mensaje": msg})
+
+
 
 
 ###########################################################
@@ -206,11 +235,29 @@ def modulo_rentas(sucursal_id=None):
                 return {'estado': 'por_regresar', 'clase': 'badge-por-regresar', 'texto': 'Por regresar'}
         return None
 
+    def calcular_puede_editar(renta):
+        es_renovacion = renta[23] is not None
+        estado_renta_lower = (renta[4] or '').lower().strip()
+        estado_pago_lower = (renta[5] or '').lower().strip()
+        if es_renovacion:
+            return estado_renta_lower == 'activa renovacion' and estado_pago_lower == 'pago pendiente'
+        return estado_renta_lower in ('en curso', 'programada') and estado_pago_lower == 'pago pendiente'
+
+    def calcular_puede_cancelar(renta):
+        estado_renta_lower = (renta[4] or '').lower().strip()
+        estado_pago_lower = (renta[5] or '').lower().strip()
+        return (
+            estado_renta_lower in ('en curso', 'activo', 'activa renovacion', 'programada')
+            and estado_pago_lower in ('pago pendiente', 'pago realizado')
+        )
+
     # Aplicar la función a todas las rentas
     rentas_con_estado = []
     for renta in rentas:
         estado_entrega = calcular_estado_entrega(renta)
-        rentas_con_estado.append(list(renta) + [estado_entrega])
+        puede_editar = calcular_puede_editar(renta)
+        puede_cancelar = calcular_puede_cancelar(renta)
+        rentas_con_estado.append(list(renta) + [estado_entrega, puede_editar, puede_cancelar])
 
     cursor.close()
     conn.close()
