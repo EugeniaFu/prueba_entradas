@@ -674,39 +674,9 @@
                 <td>{% if renta[23] %}<strong>SUC{{ renta[24] }}-{{ '%04d'|format(renta[28]) }}</strong>{% else %}-{%
                   endif %}</td>
 
-                <!-- COLUMNA DE ACCIONES -->
+                <!-- COLUMNA DE ACCIONES (renta finalizada: solo notas y detalles, de solo lectura) -->
                 <td>
                   <div class="d-flex actions justify-content-center gap-1">
-
-                    <!-- Botón de Acciones -->
-                    <div class="dropdown dropup">
-                      <button class="btn btn-sm btn-primary dropdown-toggle no-caret rounded rounded-circle"
-                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-placement="top"
-                        data-bs-toggle="tooltip" title=" + Opciones ">
-                        <i class="bi bi-three-dots"></i>
-                      </button>
-                      <ul class="dropdown-menu">
-                        {% if renta[31] %}
-                        <li><a class="dropdown-item btn-editar-renta" href="#" data-renta-id="{{ renta[0] }}"><i class="bi bi-pencil me-2"></i>Editar renta</a></li>
-                        {% endif %}
-                        {% if renta[32] %}
-                        <li><a class="dropdown-item btn-cancelar-renta" href="#" data-renta-id="{{ renta[0] }}"><i
-                              class="bi bi-ban me-2"></i>Cancelar renta</a></li>
-                        {% endif %}
-                        {% if renta[4]|lower in ['activo', 'activa renovacion', 'renta parcial'] %}
-                        <li><a class="dropdown-item btn-abrir-modal-renovacion" href="#"
-                            data-renta-id="{{ renta[0] }}"><i class="bi bi-arrow-repeat me-2"></i>Renovar renta</a></li>
-                        {% endif %}
-                        <li>
-                          <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                          <a class="dropdown-item btn-ver-detalle" href="#" data-renta-id="{{ renta[0] }}">
-                            <i class="bi bi-eye me-2"></i>Ver Detalles
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
 
                     <!-- Botón de PDF -->
                     <div class="dropdown dropup">
@@ -748,15 +718,11 @@
                       </ul>
                     </div>
 
-                    <!-- Botón de Notas -->
-                    
-
-
-                    <!-- Botón de Eliminar -->
-                    <button class="btn btn-sm btn-danger text-white no-caret rounded rounded-circle btn-eliminar-renta"
-                      type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Eliminar"
+                    <!-- Botón de Ver Detalles -->
+                    <button class="btn btn-sm btn-primary no-caret rounded rounded-circle btn-ver-detalle"
+                      type="button" data-bs-placement="top" data-bs-toggle="tooltip" title="Ver Detalles"
                       data-renta-id="{{ renta[0] }}">
-                      <i class="bi bi-trash-fill"></i>
+                      <i class="bi bi-eye"></i>
                     </button>
                   </div>
                 </td>
