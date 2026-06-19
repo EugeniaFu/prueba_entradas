@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const inputCantidad = document.getElementById('cantidad_producto_salida');
     const btnAgregar = document.getElementById('agregar_producto_salida');
     const tablaProductos = document.getElementById('tabla-productos-salida');
-    const contenedorProductos = document.getElementById('productos-seleccionados');
+    const mensajeProductosVacio = document.getElementById('productos-seleccionados-vacio');
 
     // Agregar producto a la lista
     if (btnAgregar) {
@@ -73,14 +73,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Actualizar tabla de productos seleccionados
     function actualizarTablaProductos() {
         const tbody = tablaProductos.querySelector('tbody');
-        
+
         if (productosSeleccionados.length === 0) {
-            contenedorProductos.style.display = 'none';
+            tbody.innerHTML = '';
+            mensajeProductosVacio.style.display = 'block';
             return;
         }
 
-        contenedorProductos.style.display = 'block';
-        
+        mensajeProductosVacio.style.display = 'none';
+
         let html = '';
         productosSeleccionados.forEach((producto, index) => {
             html += `
@@ -225,7 +226,8 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('observaciones_salida').value = '';
             document.getElementById('producto_select_salida').value = '';
             document.getElementById('cantidad_producto_salida').value = '';
-            contenedorProductos.style.display = 'none';
+            tablaProductos.querySelector('tbody').innerHTML = '';
+            mensajeProductosVacio.style.display = 'block';
         });
     }
 
@@ -233,61 +235,115 @@ document.addEventListener('DOMContentLoaded', function () {
     // MODAL DE FINALIZAR SALIDA
     // ========================================
 
-    // Abrir modal de finalizar salida
+    // Abrir modal de registrar entrada (regreso de equipo)
     document.body.addEventListener('click', function (e) {
         const btn = e.target.closest('.btn-finalizar-salida');
         if (btn) {
             const salidaId = btn.dataset.salidaId;
             const folio = btn.dataset.folio;
-            
+
             document.getElementById('salida_id_finalizar').value = salidaId;
             document.getElementById('folio_finalizar').textContent = folio;
             document.getElementById('observaciones_finalizacion').value = '';
-            document.getElementById('tipo_regreso').checked = true;
-            
+
+            const tbody = document.querySelector('#tabla-piezas-finalizar tbody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Cargando...</td></tr>';
+
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFinalizarSalida'));
             modal.show();
+
+            fetch(`/salidas-internas/pendientes/${salidaId}`)
+                .then(resp => resp.json())
+                .then(result => {
+                    if (!result.success) {
+                        tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">${result.error}</td></tr>`;
+                        return;
+                    }
+                    let html = '';
+                    result.piezas.forEach(pieza => {
+                        html += `
+                            <tr data-id-pieza="${pieza.id_pieza}">
+                                <td>${pieza.nombre_pieza}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary cantidad-pendiente-badge">${pieza.cantidad_pendiente}</span>
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm input-recibida"
+                                           min="0" max="${pieza.cantidad_pendiente}" value="0" data-pendiente="${pieza.cantidad_pendiente}">
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm input-perdida"
+                                           min="0" max="${pieza.cantidad_pendiente}" value="0" data-pendiente="${pieza.cantidad_pendiente}">
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                })
+                .catch(() => {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error al cargar las piezas pendientes.</td></tr>';
+                });
         }
     });
 
-    // Enviar formulario de finalizar salida
+    // Validar que recibida + perdida no exceda lo pendiente de cada fila
+    document.querySelector('#tabla-piezas-finalizar tbody')?.addEventListener('input', function (e) {
+        if (!e.target.classList.contains('input-recibida') && !e.target.classList.contains('input-perdida')) return;
+        const fila = e.target.closest('tr');
+        const pendiente = parseInt(e.target.dataset.pendiente) || 0;
+        const recibida = parseInt(fila.querySelector('.input-recibida').value) || 0;
+        const perdida = parseInt(fila.querySelector('.input-perdida').value) || 0;
+        if (recibida + perdida > pendiente) {
+            Swal.fire('Error', `La suma de "regresan ahora" y "se dan de baja" no puede ser mayor a lo pendiente (${pendiente}).`, 'warning');
+            e.target.value = 0;
+        }
+    });
+
+    // Enviar formulario de registrar entrada
     const formFinalizarSalida = document.getElementById('form-finalizar-salida');
     if (formFinalizarSalida) {
         formFinalizarSalida.addEventListener('submit', function (e) {
             e.preventDefault();
 
             const salidaId = document.getElementById('salida_id_finalizar').value;
-            const tipoFinalizacion = document.querySelector('input[name="tipo_finalizacion"]:checked').value;
             const observaciones = document.getElementById('observaciones_finalizacion').value.trim();
 
-            const data = {
-                tipo: tipoFinalizacion,
-                observaciones: observaciones
-            };
+            const piezas = [];
+            document.querySelectorAll('#tabla-piezas-finalizar tbody tr').forEach(fila => {
+                const idPieza = fila.dataset.idPieza;
+                if (!idPieza) return;
+                const cantidadRecibida = parseInt(fila.querySelector('.input-recibida').value) || 0;
+                const cantidadPerdida = parseInt(fila.querySelector('.input-perdida').value) || 0;
+                if (cantidadRecibida > 0 || cantidadPerdida > 0) {
+                    piezas.push({ id_pieza: idPieza, cantidad_recibida: cantidadRecibida, cantidad_perdida: cantidadPerdida });
+                }
+            });
 
-            const tipoTexto = tipoFinalizacion === 'regreso' ? 'con regreso de equipo' : 'sin regreso de equipo';
+            if (piezas.length === 0) {
+                Swal.fire('Error', 'Captura al menos una pieza que regrese o se dé de baja.', 'warning');
+                return;
+            }
 
             Swal.fire({
-                title: '¿Confirmar finalización?',
-                text: `Se finalizará la salida ${tipoTexto}`,
+                title: '¿Confirmar?',
+                text: 'Se registrará esta entrada y se actualizará el inventario.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'Sí, finalizar',
+                confirmButtonText: 'Sí, registrar',
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    finalizarSalida(salidaId, data);
+                    finalizarSalida(salidaId, { piezas, observaciones });
                 }
             });
         });
     }
 
-    // Función para finalizar salida
+    // Función para registrar la entrada (regreso) de una salida interna
     function finalizarSalida(salidaId, data) {
-        // Mostrar loading
         Swal.fire({
             title: 'Procesando...',
-            text: 'Finalizando salida interna',
+            text: 'Registrando entrada',
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
@@ -304,48 +360,28 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(response => response.json())
         .then(result => {
             if (result.success) {
-                // Mostrar SweetAlert con opción de PDF solo si hay folio_nota_entrada (regreso)
-                const tieneRegreso = result.folio_nota_entrada;
-                
-                if (tieneRegreso) {
-                    Swal.fire({
-                        title: '¡Éxito!',
-                        html: `${result.message}<br><strong>Folio de nota de entrada: #${result.folio_nota_entrada}</strong>`,
-                        icon: 'success',
-                        showCancelButton: true,
-                        confirmButtonText: 'Descargar PDF',
-                        cancelButtonText: 'Cerrar',
-                        reverseButtons: true
-                    }).then((swalResult) => {
-                        if (swalResult.isConfirmed) {
-                            // Abrir PDF en nueva ventana
-                            const url = `/salidas-internas/pdf-entrada/${result.folio_nota_entrada}`;
-                            window.open(url, '_blank');
-                        }
-                        // Cerrar modal y recargar página
-                        document.getElementById('modalFinalizarSalida').querySelector('[data-bs-dismiss="modal"]').click();
-                        location.reload();
-                    });
-                } else {
-                    // Si no hay regreso, mostrar mensaje normal
-                    Swal.fire({
-                        title: '¡Éxito!',
-                        text: result.message,
-                        icon: 'success',
-                        confirmButtonText: 'Aceptar'
-                    }).then(() => {
-                        // Cerrar modal y recargar página
-                        document.getElementById('modalFinalizarSalida').querySelector('[data-bs-dismiss="modal"]').click();
-                        location.reload();
-                    });
-                }
+                Swal.fire({
+                    title: '¡Éxito!',
+                    html: `${result.message}<br><strong>Folio de nota de entrada: #${result.folio_nota_entrada}</strong>`,
+                    icon: 'success',
+                    showCancelButton: true,
+                    confirmButtonText: 'Descargar PDF',
+                    cancelButtonText: 'Cerrar',
+                    reverseButtons: true
+                }).then((swalResult) => {
+                    if (swalResult.isConfirmed) {
+                        window.open(`/salidas-internas/pdf-entrada/${result.entrada_id}`, '_blank');
+                    }
+                    document.getElementById('modalFinalizarSalida').querySelector('[data-bs-dismiss="modal"]').click();
+                    location.reload();
+                });
             } else {
-                Swal.fire('Error', result.error || 'Error al finalizar la salida', 'error');
+                Swal.fire('Error', result.error || 'Error al registrar la entrada', 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            Swal.fire('Error', 'Error de conexión al finalizar la salida', 'error');
+            Swal.fire('Error', 'Error de conexión al registrar la entrada', 'error');
         });
     }
 
@@ -364,123 +400,126 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Función para cargar detalle de salida
     function cargarDetalleSalida(salidaId) {
-        // Mostrar loading en modal
         const modalDetalle = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDetalleSalida'));
-        const contenido = document.getElementById('contenido-detalle-salida');
-        
-        contenido.innerHTML = '<div class="text-center"><div class="spinner-border"></div><br>Cargando...</div>';
+
+        // Reset visual mientras carga
+        ['detalle-salida-folio', 'detalle-salida-sucursal', 'detalle-salida-fecha', 'detalle-salida-responsable',
+         'detalle-salida-total-salida', 'detalle-salida-total-recibido', 'detalle-salida-total-perdido',
+         'detalle-salida-total-pendiente', 'detalle-salida-folio-header'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '...';
+        });
+        document.getElementById('detalle-salida-observaciones').textContent = 'Cargando...';
+        document.getElementById('detalle-salida-productos-tabla').innerHTML = '<tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>';
+        document.getElementById('detalle-salida-nota-salida-tabla').innerHTML = '<tr><td colspan="3" class="text-center text-muted">Cargando...</td></tr>';
+        document.getElementById('detalle-salida-entradas-tabla').innerHTML = '<tr><td colspan="4" class="text-center text-muted">Cargando...</td></tr>';
+        document.getElementById('detalle-salida-finalizacion-row').style.display = 'none';
+
         modalDetalle.show();
 
         fetch(`/salidas-internas/detalle/${salidaId}`)
             .then(response => response.json())
             .then(result => {
                 if (result.success) {
-                    mostrarDetalleSalida(result.salida, result.productos);
+                    mostrarDetalleSalida(result.salida, result.productos, result.entradas);
                 } else {
-                    contenido.innerHTML = '<div class="alert alert-danger">Error al cargar el detalle</div>';
+                    document.getElementById('detalle-salida-observaciones').textContent = 'Error al cargar el detalle';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                contenido.innerHTML = '<div class="alert alert-danger">Error de conexión</div>';
+                document.getElementById('detalle-salida-observaciones').textContent = 'Error de conexión';
             });
     }
 
-    // Función para mostrar detalle de salida
-    function mostrarDetalleSalida(salida, productos) {
-        const contenido = document.getElementById('contenido-detalle-salida');
-        
-        let estadoBadge = '';
-        switch(salida.estado) {
-            case 'activa':
-                estadoBadge = '<span class="badge bg-warning text-dark">Activa</span>';
-                break;
-            case 'finalizada_regreso':
-                estadoBadge = '<span class="badge bg-success">Finalizada - Con Regreso</span>';
-                break;
-            case 'finalizada_no_regreso':
-                estadoBadge = '<span class="badge bg-danger">Finalizada - Sin Regreso</span>';
-                break;
-            default:
-                estadoBadge = `<span class="badge bg-secondary">${salida.estado}</span>`;
-        }
+    // Función para mostrar detalle de salida (llena los elementos fijos del modal,
+    // igual que el modal de Detalle de Renta)
+    function mostrarDetalleSalida(salida, productos, entradas) {
+        const folioDisplay = `SUC${salida.id_sucursal}-${String(salida.folio_sucursal).padStart(4, '0')}`;
 
-        let html = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6><i class="bi bi-info-circle"></i> Información General</h6>
-                    <table class="table table-sm">
-                        <tr><th>Folio:</th><td><strong>SUC${salida.id_sucursal}-${String(salida.folio_sucursal).padStart(4, '0')}</strong></td></tr>
-                        <tr><th>Sucursal:</th><td>${salida.sucursal_nombre}</td></tr>
-                        <tr><th>Fecha de Salida:</th><td>${new Date(salida.fecha_salida).toLocaleString('es-MX')}</td></tr>
-                        <tr><th>Responsable:</th><td><strong>${salida.responsable_entrega}</strong></td></tr>
-                        <tr><th>Estado:</th><td>${estadoBadge}</td></tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <h6><i class="bi bi-chat-text"></i> Observaciones</h6>
-                    <div class="border rounded p-2 mb-3" style="min-height: 80px;">
-                        ${salida.observaciones || '<small class="text-muted">Sin observaciones</small>'}
-                    </div>
-                    ${salida.observaciones_finalizacion ? `
-                        <h6><i class="bi bi-check-circle"></i> Observaciones de Finalización</h6>
-                        <div class="border rounded p-2" style="min-height: 60px;">
-                            ${salida.observaciones_finalizacion}
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-            
-            <hr>
-            
-            <h6><i class="bi bi-boxes"></i> Productos Entregados</h6>
-            <div class="table-responsive">
-                <table class="table table-sm table-striped">
-                    <thead>
-                        <tr>
-                            <th>Código</th>
-                            <th>Producto</th>
-                            <th>Cantidad</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
+        document.getElementById('detalle-salida-folio-header').textContent = folioDisplay;
+        document.getElementById('detalle-salida-folio').innerHTML = `<strong>${folioDisplay}</strong>`;
+        document.getElementById('detalle-salida-sucursal').textContent = salida.sucursal_nombre;
+        document.getElementById('detalle-salida-fecha').textContent = new Date(salida.fecha_salida).toLocaleString('es-MX');
+        document.getElementById('detalle-salida-responsable').innerHTML = `<strong>${salida.responsable_entrega}</strong>`;
+        document.getElementById('detalle-salida-observaciones').textContent = salida.observaciones || 'Sin observaciones';
 
-        let totalCantidad = 0;
-        productos.forEach(producto => {
-            html += `
-                <tr>
-                    <td><small class="text-muted">${producto.codigo_pieza || 'N/A'}</small></td>
-                    <td>${producto.nombre_pieza}</td>
-                    <td><span class="badge bg-primary">${producto.cantidad}</span></td>
-                </tr>
-            `;
-            totalCantidad += producto.cantidad;
+        const estadoBadge = document.getElementById('detalle-salida-estado');
+        const estadosInfo = {
+            activa: ['bg-warning text-dark', 'Activa'],
+            parcial: ['bg-info text-white', 'Parcial - Falta equipo'],
+            finalizada: ['bg-success', 'Finalizada'],
+            cancelada: ['bg-dark', 'Cancelada']
+        };
+        const [clase, texto] = estadosInfo[salida.estado] || ['bg-secondary', salida.estado];
+        estadoBadge.className = `badge ${clase}`;
+        estadoBadge.textContent = texto;
+
+        // Totales acumulados
+        let totalSalida = 0, totalRecibido = 0, totalPerdido = 0, totalPendiente = 0;
+        productos.forEach(p => {
+            totalSalida += p.cantidad_salida;
+            totalRecibido += p.ya_recibido;
+            totalPerdido += p.ya_perdido;
+            totalPendiente += p.cantidad_pendiente;
         });
-
-        html += `
-                    </tbody>
-                    <tfoot>
-                        <tr class="table-secondary">
-                            <th colspan="2">Total de equipos:</th>
-                            <th><span class="badge bg-dark">${totalCantidad}</span></th>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        `;
+        document.getElementById('detalle-salida-total-salida').textContent = totalSalida;
+        document.getElementById('detalle-salida-total-recibido').textContent = totalRecibido;
+        document.getElementById('detalle-salida-total-perdido').textContent = totalPerdido;
+        document.getElementById('detalle-salida-total-pendiente').textContent = totalPendiente;
 
         if (salida.fecha_finalizacion) {
-            html += `
-                <hr>
-                <small class="text-muted">
-                    <i class="bi bi-calendar-check"></i> 
-                    Finalizada el: ${new Date(salida.fecha_finalizacion).toLocaleString('es-MX')}
-                </small>
-            `;
+            document.getElementById('detalle-salida-finalizacion-row').style.display = '';
+            document.getElementById('detalle-salida-fecha-finalizacion').textContent = new Date(salida.fecha_finalizacion).toLocaleString('es-MX');
         }
 
-        contenido.innerHTML = html;
+        // Tabla de productos (salida vs. regresado)
+        const tablaProductos = document.getElementById('detalle-salida-productos-tabla');
+        if (!productos || productos.length === 0) {
+            tablaProductos.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Sin productos</td></tr>';
+        } else {
+            tablaProductos.innerHTML = productos.map(p => `
+                <tr>
+                    <td>${p.nombre_pieza}</td>
+                    <td><span class="badge bg-primary">${p.cantidad_salida}</span></td>
+                    <td><span class="badge bg-success">${p.ya_recibido}</span></td>
+                    <td><span class="badge bg-danger">${p.ya_perdido}</span></td>
+                    <td><span class="badge ${p.cantidad_pendiente > 0 ? 'bg-warning text-dark' : 'bg-success'}">${p.cantidad_pendiente}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Nota de salida (un solo registro, igual estructura que la tabla de notas de renta)
+        document.getElementById('detalle-salida-nota-salida-tabla').innerHTML = `
+            <tr>
+                <td><strong>${folioDisplay}</strong></td>
+                <td>${new Date(salida.fecha_salida).toLocaleString('es-MX')}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="descargarPDFSalida('${salida.folio_sucursal}')">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+
+        // Historial de entradas (visitas registradas)
+        const tablaEntradas = document.getElementById('detalle-salida-entradas-tabla');
+        if (!entradas || entradas.length === 0) {
+            tablaEntradas.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Aún no se ha registrado ninguna entrada</td></tr>';
+        } else {
+            tablaEntradas.innerHTML = entradas.map(entrada => `
+                <tr>
+                    <td><strong>#${entrada.folio}</strong></td>
+                    <td>${new Date(entrada.fecha).toLocaleString('es-MX')}</td>
+                    <td><small>${entrada.observaciones || '-'}</small></td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="window.open('/salidas-internas/pdf-entrada/${entrada.id}', '_blank')">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
     }
 
     // ========================================
@@ -564,44 +603,5 @@ function descargarPDFSalida(folio) {
     window.open(url, '_blank');
 }
 
-// Función para descargar PDF de entrada interna (cuando hay regreso)
-function descargarPDFEntrada(folio) {
-    if (!folio) {
-        Swal.fire('Error', 'Folio de entrada no disponible', 'error');
-        return;
-    }
-    
-    // Abrir PDF en nueva ventana
-    const url = `/salidas-internas/pdf-entrada/${folio}`;
-    window.open(url, '_blank');
-}
-
-// ========================================
-// MANEJO DE BOTONES PDF EN TABLA
-// ========================================
-
-// Event listener para botones PDF de entrada
-document.body.addEventListener('click', function (e) {
-    const btn = e.target.closest('.btn-pdf-entrada');
-    if (btn) {
-        const salidaId = btn.dataset.salidaId;
-        obtenerFolioEntrada(salidaId);
-    }
-});
-
-// Función para obtener folio de entrada desde el backend
-function obtenerFolioEntrada(salidaId) {
-    fetch(`/salidas-internas/folio-entrada/${salidaId}`)
-        .then(response => response.json())
-        .then(result => {
-            if (result.success && result.folio_nota_entrada) {
-                descargarPDFEntrada(result.folio_nota_entrada);
-            } else {
-                Swal.fire('Error', 'No se encontró el folio de entrada', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            Swal.fire('Error', 'Error al obtener el folio de entrada', 'error');
-        });
-}
+// Nota: el PDF de cada entrada (visita de regreso de equipo) se descarga directamente
+// desde el modal de "Ver Detalle", ya que una misma salida interna puede tener varias.

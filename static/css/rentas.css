@@ -610,6 +610,148 @@ border: 2px solid #0d6efd;
     }
 }
 
+/* Los modales de Salidas Internas (Nueva Salida / Registrar Entrada) reutilizan
+   exactamente el mismo estilo que el modal de Nueva Renta */
+#modalNuevaSalidaInterna .modal-header,
+#modalFinalizarSalida .modal-header {
+    background: #23395d;
+    color: #fff;
+    border-bottom: none;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 1.5rem 2rem;
+}
+
+#modalNuevaSalidaInterna .modal-title,
+#modalFinalizarSalida .modal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff !important;
+}
+
+#modalNuevaSalidaInterna .modal-content,
+#modalFinalizarSalida .modal-content {
+    border: 2px solid #23395d;
+    border-radius: 16px;
+}
+
+#modalNuevaSalidaInterna .modal-footer,
+#modalFinalizarSalida .modal-footer {
+    background: #f1f4fa;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-top: 2px solid #23395d;
+    padding: 1.2rem 2rem;
+}
+
+#modalNuevaSalidaInterna .card-header,
+#modalFinalizarSalida .card-header {
+    background: #23395d;
+    color: #fff !important;
+    border-bottom: 2px solid #1a2d4a;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+}
+
+#modalNuevaSalidaInterna .card-header h6,
+#modalFinalizarSalida .card-header h6 {
+    color: #fff !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#modalNuevaSalidaInterna .card,
+#modalFinalizarSalida .card {
+    border: 2px solid #23395d;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(35, 57, 93, 0.1);
+}
+
+#modalNuevaSalidaInterna .card-body,
+#modalFinalizarSalida .card-body {
+    padding: 1.5rem;
+    background: #ffffff;
+}
+
+#modalNuevaSalidaInterna .form-label,
+#modalFinalizarSalida .form-label {
+    color: #23395d;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+}
+
+#modalNuevaSalidaInterna .form-control,
+#modalNuevaSalidaInterna .form-select,
+#modalFinalizarSalida .form-control,
+#modalFinalizarSalida .form-select {
+    border: 1.5px solid #d1d9e6;
+    border-radius: 8px;
+    padding: 0.7rem;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+#modalNuevaSalidaInterna .form-control:focus,
+#modalNuevaSalidaInterna .form-select:focus,
+#modalFinalizarSalida .form-control:focus,
+#modalFinalizarSalida .form-select:focus {
+    border-color: #23395d;
+    box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25);
+}
+
+#modalNuevaSalidaInterna .btn-primary,
+#modalFinalizarSalida .btn-primary {
+    background: #23395d;
+    border: 1px solid #23395d;
+    font-weight: 700;
+    border-radius: 8px;
+}
+
+#modalNuevaSalidaInterna .btn-primary:hover,
+#modalFinalizarSalida .btn-primary:hover {
+    background: #1a2d4a;
+    border-color: #1a2d4a;
+}
+
+#modalNuevaSalidaInterna .table thead th,
+#modalNuevaSalidaInterna .table-dark th,
+#modalFinalizarSalida .table thead th,
+#modalFinalizarSalida .table-dark th {
+    background: #23395d !important;
+    color: #fff !important;
+    border-color: #23395d !important;
+    font-weight: 700;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    #modalNuevaSalidaInterna .modal-dialog,
+    #modalFinalizarSalida .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    #modalNuevaSalidaInterna .modal-header,
+    #modalNuevaSalidaInterna .modal-footer,
+    #modalFinalizarSalida .modal-header,
+    #modalFinalizarSalida .modal-footer {
+        padding: 1rem;
+    }
+
+    #modalNuevaSalidaInterna .card-body,
+    #modalFinalizarSalida .card-body {
+        padding: 1rem;
+    }
+}
+
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/
 /*///////////////////////////////////////////////////////*/

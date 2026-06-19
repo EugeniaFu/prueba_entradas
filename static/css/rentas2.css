@@ -561,3 +561,121 @@
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(35, 57, 93, 0.2);
 }
+/* El modal de Detalle de Salida Interna reutiliza exactamente el mismo estilo
+   que el modal de Detalle de Renta */
+#modalDetalleSalida .modal-header {
+    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
+    color: #fff;
+    border-bottom: none;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 1.5rem 2rem;
+}
+
+#modalDetalleSalida .modal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+#modalDetalleSalida .modal-content {
+    border: 2px solid #23395d;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(35, 57, 93, 0.2);
+}
+
+#modalDetalleSalida .modal-footer-azul {
+    background: linear-gradient(135deg, #f1f4fa 0%, #e8eef7 100%);
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-top: 2px solid #23395d;
+    padding: 1.2rem 2rem;
+}
+
+#modalDetalleSalida .card-header {
+    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%);
+    color: #fff !important;
+    border-bottom: 2px solid #1a2d4a;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+}
+
+#modalDetalleSalida .card-header h6 {
+    color: #fff !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+#modalDetalleSalida .card {
+    border: 2px solid #23395d;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(35, 57, 93, 0.15);
+    overflow: hidden;
+}
+
+#modalDetalleSalida .card-body {
+    padding: 1.5rem;
+    background: #fafbfd;
+}
+
+#modalDetalleSalida .table thead th {
+    background: linear-gradient(135deg, #23395d 0%, #2c4a73 100%) !important;
+    border-color: #1a2d4a !important;
+    color: #fff !important;
+    font-weight: 600;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+#modalDetalleSalida .table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(35, 57, 93, 0.05);
+}
+
+#modalDetalleSalida .table td {
+    padding: 0.75rem;
+    background: #fff;
+    border-color: #dee2e6;
+    font-size: 0.95rem;
+    vertical-align: middle;
+}
+
+#modalDetalleSalida .badge {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.8rem;
+    font-weight: 600;
+}
+
+#modalDetalleSalida .btn {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.5rem 1.2rem;
+    transition: all 0.2s ease;
+}
+
+#modalDetalleSalida .btn-primary {
+    background: #23395d;
+    border-color: #23395d;
+    color: #fff;
+}
+
+#modalDetalleSalida .btn-primary:hover {
+    background: #1a2d4a;
+    border-color: #1a2d4a;
+}
+
+#modalDetalleSalida .btn-secondary {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+#modalDetalleSalida .btn-secondary:hover {
+    background: #545b62;
+    border-color: #545b62;
+}

@@ -227,145 +227,199 @@ def crear_salida_interna():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error en el procesamiento: {str(e)}'})
 
-# ======================= FINALIZAR SALIDA INTERNA =======================
+# ======================= PIEZAS PENDIENTES DE UNA SALIDA INTERNA =======================
+def _obtener_piezas_pendientes(cursor, salida_id):
+    """
+    Por cada pieza que salió, calcula cuánto sigue pendiente de regresar,
+    restando lo que ya se recibió o se dio de baja en entradas anteriores
+    (una salida interna puede resolverse en varias visitas).
+    """
+    cursor.execute("""
+        SELECT
+            sid.id_pieza, p.nombre_pieza, sid.cantidad AS cantidad_salida,
+            IFNULL((
+                SELECT SUM(sied.cantidad_recibida)
+                FROM salidas_internas_entradas sie
+                JOIN salidas_internas_entradas_detalle sied ON sied.entrada_id = sie.id
+                WHERE sie.salida_interna_id = sid.salida_interna_id AND sied.id_pieza = sid.id_pieza
+            ), 0) AS ya_recibido,
+            IFNULL((
+                SELECT SUM(sied.cantidad_perdida)
+                FROM salidas_internas_entradas sie
+                JOIN salidas_internas_entradas_detalle sied ON sied.entrada_id = sie.id
+                WHERE sie.salida_interna_id = sid.salida_interna_id AND sied.id_pieza = sid.id_pieza
+            ), 0) AS ya_perdido
+        FROM salidas_internas_detalle sid
+        JOIN piezas p ON sid.id_pieza = p.id_pieza
+        WHERE sid.salida_interna_id = %s
+    """, (salida_id,))
+    piezas = cursor.fetchall()
+    for pieza in piezas:
+        pieza['cantidad_pendiente'] = pieza['cantidad_salida'] - pieza['ya_recibido'] - pieza['ya_perdido']
+    return piezas
+
+
+@salidas_internas_bp.route('/pendientes/<int:salida_id>')
+@requiere_sesion()
+@requiere_permiso('ver_salidas_internas')
+def obtener_pendientes_salida(salida_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT estado FROM salidas_internas WHERE id = %s", (salida_id,))
+        salida = cursor.fetchone()
+        if not salida:
+            return jsonify({'success': False, 'error': 'Salida interna no encontrada'})
+        if salida['estado'] not in ('activa', 'parcial'):
+            return jsonify({'success': False, 'error': 'Esta salida interna ya está finalizada.'})
+
+        piezas = _obtener_piezas_pendientes(cursor, salida_id)
+        piezas_pendientes = [p for p in piezas if p['cantidad_pendiente'] > 0]
+
+        if not piezas_pendientes:
+            return jsonify({'success': False, 'error': 'No quedan piezas pendientes de regresar.'})
+
+        return jsonify({'success': True, 'piezas': piezas_pendientes})
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ======================= FINALIZAR (REGISTRAR ENTRADA DE) SALIDA INTERNA =======================
 @salidas_internas_bp.route('/finalizar/<int:salida_id>', methods=['POST'])
 @requiere_sesion()
 @requiere_permiso('finalizar_salida_interna')
 def finalizar_salida_interna(salida_id):
     try:
         data = request.get_json()
-        tipo_finalizacion = data.get('tipo')  # 'regreso' o 'no_regreso'
-        observaciones_finalizacion = data.get('observaciones', '').strip()
+        piezas_form = data.get('piezas', [])
+        observaciones = data.get('observaciones', '').strip()
         usuario_id = session.get('user_id')
 
-        if not tipo_finalizacion or tipo_finalizacion not in ['regreso', 'no_regreso']:
-            return jsonify({'success': False, 'error': 'Tipo de finalización inválido'})
+        if not piezas_form:
+            return jsonify({'success': False, 'error': 'Debes capturar al menos una pieza.'})
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        
+
         try:
-            # Obtener datos de la salida interna
             cursor.execute("""
                 SELECT si.*, s.nombre as sucursal_nombre
                 FROM salidas_internas si
                 JOIN sucursales s ON si.id_sucursal = s.id
-                WHERE si.id = %s AND si.estado = 'activa'
+                WHERE si.id = %s
             """, (salida_id,))
-            
             salida = cursor.fetchone()
             if not salida:
-                return jsonify({'success': False, 'error': 'Salida interna no encontrada o ya finalizada'})
-            
-            # Obtener productos de la salida
+                return jsonify({'success': False, 'error': 'Salida interna no encontrada'})
+            if salida['estado'] not in ('activa', 'parcial'):
+                return jsonify({'success': False, 'error': 'Esta salida interna ya está finalizada.'})
+
+            # Recalcular pendientes en servidor (no confiar en lo que mande el navegador)
+            piezas_pendientes = {p['id_pieza']: p for p in _obtener_piezas_pendientes(cursor, salida_id)}
+
+            folio = obtener_siguiente_folio_nota_sucursal(cursor, salida['id_sucursal'])
+
             cursor.execute("""
-                SELECT sid.*, p.nombre_pieza
-                FROM salidas_internas_detalle sid
-                JOIN piezas p ON sid.id_pieza = p.id_pieza
-                WHERE sid.salida_interna_id = %s
-            """, (salida_id,))
-            
-            productos_salida = cursor.fetchall()
-            
-            # Generar folio de entrada solo si hay regreso
-            folio_entrada = None
-            if tipo_finalizacion == 'regreso':
-                folio_entrada = obtener_siguiente_folio_nota_sucursal(cursor, salida['id_sucursal'])
-            
-            # Procesar según el tipo de finalización
-            for producto in productos_salida:
-                id_pieza = producto['id_pieza']
-                cantidad = producto['cantidad']
-                
-                # Obtener inventario actual
+                INSERT INTO salidas_internas_entradas (salida_interna_id, folio, fecha, observaciones, usuario_id)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (salida_id, folio, get_local_now(), observaciones, usuario_id))
+            entrada_id = cursor.lastrowid
+
+            for item in piezas_form:
+                id_pieza = item.get('id_pieza')
+                cantidad_recibida = int(item.get('cantidad_recibida') or 0)
+                cantidad_perdida = int(item.get('cantidad_perdida') or 0)
+
+                if cantidad_recibida <= 0 and cantidad_perdida <= 0:
+                    continue
+
+                pendiente = piezas_pendientes.get(int(id_pieza))
+                if not pendiente:
+                    conn.rollback()
+                    return jsonify({'success': False, 'error': 'Pieza no pertenece a esta salida interna.'})
+
+                if cantidad_recibida + cantidad_perdida > pendiente['cantidad_pendiente']:
+                    conn.rollback()
+                    return jsonify({
+                        'success': False,
+                        'error': f"{pendiente['nombre_pieza']}: solo quedan {pendiente['cantidad_pendiente']} pendientes."
+                    })
+
                 cursor.execute("""
-                    SELECT total, disponibles, rentadas 
-                    FROM inventario_sucursal 
-                    WHERE id_pieza = %s AND id_sucursal = %s
+                    INSERT INTO salidas_internas_entradas_detalle (entrada_id, id_pieza, cantidad_recibida, cantidad_perdida)
+                    VALUES (%s, %s, %s, %s)
+                """, (entrada_id, id_pieza, cantidad_recibida, cantidad_perdida))
+
+                cursor.execute("""
+                    SELECT total, disponibles, rentadas
+                    FROM inventario_sucursal WHERE id_pieza = %s AND id_sucursal = %s
                 """, (id_pieza, salida['id_sucursal']))
-                
                 inventario = cursor.fetchone()
                 if not inventario:
                     continue
-                
-                if tipo_finalizacion == 'regreso':
-                    # El equipo regresó: mover de rentadas a disponibles
-                    nuevas_rentadas = max(0, inventario['rentadas'] - cantidad)
-                    nuevos_disponibles = inventario['disponibles'] + cantidad
-                    
+
+                nuevo_total = max(0, inventario['total'] - cantidad_perdida)
+                nuevos_disponibles = inventario['disponibles'] + cantidad_recibida
+                nuevas_rentadas = max(0, inventario['rentadas'] - cantidad_recibida - cantidad_perdida)
+
+                cursor.execute("""
+                    UPDATE inventario_sucursal
+                    SET total = %s, disponibles = %s, rentadas = %s
+                    WHERE id_pieza = %s AND id_sucursal = %s
+                """, (nuevo_total, nuevos_disponibles, nuevas_rentadas, id_pieza, salida['id_sucursal']))
+
+                if cantidad_recibida > 0:
                     cursor.execute("""
-                        UPDATE inventario_sucursal 
-                        SET disponibles = %s, rentadas = %s 
-                        WHERE id_pieza = %s AND id_sucursal = %s
-                    """, (nuevos_disponibles, nuevas_rentadas, id_pieza, salida['id_sucursal']))
-                    
-                    # Registrar movimiento
-                    cursor.execute("""
-                        INSERT INTO movimientos_inventario 
+                        INSERT INTO movimientos_inventario
                         (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario, folio_nota_entrada)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """, (
-                        id_pieza, salida['id_sucursal'], 'retorno_salida_interna', cantidad,
-                        f'Entrada de salida interna - {observaciones_finalizacion}',
-                        usuario_id, str(folio_entrada)
+                        id_pieza, salida['id_sucursal'], 'retorno_salida_interna', cantidad_recibida,
+                        f'Entrada de salida interna - {observaciones}', usuario_id, str(folio)
                     ))
-                    
-                else:  # no_regreso
-                    # El equipo no regresó: descontar del total y de rentadas
-                    nuevo_total = max(0, inventario['total'] - cantidad)
-                    nuevas_rentadas = max(0, inventario['rentadas'] - cantidad)
-                    
+
+                if cantidad_perdida > 0:
                     cursor.execute("""
-                        UPDATE inventario_sucursal 
-                        SET total = %s, rentadas = %s 
-                        WHERE id_pieza = %s AND id_sucursal = %s
-                    """, (nuevo_total, nuevas_rentadas, id_pieza, salida['id_sucursal']))
-                    
-                    # Registrar movimiento
-                    cursor.execute("""
-                        INSERT INTO movimientos_inventario 
-                        (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO movimientos_inventario
+                        (id_pieza, id_sucursal, tipo_movimiento, cantidad, descripcion, usuario, folio_nota_entrada)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """, (
-                        id_pieza, salida['id_sucursal'], 'perdida_salida_interna', cantidad,
-                        f'Pérdida de salida interna - {observaciones_finalizacion}',
-                        usuario_id
+                        id_pieza, salida['id_sucursal'], 'perdida_salida_interna', cantidad_perdida,
+                        f'Pérdida de salida interna - {observaciones}', usuario_id, str(folio)
                     ))
-            
-            # Actualizar estado de la salida interna
-            cursor.execute("""
-                UPDATE salidas_internas 
-                SET estado = %s, fecha_finalizacion = %s, observaciones_finalizacion = %s, usuario_finalizacion = %s
-                WHERE id = %s
-            """, (
-                'finalizada_regreso' if tipo_finalizacion == 'regreso' else 'finalizada_no_regreso',
-                get_local_now(),
-                observaciones_finalizacion,
-                usuario_id,
-                salida_id
-            ))
-            
+
+            # Recalcular si ya quedó completamente resuelta o sigue pendiente
+            piezas_actualizadas = _obtener_piezas_pendientes(cursor, salida_id)
+            sigue_pendiente = any(p['cantidad_pendiente'] > 0 for p in piezas_actualizadas)
+
+            if sigue_pendiente:
+                cursor.execute("UPDATE salidas_internas SET estado = 'parcial' WHERE id = %s", (salida_id,))
+            else:
+                cursor.execute("""
+                    UPDATE salidas_internas
+                    SET estado = 'finalizada', fecha_finalizacion = %s,
+                        observaciones_finalizacion = %s, usuario_finalizacion = %s
+                    WHERE id = %s
+                """, (get_local_now(), observaciones, usuario_id, salida_id))
+
             conn.commit()
-            
-            mensaje_tipo = 'con regreso de equipo' if tipo_finalizacion == 'regreso' else 'sin regreso de equipo'
-            result = {
+
+            return jsonify({
                 'success': True,
-                'message': f'Salida interna finalizada correctamente ({mensaje_tipo})'
-            }
-            
-            # Agregar folio de entrada solo si hay regreso
-            if tipo_finalizacion == 'regreso' and folio_entrada:
-                result['folio_nota_entrada'] = str(folio_entrada)
-                
-            return jsonify(result)
-            
+                'message': 'Entrada registrada correctamente' + (' (la salida quedó finalizada).' if not sigue_pendiente else ', aún quedan piezas pendientes.'),
+                'folio_nota_entrada': str(folio),
+                'entrada_id': entrada_id,
+                'estado': 'finalizada' if not sigue_pendiente else 'parcial'
+            })
+
         except Exception as e:
             conn.rollback()
             return jsonify({'success': False, 'error': f'Error al finalizar salida interna: {str(e)}'})
         finally:
             cursor.close()
             conn.close()
-            
+
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error en el procesamiento: {str(e)}'})
 
@@ -390,82 +444,35 @@ def obtener_detalle_salida(salida_id):
         if not salida:
             return jsonify({'success': False, 'error': 'Salida interna no encontrada'})
         
-        # Obtener productos de la salida
+        # Obtener productos de la salida con su estado acumulado (recibido/perdido/pendiente)
+        productos = _obtener_piezas_pendientes(cursor, salida_id)
+        for p in productos:
+            cursor.execute("SELECT codigo_pieza FROM piezas WHERE id_pieza = %s", (p['id_pieza'],))
+            codigo_row = cursor.fetchone()
+            p['codigo_pieza'] = codigo_row['codigo_pieza'] if codigo_row else None
+            p['cantidad'] = p['cantidad_salida']  # compatibilidad con el render anterior
+
+        # Historial de entradas (visitas) registradas para esta salida
         cursor.execute("""
-            SELECT sid.*, p.nombre_pieza, p.codigo_pieza
-            FROM salidas_internas_detalle sid
-            JOIN piezas p ON sid.id_pieza = p.id_pieza
-            WHERE sid.salida_interna_id = %s
-            ORDER BY p.nombre_pieza
+            SELECT id, folio, fecha, observaciones
+            FROM salidas_internas_entradas
+            WHERE salida_interna_id = %s
+            ORDER BY fecha DESC
         """, (salida_id,))
-        
-        productos = cursor.fetchall()
-        
+        entradas = cursor.fetchall()
+
         cursor.close()
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'salida': salida,
-            'productos': productos
+            'productos': productos,
+            'entradas': entradas
         })
-        
+
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error al obtener detalle: {str(e)}'})
-
-
-# ======================= OBTENER FOLIO DE ENTRADA =======================
-@salidas_internas_bp.route('/folio-entrada/<int:salida_id>')
-@requiere_sesion()
-@requiere_permiso('ver_salidas_internas')
-def obtener_folio_entrada(salida_id):
-    """
-    Obtener el folio de nota de entrada para una salida interna finalizada con regreso
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Primero obtener la salida interna para verificar que existe y está finalizada con regreso
-        cursor.execute("""
-            SELECT si.folio_sucursal, si.id_sucursal
-            FROM salidas_internas si
-            WHERE si.id = %s AND si.estado = 'finalizada_regreso'
-        """, (salida_id,))
-        
-        salida = cursor.fetchone()
-        if not salida:
-            cursor.close()
-            conn.close()
-            return jsonify({'success': False, 'error': 'Salida interna no encontrada o no finalizada con regreso'})
-        
-        # Obtener el folio de nota de entrada desde movimientos_inventario
-        cursor.execute("""
-            SELECT DISTINCT mi.folio_nota_entrada
-            FROM movimientos_inventario mi
-            WHERE mi.id_sucursal = %s
-            AND mi.tipo_movimiento = 'retorno_salida_interna'
-            AND mi.folio_nota_entrada IS NOT NULL
-            AND mi.descripcion LIKE %s
-            ORDER BY mi.fecha DESC
-            LIMIT 1
-        """, (salida['id_sucursal'], f"%salida interna%"))
-        
-        resultado = cursor.fetchone()
-        
-        cursor.close()
-        conn.close()
-        
-        if resultado and resultado['folio_nota_entrada']:
-            return jsonify({
-                'success': True,
-                'folio_nota_entrada': resultado['folio_nota_entrada']
-            })
-        else:
-            return jsonify({'success': False, 'error': 'Folio de entrada no encontrado'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': f'Error al obtener folio: {str(e)}'})
 
 
 
@@ -743,61 +750,70 @@ def generar_pdf_salida_interna(folio):
 
 
 
-@salidas_internas_bp.route('/pdf-entrada/<folio>')
+@salidas_internas_bp.route('/pdf-entrada/<int:entrada_id>')
 @requiere_sesion()
 @requiere_permiso('ver_salidas_internas')
-def generar_pdf_entrada_interna(folio):
+def generar_pdf_entrada_interna(entrada_id):
     """
-    Generar PDF de nota de entrada para salidas internas (cuando regresan) con diseño profesional
+    Generar PDF de nota de entrada para una visita/entrada específica de una salida
+    interna (puede haber varias entradas para la misma salida, cada una con su PDF).
     """
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
-        # Obtener datos del retorno desde movimientos_inventario
+        # Obtener datos de la entrada (visita) y de la salida interna asociada
         cursor.execute("""
-            SELECT mi.*, p.nombre_pieza, p.categoria,
+            SELECT sie.id, sie.folio, sie.fecha, sie.observaciones,
+                   si.id_sucursal, si.responsable_entrega,
                    s.nombre AS sucursal_nombre
-            FROM movimientos_inventario mi
-            JOIN piezas p ON mi.id_pieza = p.id_pieza
-            JOIN sucursales s ON mi.id_sucursal = s.id
-            WHERE mi.folio_nota_entrada = %s 
-            AND mi.tipo_movimiento = 'retorno_salida_interna'
-            ORDER BY p.nombre_pieza
-        """, (folio,))
-        
-        movimientos = cursor.fetchall()
-        
-        if not movimientos:
+            FROM salidas_internas_entradas sie
+            JOIN salidas_internas si ON sie.salida_interna_id = si.id
+            JOIN sucursales s ON si.id_sucursal = s.id
+            WHERE sie.id = %s
+        """, (entrada_id,))
+
+        entrada = cursor.fetchone()
+
+        if not entrada:
             cursor.close()
             conn.close()
             return jsonify({'error': 'Entrada interna no encontrada'}), 404
-        
-        # Datos generales del retorno
-        primer_movimiento = movimientos[0]
-        
+
+        # Piezas recibidas/perdidas en esta visita
+        cursor.execute("""
+            SELECT sied.cantidad_recibida, sied.cantidad_perdida, p.nombre_pieza, p.categoria
+            FROM salidas_internas_entradas_detalle sied
+            JOIN piezas p ON sied.id_pieza = p.id_pieza
+            WHERE sied.entrada_id = %s
+            ORDER BY p.nombre_pieza
+        """, (entrada_id,))
+
+        piezas = cursor.fetchall()
+        folio = entrada['folio']
+
         # Obtener datos del usuario actual
         usuario_id = session.get('user_id')
         usuario_nombre = "USUARIO NO IDENTIFICADO"
         if usuario_id:
             cursor.execute("""
                 SELECT CONCAT(nombre, ' ', apellido1, ' ', apellido2) as nombre_completo
-                FROM usuarios 
+                FROM usuarios
                 WHERE id = %s
             """, (usuario_id,))
             usuario_row = cursor.fetchone()
             if usuario_row:
                 usuario_nombre = usuario_row['nombre_completo'].upper()
-        
+
         cursor.close()
         conn.close()
-        
+
         # === OBTENER PLANTILLA DE LA SUCURSAL ===
         plantilla_renta = None
         try:
             conn2 = get_db_connection()
             cursor2 = conn2.cursor(dictionary=True)
-            cursor2.execute("SELECT plantilla_renta FROM sucursales WHERE id = %s", (primer_movimiento['id_sucursal'],))
+            cursor2.execute("SELECT plantilla_renta FROM sucursales WHERE id = %s", (entrada['id_sucursal'],))
             sucursal_row = cursor2.fetchone()
             if sucursal_row and sucursal_row.get('plantilla_renta'):
                 plantilla_renta = sucursal_row['plantilla_renta']
@@ -829,7 +845,7 @@ def generar_pdf_entrada_interna(folio):
 
         # Fecha y hora de entrada
         c.setFont("Carlito", 12)
-        fecha_entrada = format_datetime_local(primer_movimiento['fecha'], '%d/%m/%Y - %H:%M:%S')
+        fecha_entrada = format_datetime_local(entrada['fecha'], '%d/%m/%Y - %H:%M:%S')
         c.drawRightString(575, 715, f"{fecha_entrada}")
 
         # === DATOS PRINCIPALES ===
@@ -839,16 +855,16 @@ def generar_pdf_entrada_interna(folio):
         c.setFont("Courier-Bold", 15)
         c.drawString(36, 715, "SALIDA INTERNA")
 
-        # Datos de la sucursal y responsable (extraer del primer movimiento)
+        # Datos de la sucursal y responsable
         c.setFont("Carlito", 10)
-        c.drawString(36, 695, f"SUCURSAL: {primer_movimiento['sucursal_nombre'].upper()}")
+        c.drawString(36, 695, f"SUCURSAL: {entrada['sucursal_nombre'].upper()}")
 
         # Fecha de retorno
-        c.drawString(36, 680, f"FECHA DE RETORNO: {format_datetime_local(primer_movimiento['fecha'], '%d/%m/%Y %H:%M')}")
+        c.drawString(36, 680, f"FECHA DE RETORNO: {format_datetime_local(entrada['fecha'], '%d/%m/%Y %H:%M')}")
 
-        # Observaciones si existen (extraer de la descripción)
-        if primer_movimiento['descripcion']:
-            observaciones_texto = f"OBSERVACIONES: {primer_movimiento['descripcion'].upper()}"
+        # Observaciones si existen
+        if entrada['observaciones']:
+            observaciones_texto = f"OBSERVACIONES: {entrada['observaciones'].upper()}"
             from reportlab.lib.utils import simpleSplit
             obs_lines = simpleSplit(observaciones_texto, "Carlito", 10, 530)
             y_obs = 665
@@ -859,41 +875,45 @@ def generar_pdf_entrada_interna(folio):
         else:
             y_position = 650
 
-        # DATOS DE PIEZAS 
+        # DATOS DE PIEZAS
         # Texto descriptivo antes de la tabla
         c.setFont("Carlito", 10)
-        c.drawString(36, y_position, "RECIBÍ DE: ______________________________")
+        c.drawString(36, y_position, f"RECIBÍ DE: {entrada['responsable_entrega'].upper()}")
         y_position -= 10
         c.drawString(36, y_position, "EL SIGUIENTE EQUIPO:")
         y_position -= 25
 
-        # Encabezado de tabla (sin columnas de estado)
+        # Encabezado de tabla (con columnas de recibido/baja)
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(36, y_position + 5, "CANT. (PIEZAS)")
         c.drawString(150, y_position + 5, "DESCRIPCIÓN")
-        c.drawString(400, y_position + 5, "CATEGORÍA")
+        c.drawString(380, y_position + 5, "CATEGORÍA")
+        c.drawString(460, y_position + 5, "RECIBIDO")
+        c.drawString(520, y_position + 5, "BAJA")
         y_position -= 15
 
         c.setFont("Carlito", 10)
-        total_piezas = 0
-        for mov in movimientos:
+        total_recibido = 0
+        total_perdido = 0
+        for pieza in piezas:
             # Verificar si necesitamos nueva página
             if y_position < 200:
                 c.showPage()
                 c.setFont("Carlito", 10)
                 y_position = page_height - 60
-                
-            c.drawString(70, y_position + 5, str(mov['cantidad']))
-            c.drawString(150, y_position + 5, mov['nombre_pieza'].upper())
-            c.drawString(400, y_position + 5, (mov['categoria'] or '').upper())
+
+            c.drawString(150, y_position + 5, pieza['nombre_pieza'].upper())
+            c.drawString(380, y_position + 5, (pieza['categoria'] or '').upper())
+            c.drawString(470, y_position + 5, str(pieza['cantidad_recibida']))
+            c.drawString(530, y_position + 5, str(pieza['cantidad_perdida']))
             y_position -= 13
-            total_piezas += mov['cantidad']
+            total_recibido += pieza['cantidad_recibida']
+            total_perdido += pieza['cantidad_perdida']
 
         y_position -= 5
 
-        # Total de piezas
+        # Totales
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(36, y_position, f"TOTAL DE PIEZAS: {total_piezas}")
+        c.drawString(36, y_position, f"TOTAL RECIBIDO: {total_recibido}    TOTAL DADO DE BAJA: {total_perdido}")
         y_position -= 20
 
         # === PIE DE NOTA ===
