@@ -1,0 +1,285 @@
+/* ===== HISTORIAL DE RENTAS DEL CLIENTE ===== */
+
+.historial-card {
+    background: #fff;
+    border: 2px solid rgba(35, 57, 93, 0.12);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(35, 57, 93, 0.06);
+}
+
+.historial-table {
+    margin-bottom: 0;
+}
+
+.historial-table thead th {
+    background: #23395d;
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border: none;
+    padding: 0.9rem 1rem;
+}
+
+.historial-table tbody tr.historial-row {
+    border-bottom: 1px solid #e8ecf2;
+    transition: background 0.15s ease;
+}
+
+.historial-table tbody tr.historial-row:nth-child(even) {
+    background: #f8fafd;
+}
+
+.historial-table tbody tr.historial-row.historial-clickable:hover {
+    background: #eef2f8;
+    cursor: pointer;
+}
+
+.historial-table td {
+    padding: 0.85rem 1rem;
+    vertical-align: middle;
+    color: #2d3a4f;
+    font-size: 0.95rem;
+}
+
+.historial-folio {
+    color: #23395d;
+    font-weight: 700;
+}
+
+.historial-toggle-icon {
+    color: #6c7a91;
+    transition: transform 0.2s ease;
+}
+
+.historial-row[aria-expanded="true"] .historial-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.historial-total {
+    font-weight: 700;
+    color: #23395d;
+}
+
+/* ----- Badges de estado, con la gama de color del sistema ----- */
+.historial-badge {
+    display: inline-block;
+    border-radius: 8px;
+    padding: 0.35em 0.85em;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    border: 1px solid transparent;
+    margin: 0 0.15rem;
+}
+
+.historial-badge-activa {
+    background: rgba(35, 57, 93, 0.10);
+    color: #23395d;
+    border-color: rgba(35, 57, 93, 0.25);
+}
+
+.historial-badge-finalizada {
+    background: rgba(80, 95, 116, 0.10);
+    color: #50576b;
+    border-color: rgba(80, 95, 116, 0.22);
+}
+
+.historial-badge-cancelada {
+    background: rgba(198, 40, 40, 0.08);
+    color: #8c1f1f;
+    border-color: rgba(198, 40, 40, 0.20);
+}
+
+.historial-badge-pagado {
+    background: rgba(46, 125, 50, 0.10);
+    color: #2e7d32;
+    border-color: rgba(46, 125, 50, 0.22);
+}
+
+.historial-badge-pendiente {
+    background: rgba(251, 192, 45, 0.16);
+    color: #8a6914;
+    border-color: rgba(251, 192, 45, 0.35);
+}
+
+.historial-badge-retraso {
+    background: #c62828;
+    color: #fff;
+    border-color: #c62828;
+}
+
+.historial-badge-renovaciones {
+    background: #fff;
+    color: #23395d;
+    border-color: rgba(35, 57, 93, 0.30);
+}
+
+/* ----- Detalle expandido (cadena de renovaciones) ----- */
+.historial-detalle {
+    background: #f4f6fa;
+}
+
+.historial-detalle-table {
+    margin-bottom: 0;
+    background: transparent;
+}
+
+.historial-detalle-table thead th {
+    background: transparent;
+    color: #6c7a91;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(35, 57, 93, 0.15);
+    padding: 0.5rem 1rem;
+}
+
+.historial-detalle-table tbody td {
+    padding: 0.55rem 1rem;
+    font-size: 0.88rem;
+    color: #3a4660;
+    border-bottom: 1px solid rgba(35, 57, 93, 0.08);
+}
+
+.historial-detalle-table tbody tr:first-child td {
+    border-left: 3px solid #23395d;
+}
+
+.historial-empty {
+    text-align: center;
+    color: rgba(35, 57, 93, 0.55);
+    padding: 3rem 1rem;
+}
+
+.historial-empty i {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+/* ===== BASE COMPARTIDA: DETALLE DEL CLIENTE ===== */
+
+.detalle-card {
+    background: #fff;
+    border: 2px solid rgba(35, 57, 93, 0.12);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(35, 57, 93, 0.06);
+    overflow: hidden;
+}
+
+.detalle-card-body {
+    padding: 1.75rem 2rem;
+}
+
+.detalle-card-title-bar {
+    background: #23395d;
+    color: #fff;
+    padding: 1rem 1.5rem;
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+
+/* Tabs de Información / Historial, mismo lenguaje visual */
+.detalle-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 2px solid rgba(35, 57, 93, 0.10);
+    margin-bottom: 1.5rem;
+    padding: 0 0.25rem;
+}
+
+.detalle-tabs .nav-link {
+    color: #6c7a91;
+    font-weight: 600;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0;
+    padding: 0.75rem 1.1rem;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.detalle-tabs .nav-link.active {
+    color: #23395d !important;
+    border-bottom-color: #23395d !important;
+}
+
+.detalle-tabs .nav-link:hover {
+    color: #23395d;
+}
+
+/* Lista de información del cliente, con el mismo formato de filas que el historial */
+.detalle-info-list {
+    border: 1px solid #23395d;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.detalle-info-row {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.40rem 1.25rem;
+    border-bottom: 1px solid #23395d;
+}
+
+.detalle-info-row:nth-child(even) {
+    background: #e4e4e4;
+}
+
+.detalle-info-row:last-child {
+    border-bottom: none;
+}
+
+.detalle-info-label {
+    flex: 0 0 180px;
+    color: #6c7a91;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.detalle-info-value {
+    flex: 1 1 auto;
+    color: #2d3a4f;
+    font-size: 0.97rem;
+}
+
+.detalle-btn-editar {
+    background: #c62828;
+    color: #fff;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 0.65rem 1.6rem;
+    border: none;
+    transition: background 0.2s ease;
+}
+
+.detalle-btn-editar:hover {
+    background: #a31515;
+    color: #fff;
+}
+
+/* Archivos del cliente */
+.detalle-archivo-item {
+    border: 1px solid rgba(35, 57, 93, 0.10);
+    border-radius: 12px;
+    padding: 0.7rem;
+    margin-bottom: 0.7rem;
+    background: #f8fafd;
+    transition: border-color 0.15s ease;
+}
+
+.detalle-archivo-item:hover {
+    border-color: rgba(35, 57, 93, 0.30);
+}
+
+.detalle-archivo-item:last-child {
+    margin-bottom: 0;
+}

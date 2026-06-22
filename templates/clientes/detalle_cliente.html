@@ -4,6 +4,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/clientes.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/historial_cliente.css') }}">
 <style>
     .text-truncate {
         overflow: hidden;
@@ -52,9 +53,9 @@
     <div class="row">
         <!-- Info y tabs -->
         <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-body">
-                    <ul class="nav nav-tabs mb-3" id="clienteTabs" role="tablist">
+            <div class="detalle-card mb-4">
+                <div class="detalle-card-body">
+                    <ul class="nav detalle-tabs" id="clienteTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info"
                                 type="button" role="tab">Información</button>
@@ -68,28 +69,31 @@
 
                         <!-- Información -->
                         <div class="tab-pane fade show active" id="info" role="tabpanel">
-                            <dl class="row">
-                                <dt class="col-sm-4">Número de Cliente:</dt>
-                                <dd class="col-sm-8">{{ cliente.codigo_cliente }}</dd>
-
-                                <dt class="col-sm-4">Nombre:</dt>
-                                <dd class="col-sm-8">{{ cliente.nombre }} {{ cliente.apellido1 }} {{ cliente.apellido2
-                                    }}</dd>
-
-                                <dt class="col-sm-4">Teléfono:</dt>
-                                <dd class="col-sm-8">{{ cliente.telefono }}</dd>
-
-                                <dt class="col-sm-4">Correo:</dt>
-                                <dd class="col-sm-8">{{ cliente.correo or '-' }}</dd>
-
-                                <dt class="col-sm-4">RFC:</dt>
-                                <dd class="col-sm-8">{{ cliente.rfc or '-' }}</dd>
-
-                                <!-- NUEVA SECCIÓN DE DIRECCIÓN -->
-                                <dt class="col-sm-4">Dirección:</dt>
-                                <dd class="col-sm-8">
-                                    {% if cliente.calle %}
-                                    <div class="text-muted small">
+                            <div class="detalle-info-list mb-3">
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Número de Cliente</div>
+                                    <div class="detalle-info-value">{{ cliente.codigo_cliente }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Nombre</div>
+                                    <div class="detalle-info-value">{{ cliente.nombre }} {{ cliente.apellido1 }} {{ cliente.apellido2 }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Teléfono</div>
+                                    <div class="detalle-info-value">{{ cliente.telefono }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Correo</div>
+                                    <div class="detalle-info-value">{{ cliente.correo or '-' }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">RFC</div>
+                                    <div class="detalle-info-value">{{ cliente.rfc or '-' }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Dirección</div>
+                                    <div class="detalle-info-value">
+                                        {% if cliente.calle %}
                                         <strong>{{ cliente.calle }}
                                             {% if cliente.entre_calles %}(entre {{ cliente.entre_calles }}){% endif %}
                                             {{ cliente.numero_exterior }}{% if cliente.numero_interior %}, Int. {{
@@ -97,56 +101,166 @@
                                         </strong><br>
                                         {{ cliente.colonia }}, CP {{ cliente.codigo_postal }}<br>
                                         {{ cliente.municipio }}, {{ cliente.estado }}
+                                        {% else %}
+                                        <span class="text-muted">Sin dirección registrada</span>
+                                        {% endif %}
                                     </div>
-                                    {% else %}
-                                    <span class="text-muted">Sin dirección registrada</span>
-                                    {% endif %}
-                                </dd>
-
-                                <dt class="col-sm-4">Sucursal:</dt>
-                                <dd class="col-sm-8">{{ cliente.sucursal_nombre or '-' }}</dd>
-
-                                <!-- NUEVO: ROL DEL CLIENTE -->
-                                <dt class="col-sm-4">Rol:</dt>
-                                <dd class="col-sm-8">
-                                    {% if cliente.rol_nombre %}
-                                    <span class="badge bg-info">{{ cliente.rol_nombre|title }}</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Sin rol asignado</span>
-                                    {% endif %}
-                                </dd>
-
-                                <dt class="col-sm-4">Estatus:</dt>
-                                <dd class="col-sm-8">
-                                    {% if cliente.tipo_cliente == 'frecuente' %}
-                                    <span class="badge bg-success">Frecuente</span>
-                                    {% elif cliente.tipo_cliente == 'ocasional' %}
-                                    <span class="badge bg-warning">Ocasional</span>
-                                    {% elif cliente.tipo_cliente == 'betado' %}
-                                    <span class="badge bg-danger">Betado</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Desconocido</span>
-                                    {% endif %}
-                                </dd>
-
-                                <dt class="col-sm-4">Fecha de alta:</dt>
-                                <dd class="col-sm-8">{{ cliente.fecha_alta.strftime('%d/%m/%Y') if cliente.fecha_alta
-                                    else '-' }}</dd>
-                            </dl>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Sucursal</div>
+                                    <div class="detalle-info-value">{{ cliente.sucursal_nombre or '-' }}</div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Rol</div>
+                                    <div class="detalle-info-value">
+                                        {% if cliente.rol_nombre %}
+                                        <span class="historial-badge historial-badge-activa">{{ cliente.rol_nombre|title }}</span>
+                                        {% else %}
+                                        <span class="historial-badge historial-badge-finalizada">Sin rol asignado</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Estatus</div>
+                                    <div class="detalle-info-value">
+                                        {% if cliente.tipo_cliente == 'frecuente' %}
+                                        <span class="historial-badge historial-badge-pagado">Frecuente</span>
+                                        {% elif cliente.tipo_cliente == 'ocasional' %}
+                                        <span class="historial-badge historial-badge-pendiente">Ocasional</span>
+                                        {% elif cliente.tipo_cliente == 'betado' %}
+                                        <span class="historial-badge historial-badge-cancelada">Betado</span>
+                                        {% else %}
+                                        <span class="historial-badge historial-badge-finalizada">Desconocido</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Fecha de alta</div>
+                                    <div class="detalle-info-value">{{ cliente.fecha_alta.strftime('%d/%m/%Y') if cliente.fecha_alta else '-' }}</div>
+                                </div>
+                            </div>
 
                             <div class="text-end">
                                 <a href="{{ url_for('clientes.editar_cliente', id=cliente.id) }}"
-                                    class="btn btn-danger fw-bold">
+                                    class="detalle-btn-editar">
                                     <i class="bi bi-pencil"></i> Editar
                                 </a>
                             </div>
                         </div>
-                        <!-- Historial de pedidos (placeholder) -->
+                        <!-- Historial de pedidos -->
                         <div class="tab-pane fade" id="historial" role="tabpanel">
-                            <div class="text-center text-muted py-5">
-                                <i class="bi bi-clock-history" style="font-size:2em;"></i>
-                                <div>Próximamente: aquí aparecerá el historial de rentas/pedidos.</div>
+                            {% if historial %}
+                            <div class="historial-card">
+                                <div class="table-responsive">
+                                    <table class="table historial-table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th></th>
+                                                <th>Folio</th>
+                                                <th>Sucursal</th>
+                                                <th>Fechas</th>
+                                                <th>Dirección de obra</th>
+                                                <th>Estado</th>
+                                                <th>Pago</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for grupo in historial %}
+                                            <tr class="historial-row {{ 'historial-clickable' if grupo.num_renovaciones > 1 }}"
+                                                {% if grupo.num_renovaciones > 1 %}
+                                                data-bs-toggle="collapse" data-bs-target="#cadena-{{ grupo.raiz_id }}" role="button" aria-expanded="false"
+                                                {% endif %}>
+                                                <td>
+                                                    {% if grupo.num_renovaciones > 1 %}
+                                                    <i class="bi bi-chevron-down historial-toggle-icon"></i>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="historial-folio">SUC{{ grupo.eslabones[0].id_sucursal }}-{{ '%04d'|format(grupo.folio) if grupo.folio else '----' }}</td>
+                                                <td>{{ grupo.sucursal_nombre }}</td>
+                                                <td>
+                                                    {{ grupo.fecha_inicio.strftime('%d/%m/%Y') if grupo.fecha_inicio else '-' }}
+                                                    &rarr;
+                                                    {{ grupo.fecha_fin.strftime('%d/%m/%Y') if grupo.fecha_fin else 'En curso' }}
+                                                </td>
+                                                <td>{{ grupo.direccion_obra or '-' }}</td>
+                                                <td>
+                                                    {% if grupo.estado_consolidado == 'Activa' %}
+                                                    <span class="historial-badge historial-badge-activa">Activa</span>
+                                                    {% elif grupo.estado_consolidado == 'Finalizada' %}
+                                                    <span class="historial-badge historial-badge-finalizada">Finalizada</span>
+                                                    {% else %}
+                                                    <span class="historial-badge historial-badge-cancelada">Cancelada</span>
+                                                    {% endif %}
+                                                    {% if grupo.tiene_retraso %}
+                                                    <span class="historial-badge historial-badge-retraso">Con retraso</span>
+                                                    {% endif %}
+                                                    {% if grupo.num_renovaciones > 1 %}
+                                                    <span class="historial-badge historial-badge-renovaciones">{{ grupo.num_renovaciones }} renovaciones</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if grupo.num_pagos_pendientes > 0 %}
+                                                    <span class="historial-badge historial-badge-pendiente">
+                                                        Pago pendiente
+                                                        {% if grupo.num_renovaciones > 1 %}({{ grupo.num_pagos_pendientes }} de {{ grupo.num_renovaciones }}){% endif %}
+                                                    </span>
+                                                    {% else %}
+                                                    <span class="historial-badge historial-badge-pagado">Pagado</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="historial-total">${{ '%.2f'|format(grupo.total_acumulado) }}</td>
+                                            </tr>
+                                            {% if grupo.num_renovaciones > 1 %}
+                                            <tr class="collapse historial-detalle" id="cadena-{{ grupo.raiz_id }}">
+                                                <td></td>
+                                                <td colspan="7" class="p-0">
+                                                    <table class="table historial-detalle-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Renovación</th>
+                                                                <th>Fechas</th>
+                                                                <th>Estado renta</th>
+                                                                <th>Estado pago</th>
+                                                                <th>Total</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {% for eslabon in grupo.eslabones %}
+                                                            <tr>
+                                                                <td>{{ loop.index }}{{ ' (original)' if loop.first else '' }}</td>
+                                                                <td>
+                                                                    {{ eslabon.fecha_salida.strftime('%d/%m/%Y') if eslabon.fecha_salida else '-' }}
+                                                                    &rarr;
+                                                                    {{ eslabon.fecha_entrada.strftime('%d/%m/%Y') if eslabon.fecha_entrada else 'En curso' }}
+                                                                </td>
+                                                                <td>{{ eslabon.estado_renta }}</td>
+                                                                <td>
+                                                                    {% if 'pendiente' in (eslabon.estado_pago or '')|lower %}
+                                                                    <span class="historial-badge historial-badge-pendiente">{{ eslabon.estado_pago }}</span>
+                                                                    {% else %}
+                                                                    <span class="historial-badge historial-badge-pagado">{{ eslabon.estado_pago }}</span>
+                                                                    {% endif %}
+                                                                </td>
+                                                                <td>${{ '%.2f'|format(eslabon.total_con_iva or 0) }}</td>
+                                                            </tr>
+                                                            {% endfor %}
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
+                            {% else %}
+                            <div class="historial-empty">
+                                <i class="bi bi-clock-history"></i>
+                                <div>Este cliente aún no tiene rentas registradas.</div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -154,13 +268,13 @@
         </div>
         <!-- Archivos/documentos -->
         <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header text-center fw-bold" style="color:#e53935; font-size:1.3em;">
+            <div class="detalle-card mb-4">
+                <div class="detalle-card-title-bar">
                     Archivos
                 </div>
-                <div class="card-body" style="max-height: 420px; overflow-y: auto;">
+                <div class="detalle-card-body" style="max-height: 420px; overflow-y: auto;">
                     {% for doc in documentos %}
-                    <div class="border rounded p-2 mb-3 d-flex align-items-center">
+                    <div class="detalle-archivo-item d-flex align-items-center">
                         <i class="bi bi-file-earmark-pdf text-danger" style="font-size:2em;"></i>
                         <div class="ms-3 flex-grow-1">
                             <div class="fw-bold text-truncate" style="max-width: 160px;" title="{{ doc.archivo }}">
@@ -183,4 +297,12 @@
         </div>
     </div>
 </div>
+<script>
+    if (window.location.hash === '#historial') {
+        var historialTabBtn = document.getElementById('historial-tab');
+        if (historialTabBtn) {
+            new bootstrap.Tab(historialTabBtn).show();
+        }
+    }
+</script>
 {% endblock %}

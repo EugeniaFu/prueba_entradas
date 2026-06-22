@@ -236,6 +236,83 @@ class RentasService:
             conn.close()
 
     @staticmethod
+    def obtener_historial_cliente(cliente_id):
+        """
+        Devuelve el historial de rentas de un cliente, agrupando las renovaciones
+        en cadena bajo su folio raíz y calculando estados/pagos/totales consolidados.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT
+                    r.id, r.folio, r.id_sucursal, s.nombre AS sucursal_nombre,
+                    r.fecha_registro, r.fecha_salida, r.fecha_entrada,
+                    r.estado_renta, r.estado_pago, r.total_con_iva,
+                    r.renta_asociada_id, r.direccion_obra,
+                    ne.estado_retraso
+                FROM rentas r
+                JOIN sucursales s ON r.id_sucursal = s.id
+                LEFT JOIN notas_entrada ne ON ne.id = (
+                    SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id
+                )
+                WHERE r.cliente_id = %s AND r.estado_renta != 'eliminada'
+                ORDER BY r.id ASC
+            """, (cliente_id,))
+            rentas = cursor.fetchall()
+
+            # Agrupar por folio raíz (renta original de cada cadena de renovaciones)
+            cadenas = {}
+            orden_raiz = []
+            for r in rentas:
+                raiz_id = r['renta_asociada_id'] or r['id']
+                if raiz_id not in cadenas:
+                    cadenas[raiz_id] = []
+                    orden_raiz.append(raiz_id)
+                cadenas[raiz_id].append(r)
+
+            historial = []
+            for raiz_id in orden_raiz:
+                eslabones = cadenas[raiz_id]
+                raiz = eslabones[0]
+                actual = eslabones[-1]
+
+                estados_pago = [e['estado_pago'] or '' for e in eslabones]
+                num_pagos_pendientes = sum(1 for ep in estados_pago if 'pendiente' in ep.lower())
+
+                estado_renta_actual = (actual['estado_renta'] or '').lower().strip()
+                if estado_renta_actual == 'cancelada':
+                    estado_consolidado = 'Cancelada'
+                elif estado_renta_actual == 'finalizada':
+                    estado_consolidado = 'Finalizada'
+                else:
+                    estado_consolidado = 'Activa'
+
+                tiene_retraso = any((e['estado_retraso'] or '') == 'Retraso Pendiente' for e in eslabones)
+                total_acumulado = sum(float(e['total_con_iva'] or 0) for e in eslabones)
+
+                historial.append({
+                    'raiz_id': raiz_id,
+                    'folio': raiz['folio'],
+                    'sucursal_nombre': raiz['sucursal_nombre'],
+                    'fecha_inicio': raiz['fecha_salida'],
+                    'fecha_fin': actual['fecha_entrada'] if estado_renta_actual == 'finalizada' else None,
+                    'direccion_obra': actual['direccion_obra'],
+                    'estado_consolidado': estado_consolidado,
+                    'num_pagos_pendientes': num_pagos_pendientes,
+                    'num_renovaciones': len(eslabones),
+                    'tiene_retraso': tiene_retraso,
+                    'total_acumulado': total_acumulado,
+                    'eslabones': eslabones
+                })
+
+            historial.sort(key=lambda h: h['raiz_id'], reverse=True)
+            return historial
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
     def obtener_sucursales():
         """Obtiene todas las sucursales del sistema."""
         conn = get_db_connection()

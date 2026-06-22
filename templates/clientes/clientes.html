@@ -73,11 +73,7 @@
                     {% for cliente in clientes %}
                     <tr>
                         <td>{{ cliente.codigo_cliente }}</td>
-                        <td>
-                            <a href="{{ url_for('clientes.detalle_cliente', id=cliente.id) }}" class="fw-bold">
-                                {{ cliente.nombre }}
-                            </a>
-                        </td>
+                        <td class="fw-bold">{{ cliente.nombre }}</td>
                         <td>{{ cliente.apellido1 }} {{ cliente.apellido2 }}</td>
                         <td>{{ cliente.telefono }}</td>
                         <td>{{ cliente.fecha_alta.strftime('%d/%m/%Y') if cliente.fecha_alta else '' }}</td>
@@ -97,6 +93,10 @@
                             {% endif %}
                         </td>
                         <td>
+                            <a href="{{ url_for('clientes.detalle_cliente', id=cliente.id) }}"
+                                class="btn btn-sm btn-outline-navy action-btn-clientes" title="Ver detalle">
+                                <i class="bi bi-eye"></i>
+                            </a>
                             {% if ver_bajas == '1' %}
                             <button class="btn btn-sm btn-outline-primary action-btn-clientes"
                                 title="Dar de alta nuevamente"

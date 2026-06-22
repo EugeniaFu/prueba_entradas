@@ -130,6 +130,14 @@
     background: #23395d !important;
     color: #fff !important;
 }
+.action-btn-clientes.btn-outline-navy, .action-btn-clientes.btn-outline-navy:focus {
+    border-color: #23395d !important;
+    color: #23395d !important;
+}
+.action-btn-clientes.btn-outline-navy:hover {
+    background: #23395d !important;
+    color: #fff !important;
+}
 
 /* --- NUEVO CLIENTE / FORMULARIO --- */
 .nuevo-cliente-card {

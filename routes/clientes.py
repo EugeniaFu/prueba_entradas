@@ -7,6 +7,7 @@ import requests
 from utils.datetime_utils import get_local_now, format_date_local
 from utils.decorators import requiere_sesion, requiere_permiso
 from services.cliente_service import ClienteService
+from services.renta_service import RentasService
 
 SUCURSAL_PREFIJOS = {
     1: "01",  # Matriz
@@ -155,11 +156,13 @@ def eliminar_cliente(id):
 def detalle_cliente(id):
     cliente = ClienteService.obtener_detalle_cliente(id)
     documentos = ClienteService.obtener_documentos_cliente(id)
-    
+
     if not cliente:
         flash("Cliente no encontrado.", "danger")
         return redirect(url_for('clientes.clientes'))
-    return render_template('clientes/detalle_cliente.html', cliente=cliente, documentos=documentos)
+
+    historial = RentasService.obtener_historial_cliente(id)
+    return render_template('clientes/detalle_cliente.html', cliente=cliente, documentos=documentos, historial=historial)
 
 
 
