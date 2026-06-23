@@ -6,6 +6,7 @@ from utils.folios import obtener_siguiente_folio_nota_sucursal
 # Importar funciones de datetime utils
 from utils.datetime_utils import get_local_now, format_datetime_local
 from utils.decorators import requiere_sesion, requiere_permiso
+from services.renta_service import RentasService
 
 from flask import send_file
 from io import BytesIO
@@ -564,6 +565,77 @@ def crear_nota_entrada(renta_id):
 ####################################################################
 
 
+####################################################################
+####################################################################
+####################################################################
+####################################################################
+########## NOTA DE ENTRADA MÚLTIPLE (consolidación por cliente) ###
+
+@notas_entrada_bp.route('/pendientes_cliente/<int:cliente_id>')
+@requiere_sesion()
+@requiere_permiso('ver_notas_entrada')
+def pendientes_cliente(cliente_id):
+    sucursal_id = request.args.get('sucursal_id', type=int)
+    if not sucursal_id:
+        return jsonify({'error': 'Falta indicar la sucursal.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT id, CONCAT(nombre, ' ', apellido1, ' ', apellido2) AS nombre_completo, telefono
+        FROM clientes WHERE id = %s
+    """, (cliente_id,))
+    cliente = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not cliente:
+        return jsonify({'error': 'Cliente no encontrado.'}), 404
+
+    rentas = RentasService.obtener_rentas_pendientes_cliente(cliente_id, sucursal_id)
+
+    return jsonify({
+        'cliente': cliente,
+        'rentas': rentas
+    })
+
+
+@notas_entrada_bp.route('/crear_multiple', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_nota_entrada')
+def crear_nota_entrada_multiple():
+    data = request.get_json()
+    cliente_id = data.get('cliente_id')
+    sucursal_id = data.get('sucursal_id')
+    rentas = data.get('rentas', [])
+    observaciones = data.get('observaciones', '')
+
+    if not cliente_id or not sucursal_id:
+        return jsonify({'success': False, 'error': 'Falta cliente o sucursal.'}), 400
+
+    try:
+        cliente_id = int(cliente_id)
+        sucursal_id = int(sucursal_id)
+        for item in rentas:
+            item['renta_id'] = int(item['renta_id'])
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Datos de cliente/sucursal/renta inválidos.'}), 400
+
+    success, nota_entrada_id, folio, err_msg = RentasService.crear_nota_entrada_consolidada(
+        cliente_id, sucursal_id, rentas, observaciones, session.get('user_id')
+    )
+
+    if success:
+        return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id, 'folio': folio})
+    return jsonify({'success': False, 'error': err_msg})
+
+
+####################################################################
+####################################################################
+####################################################################
+####################################################################
+
+
 @notas_entrada_bp.route('/historial/<int:renta_id>')
 @requiere_sesion()
 @requiere_permiso('ver_notas_entrada')
@@ -597,6 +669,40 @@ def historial_notas_entrada(renta_id):
 @requiere_sesion()
 @requiere_permiso('ver_notas_entrada')
 def generar_pdf_nota_entrada(nota_entrada_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # ¿Esta nota consolida varias rentas? El folio es solo el número impreso en
+    # el comprobante; cada renta consolidada tiene su propia fila en
+    # notas_entrada (su propio id, igual que en el flujo normal de una sola
+    # renta), así que la consolidación se detecta por filas que comparten
+    # folio + sucursal.
+    cursor.execute("""
+        SELECT ne.folio, r.id_sucursal
+        FROM notas_entrada ne
+        JOIN rentas r ON ne.renta_id = r.id
+        WHERE ne.id = %s
+    """, (nota_entrada_id,))
+    base = cursor.fetchone()
+    if not base:
+        cursor.close()
+        conn.close()
+        return "Nota de entrada no encontrada", 404
+
+    cursor.execute("""
+        SELECT ne.id AS nota_entrada_id, ne.renta_id
+        FROM notas_entrada ne
+        JOIN rentas r ON ne.renta_id = r.id
+        WHERE ne.folio = %s AND r.id_sucursal = %s
+        ORDER BY ne.id ASC
+    """, (base['folio'], base['id_sucursal']))
+    rentas_consolidadas = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    if len(rentas_consolidadas) > 1:
+        return _generar_pdf_nota_entrada_multiple(rentas_consolidadas)
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
@@ -908,3 +1014,284 @@ def generar_pdf_nota_entrada_por_renta(renta_id):
     if not nota:
         return f"No hay nota de entrada para la renta {renta_id}", 404
     return redirect(url_for('notas_entrada.generar_pdf_nota_entrada', nota_entrada_id=nota['id']))
+
+
+#############################################
+#############################################
+########## PDF NOTA DE ENTRADA MÚLTIPLE ####
+#############################################
+
+def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
+    """
+    Genera un único folio (impreso) con una sección por cada renta consolidada,
+    aunque internamente cada renta tiene su propia fila/id en notas_entrada
+    (igual que en el flujo normal de una sola renta).
+    """
+    from reportlab.lib.utils import simpleSplit
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    renta_ids = [r['renta_id'] for r in rentas_consolidadas]
+    nota_entrada_id_por_renta = {r['renta_id']: r['nota_entrada_id'] for r in rentas_consolidadas}
+
+    # Cabecera: folio, fecha y observaciones se toman de la primera nota (todas
+    # comparten el mismo folio impreso, generado en el mismo momento)
+    primer_nota_entrada_id = rentas_consolidadas[0]['nota_entrada_id']
+    cursor.execute("""
+        SELECT ne.folio, ne.fecha_entrada_real, ne.observaciones, ne.usuario_id AS creador_id,
+               CONCAT(uo.nombre, ' ', uo.apellido1, ' ', uo.apellido2) AS creador_nombre
+        FROM notas_entrada ne
+        LEFT JOIN usuarios uo ON ne.usuario_id = uo.id
+        WHERE ne.id = %s
+    """, (primer_nota_entrada_id,))
+    nota = cursor.fetchone()
+    if not nota:
+        cursor.close()
+        conn.close()
+        return "Nota de entrada no encontrada", 404
+
+    cursor.execute(f"""
+        SELECT r.id, r.folio, r.direccion_obra, r.id_sucursal,
+               CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
+               c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, c.numero_interior,
+               c.entre_calles, c.colonia, c.codigo_postal, s.plantilla_renta
+        FROM rentas r
+        JOIN clientes c ON r.cliente_id = c.id
+        JOIN sucursales s ON r.id_sucursal = s.id
+        WHERE r.id IN ({','.join(['%s'] * len(renta_ids))})
+    """, tuple(renta_ids))
+    rentas_info = {r['id']: r for r in cursor.fetchall()}
+
+    nota_salida_ids = []
+    for renta_id in renta_ids:
+        cursor.execute("SELECT nota_salida_id FROM notas_entrada WHERE id = %s", (nota_entrada_id_por_renta[renta_id],))
+        ns_row = cursor.fetchone()
+        if ns_row:
+            nota_salida_ids.append((renta_id, ns_row['nota_salida_id']))
+
+    if nota_salida_ids:
+        ids_unicos = list({ns_id for _, ns_id in nota_salida_ids})
+        cursor.execute(f"""
+            SELECT id, folio FROM notas_salida WHERE id IN ({','.join(['%s'] * len(ids_unicos))})
+        """, tuple(ids_unicos))
+        folio_por_nota_salida = {r['id']: r['folio'] for r in cursor.fetchall()}
+        for renta_id, ns_id in nota_salida_ids:
+            if renta_id in rentas_info:
+                rentas_info[renta_id]['folio_salida'] = folio_por_nota_salida.get(ns_id)
+
+    piezas_por_renta = {}
+    for renta_id in renta_ids:
+        cursor.execute("""
+            SELECT ned.cantidad_esperada, ned.cantidad_recibida, ned.cantidad_buena,
+                   ned.cantidad_danada, ned.cantidad_sucia, ned.cantidad_perdida, p.nombre_pieza
+            FROM notas_entrada_detalle ned
+            JOIN piezas p ON ned.id_pieza = p.id_pieza
+            WHERE ned.nota_entrada_id = %s
+            ORDER BY p.nombre_pieza
+        """, (nota_entrada_id_por_renta[renta_id],))
+        piezas_por_renta[renta_id] = cursor.fetchall()
+
+    usuario_nombre = nota['creador_nombre'].upper() if nota.get('creador_nombre') else "USUARIO NO IDENTIFICADO"
+    primera_renta = rentas_info[renta_ids[0]]
+    sucursal_id = primera_renta['id_sucursal']
+
+    cursor.close()
+    conn.close()
+
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+
+    try:
+        font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+        if os.path.exists(font_path):
+            pdfmetrics.registerFont(TTFont('Carlito', font_path))
+    except Exception:
+        pass
+
+    page_width, page_height = letter
+
+    def nueva_pagina_continuacion():
+        can.showPage()
+        can.setFont("Carlito", 10)
+        return page_height - 60
+
+    # === ENCABEZADO ÚNICO ===
+    can.setFont("Courier-Bold", 20)
+    can.drawRightString(575, 690, f"#{str(nota['folio']).zfill(5)}")
+
+    can.setFont("Carlito", 12)
+    fecha_entrada = nota['fecha_entrada_real'].strftime('%d/%m/%Y - %H:%M:%S')
+    can.drawRightString(575, 715, fecha_entrada)
+
+    can.setFont("Courier-Bold", 23)
+    can.drawString(480, 732, "ENTRADA")
+
+    can.setFont("Courier-Bold", 15)
+    can.drawString(36, 715, "RENTA DE EQUIPO")
+
+    can.setFont("Carlito", 10)
+    cliente_completo = f"{primera_renta['codigo_cliente']} - {primera_renta['cliente_nombre'].upper()}"
+    can.drawString(36, 695, f"CLIENTE: {cliente_completo}")
+    can.drawString(36, 680, f"TELÉFONO: {primera_renta['telefono'] or 'NO REGISTRADO'}")
+
+    direccion_completa = primera_renta['calle'] or ''
+    if primera_renta['numero_exterior']:
+        direccion_completa += f" #{primera_renta['numero_exterior']}"
+    if primera_renta['numero_interior']:
+        direccion_completa += f", INT. {primera_renta['numero_interior']}"
+    if primera_renta['entre_calles']:
+        direccion_completa += f" (ENTRE {primera_renta['entre_calles']})"
+    if primera_renta['colonia']:
+        direccion_completa += f", COL. {primera_renta['colonia']}"
+    if primera_renta['codigo_postal']:
+        direccion_completa += f" - C.P. {primera_renta['codigo_postal']}"
+
+    direccion_lines = simpleSplit(f"DIRECCIÓN: {direccion_completa.upper()}", "Carlito", 10, 530)
+    y_position = 665
+    for line in direccion_lines:
+        can.drawString(36, y_position, line)
+        y_position -= 12
+
+    y_position -= 15
+    can.setFont("Carlito", 10)
+    can.drawString(36, y_position, "RECIBÍ DE: ______________________________")
+    y_position -= 15
+    can.drawString(36, y_position, f"EL SIGUIENTE EQUIPO, CONSOLIDADO DE {len(renta_ids)} RENTAS:")
+    y_position -= 20
+
+    # === UNA SECCIÓN POR RENTA ===
+    for renta_id in renta_ids:
+        renta = rentas_info[renta_id]
+        piezas = piezas_por_renta[renta_id]
+
+        hay_piezas_problematicas = any(
+            (p['cantidad_danada'] or 0) > 0 or (p['cantidad_sucia'] or 0) > 0 or (p['cantidad_perdida'] or 0) > 0
+            for p in piezas
+        )
+
+        if y_position < 150:
+            y_position = nueva_pagina_continuacion()
+
+        folio_salida_texto = str(renta.get('folio_salida')).zfill(5) if renta.get('folio_salida') is not None else '-----'
+        can.setFont("Helvetica-Bold", 11)
+        can.drawString(36, y_position, f"RENTA SUC{renta['id_sucursal']}-{str(renta['folio']).zfill(4)}  (FOLIO SALIDA #{folio_salida_texto})")
+        y_position -= 14
+
+        can.setFont("Carlito", 9)
+        obra_lines = simpleSplit(f"OBRA: {(renta['direccion_obra'] or '').upper()}", "Carlito", 9, 530)
+        for line in obra_lines:
+            can.drawString(36, y_position, line)
+            y_position -= 11
+        y_position -= 4
+
+        can.setFont("Helvetica-Bold", 9)
+        can.drawString(36, y_position + 5, "CANT. (PIEZAS)")
+        can.drawString(150, y_position + 5, "DESCRIPCIÓN")
+        can.drawString(350, y_position + 5, "RECIBIDAS")
+        if hay_piezas_problematicas:
+            can.drawString(420, y_position + 5, "BUENAS")
+            can.drawString(470, y_position + 5, "DAÑADAS")
+            can.drawString(520, y_position + 5, "PERDIDAS")
+        y_position -= 15
+
+        can.setFont("Carlito", 10)
+
+        def mostrar_vacio_si_cero(val):
+            return "" if not val else str(val)
+
+        for pieza in piezas:
+            if y_position < 100:
+                y_position = nueva_pagina_continuacion()
+
+            can.drawString(70, y_position + 5, str(pieza['cantidad_esperada']))
+            can.drawString(150, y_position + 5, pieza['nombre_pieza'].upper())
+            can.drawString(355, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_recibida']))
+            if hay_piezas_problematicas:
+                can.drawString(435, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
+                can.drawString(485, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
+                can.drawString(535, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_perdida']))
+            y_position -= 13
+
+        y_position -= 18
+
+    # === TÉRMINOS Y FIRMAS (una sola vez, al final) ===
+    if y_position < 140:
+        y_position = nueva_pagina_continuacion()
+
+    can.setFont("Carlito", 9)
+    terminos_lines = simpleSplit(
+        "IMPORTANTE: CUALQUIER DAÑO, PÉRDIDA O EQUIPO SUCIO SERÁ FACTURADO SEGÚN TARIFAS VIGENTES.",
+        "Carlito", 9, 520
+    )
+    for line in terminos_lines:
+        if y_position < 100:
+            y_position = nueva_pagina_continuacion()
+        can.drawString(36, y_position, line)
+        y_position -= 12
+
+    y_position -= 40
+    if y_position < 80:
+        y_position = nueva_pagina_continuacion()
+
+    can.setFont("Carlito", 10)
+    can.line(60, y_position, 250, y_position)
+    can.line(350, y_position, 540, y_position)
+    y_position -= 15
+    can.drawString(60, y_position, "RECIBE: ANDAMIOS COLOSIO")
+    can.drawString(350, y_position, "ENTREGA: _______________________")
+    y_position -= 10
+    can.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
+    y_position -= 15
+
+    if nota['observaciones']:
+        y_position -= 20
+        can.setFont("Carlito", 13)
+        obs_lines = simpleSplit(f"OBSERVACIONES: {nota['observaciones'].upper()}", "Carlito", 13, 550)
+        for line in obs_lines:
+            if y_position < 50:
+                y_position = nueva_pagina_continuacion()
+            can.drawString(36, y_position, line)
+            y_position -= 18
+
+    can.save()
+    packet.seek(0)
+
+    try:
+        plantilla_path = None
+        if primera_renta.get('plantilla_renta'):
+            plantilla_path = os.path.join(current_app.root_path, primera_renta['plantilla_renta'])
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+
+        if os.path.exists(plantilla_path):
+            plantilla_pdf = PdfReader(plantilla_path)
+            page = plantilla_pdf.pages[0]
+            page.merge_page(overlay_pdf.pages[0])
+            output.add_page(page)
+            for i in range(1, len(overlay_pdf.pages)):
+                output.add_page(overlay_pdf.pages[i])
+        else:
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+    except Exception as e:
+        print(f"Error con plantilla: {e}")
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+        for page in overlay_pdf.pages:
+            output.add_page(page)
+
+    output_stream = BytesIO()
+    output.write(output_stream)
+    output_stream.seek(0)
+
+    return send_file(
+        output_stream,
+        download_name=f"nota_entrada_{str(nota['folio']).zfill(5)}.pdf",
+        mimetype='application/pdf'
+    )

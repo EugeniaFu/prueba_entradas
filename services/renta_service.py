@@ -1,6 +1,8 @@
 from flask import session
+from datetime import datetime, timedelta
 from utils.db import get_db_connection
 from utils.folios import obtener_siguiente_folio_renta_sucursal, obtener_siguiente_folio_nota_sucursal
+from utils.datetime_utils import get_local_now_naive
 
 class RentasService:
     @staticmethod
@@ -435,6 +437,245 @@ class RentasService:
             HAVING cantidad_pendiente > 0
         """, (padre_real_id, padre_real_id, padre_real_id))
         return cursor.fetchall()
+
+    @staticmethod
+    def obtener_rentas_pendientes_cliente(cliente_id, sucursal_id):
+        """
+        Lista las rentas activas de un cliente en una sucursal dada que aún tienen
+        piezas pendientes de regresar. Es la base de la nota de entrada múltiple:
+        permite elegir cuáles de esas rentas se devuelven juntas en un solo folio.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT r.id, r.folio, r.direccion_obra, r.fecha_salida, r.fecha_entrada,
+                       r.estado_renta, r.renta_asociada_id
+                FROM rentas r
+                WHERE r.cliente_id = %s AND r.id_sucursal = %s
+                  AND LOWER(TRIM(r.estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'programada', 'en recolección')
+                ORDER BY r.id ASC
+            """, (cliente_id, sucursal_id))
+            rentas = cursor.fetchall()
+
+            resultado = []
+            for renta in rentas:
+                padre_real_id = renta['renta_asociada_id'] or renta['id']
+
+                cursor.execute("""
+                    SELECT id AS nota_salida_id, folio AS folio_salida
+                    FROM notas_salida WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+                """, (padre_real_id,))
+                ns_row = cursor.fetchone()
+                if not ns_row:
+                    continue
+                folio_salida = ns_row['folio_salida']
+
+                cursor.execute("""
+                    SELECT
+                        entregado.id_pieza, p.nombre_pieza,
+                        (entregado.cantidad_salida - IFNULL(recibido.cantidad_recibida_total, 0)) AS cantidad_pendiente
+                    FROM (
+                        SELECT nsd.id_pieza, SUM(nsd.cantidad) AS cantidad_salida
+                        FROM notas_salida ns
+                        JOIN notas_salida_detalle nsd ON ns.id = nsd.nota_salida_id
+                        WHERE ns.renta_id = %s
+                        GROUP BY nsd.id_pieza
+                    ) entregado
+                    JOIN piezas p ON p.id_pieza = entregado.id_pieza
+                    LEFT JOIN (
+                        SELECT ned.id_pieza, SUM(ned.cantidad_recibida) AS cantidad_recibida_total
+                        FROM notas_entrada ne
+                        JOIN notas_entrada_detalle ned ON ne.id = ned.nota_entrada_id
+                        WHERE ne.renta_id = %s OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = %s)
+                        GROUP BY ned.id_pieza
+                    ) recibido ON entregado.id_pieza = recibido.id_pieza
+                    HAVING cantidad_pendiente > 0
+                    ORDER BY p.nombre_pieza
+                """, (padre_real_id, padre_real_id, padre_real_id))
+                piezas_pendientes = cursor.fetchall()
+
+                if not piezas_pendientes:
+                    continue
+
+                resultado.append({
+                    'renta_id': renta['id'],
+                    'folio': renta['folio'],
+                    'folio_salida': folio_salida,
+                    'nota_salida_id': ns_row['nota_salida_id'],
+                    'direccion_obra': renta['direccion_obra'],
+                    'fecha_salida': renta['fecha_salida'].strftime('%Y-%m-%d') if renta['fecha_salida'] else None,
+                    'fecha_entrada': renta['fecha_entrada'].strftime('%Y-%m-%d') if renta['fecha_entrada'] else None,
+                    'piezas': piezas_pendientes
+                })
+
+            return resultado
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def crear_nota_entrada_consolidada(cliente_id, sucursal_id, rentas_payload, observaciones, usuario_id):
+        """
+        Crea UNA sola nota de entrada que consolida la devolución completa de varias
+        rentas del mismo cliente y sucursal. Solo se permite cuando cada renta
+        incluida cierra al 100% (sin piezas pendientes); si alguna queda parcial,
+        se rechaza y debe devolverse aparte con el flujo normal de una sola renta.
+        """
+        if not rentas_payload or len(rentas_payload) < 2:
+            return False, None, None, "Selecciona al menos 2 rentas para consolidar."
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            conn.start_transaction()
+
+            info_rentas = []
+            for item in rentas_payload:
+                renta_id = item['renta_id']
+                cursor.execute("""
+                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio, fecha_entrada
+                    FROM rentas WHERE id = %s
+                """, (renta_id,))
+                renta_row = cursor.fetchone()
+                if not renta_row:
+                    raise ValueError(f"Renta {renta_id} no encontrada.")
+                if renta_row['cliente_id'] != cliente_id or renta_row['id_sucursal'] != sucursal_id:
+                    raise ValueError(f"La renta {renta_id} no pertenece a este cliente o sucursal.")
+                if (renta_row['estado_renta'] or '').lower().strip() not in ('en curso', 'activo', 'activa renovacion', 'programada', 'en recolección'):
+                    raise ValueError(f"La renta SUC{sucursal_id}-{renta_row['folio']} ya no admite nota de entrada.")
+
+                padre_real_id = renta_row['renta_asociada_id'] or renta_id
+
+                cursor.execute("""
+                    SELECT id AS nota_salida_id FROM notas_salida
+                    WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+                """, (padre_real_id,))
+                ns_row = cursor.fetchone()
+                if not ns_row:
+                    raise ValueError(f"La renta SUC{sucursal_id}-{renta_row['folio']} no tiene nota de salida asociada.")
+
+                # Validar que la devolución sea completa contra lo que realmente está
+                # pendiente en BD (no lo que mande el cliente a ciegas desde el navegador)
+                pendientes = RentasService._calcular_piezas_pendientes_renta(cursor, padre_real_id)
+                pendientes_dict = {p['id_pieza']: p['cantidad_pendiente'] for p in pendientes}
+                piezas_enviadas = {int(p['id_pieza']): int(p.get('cantidad_recibida', 0)) for p in item['piezas']}
+
+                for id_pieza, pendiente in pendientes_dict.items():
+                    if piezas_enviadas.get(id_pieza, 0) != pendiente:
+                        raise ValueError(
+                            f"La renta SUC{sucursal_id}-{renta_row['folio']} no se está devolviendo completa. "
+                            "Solo se pueden consolidar rentas que cierran al 100%."
+                        )
+
+                # Calcular si esta renta en particular llega con retraso (cada
+                # renta consolidada puede estar o no vencida; no se cobra aquí,
+                # solo se marca para que el flujo normal de "Cobrar Retraso" la
+                # detecte después)
+                estado_retraso_renta = 'Sin Retraso'
+                if renta_row['fecha_entrada']:
+                    fecha_base = renta_row['fecha_entrada']
+                    if isinstance(fecha_base, datetime):
+                        fecha_base = fecha_base.date()
+                    fecha_limite_dt = datetime.combine(fecha_base + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
+                    if get_local_now_naive() > fecha_limite_dt:
+                        estado_retraso_renta = 'Retraso Pendiente'
+
+                info_rentas.append({
+                    'renta_id': renta_id,
+                    'folio': renta_row['folio'],
+                    'nota_salida_id': ns_row['nota_salida_id'],
+                    'estado_retraso': estado_retraso_renta,
+                    'piezas': item['piezas']
+                })
+
+            # Un solo folio de entrada compartido por todas las rentas consolidadas
+            # (es solo el número impreso en el comprobante). Internamente cada renta
+            # sigue generando su propia fila en notas_entrada con su propio id único,
+            # exactamente igual que en el flujo normal de una sola renta.
+            folio = obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id)
+
+            primer_nota_entrada_id = None
+            for info in info_rentas:
+                cursor.execute("""
+                    INSERT INTO notas_entrada (
+                        folio, renta_id, nota_salida_id, fecha_entrada_real,
+                        requiere_traslado_extra, costo_traslado_extra, observaciones,
+                        estado, created_at, estado_retraso, accion_devolucion, usuario_id
+                    ) VALUES (%s, %s, %s, NOW(), 'ninguno', 0, %s, 'normal', NOW(), %s, 'no', %s)
+                """, (folio, info['renta_id'], info['nota_salida_id'], observaciones, info['estado_retraso'], usuario_id))
+                nota_entrada_id = cursor.lastrowid
+                if primer_nota_entrada_id is None:
+                    primer_nota_entrada_id = nota_entrada_id
+
+                hay_cobro_extra = False
+                for pieza in info['piezas']:
+                    id_pieza = int(pieza['id_pieza'])
+                    cantidad_esperada = int(pieza.get('cantidad_esperada', 0))
+                    cantidad_recibida = int(pieza.get('cantidad_recibida', 0))
+                    cantidad_buena = int(pieza.get('cantidad_buena', 0))
+                    cantidad_danada = int(pieza.get('cantidad_danada', 0))
+                    cantidad_sucia = int(pieza.get('cantidad_sucia', 0))
+                    cantidad_perdida = int(pieza.get('cantidad_perdida', 0))
+
+                    if cantidad_danada > 0 or cantidad_sucia > 0 or cantidad_perdida > 0:
+                        hay_cobro_extra = True
+
+                    cursor.execute("""
+                        INSERT INTO notas_entrada_detalle (
+                            nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
+                            cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
+                        cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida
+                    ))
+
+                    cursor.execute("""
+                        SELECT id_inventario FROM inventario_sucursal
+                        WHERE id_sucursal = %s AND id_pieza = %s
+                    """, (sucursal_id, id_pieza))
+                    if not cursor.fetchone():
+                        continue
+
+                    cursor.execute("""
+                        UPDATE inventario_sucursal
+                        SET disponibles = disponibles + %s, rentadas = rentadas - %s
+                        WHERE id_sucursal = %s AND id_pieza = %s
+                    """, (cantidad_buena, cantidad_buena, sucursal_id, id_pieza))
+
+                    if cantidad_danada > 0:
+                        cursor.execute("""
+                            UPDATE inventario_sucursal
+                            SET daniadas = daniadas + %s, rentadas = rentadas - %s
+                            WHERE id_sucursal = %s AND id_pieza = %s
+                        """, (cantidad_danada, cantidad_danada, sucursal_id, id_pieza))
+
+                    if cantidad_perdida > 0:
+                        cursor.execute("""
+                            UPDATE inventario_sucursal
+                            SET perdidas = perdidas + %s, rentadas = rentadas - %s, total = total - %s
+                            WHERE id_sucursal = %s AND id_pieza = %s
+                        """, (cantidad_perdida, cantidad_perdida, cantidad_perdida, sucursal_id, id_pieza))
+
+                # Por construcción esta renta cierra al 100% (ya validado arriba)
+                cursor.execute("UPDATE rentas SET estado_renta = 'finalizada' WHERE id = %s", (info['renta_id'],))
+                cursor.execute("""
+                    UPDATE rentas SET estado_renta = 'finalizada'
+                    WHERE renta_asociada_id = %s AND estado_renta = 'activa renovacion'
+                """, (info['renta_id'],))
+                cursor.execute("""
+                    UPDATE rentas SET estado_cobro_extra = %s WHERE id = %s
+                """, ('Extra Pendiente' if hay_cobro_extra else None, info['renta_id']))
+
+            conn.commit()
+            return True, primer_nota_entrada_id, folio, None
+        except Exception as e:
+            conn.rollback()
+            return False, None, None, str(e)
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def _puede_cancelar_renta(estado_renta, estado_pago):

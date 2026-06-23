@@ -223,7 +223,7 @@ def sugerencias_cobro_extra(renta_id):
                    nd.cantidad_danada, nd.cantidad_sucia, nd.cantidad_perdida
             FROM notas_entrada_detalle nd
             JOIN piezas p ON nd.id_pieza = p.id_pieza
-            WHERE nd.nota_entrada_id = %s 
+            WHERE nd.nota_entrada_id = %s
             AND (nd.cantidad_danada > 0 OR nd.cantidad_sucia > 0 OR nd.cantidad_perdida > 0)
         """, (nota_entrada_id,))
         piezas = cursor.fetchall()
@@ -722,7 +722,7 @@ def obtener_cobros_extra_pendientes(renta_id):
                 ne.renta_id
             FROM notas_cobro_extra nce
             JOIN notas_entrada ne ON nce.nota_entrada_id = ne.id
-            WHERE ne.renta_id = %s 
+            WHERE ne.renta_id = %s
             AND nce.estado_pago IN ('pendiente', 'Extra Pendiente', 'parcial')
             ORDER BY nce.fecha DESC
         """, (renta_id,))

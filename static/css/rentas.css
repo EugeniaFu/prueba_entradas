@@ -1155,6 +1155,191 @@ border: 2px solid #0d6efd;
     font-size: 0.85rem;
 }
 
+/* MODAL NOTA DE ENTRADA MÚLTIPLE (reutiliza el mismo lenguaje visual que #modalNotaEntrada) */
+#modalNotaEntradaMultiple .modal-header {
+    background: #23395d;
+    color: #fff;
+    border-bottom: none;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 1.5rem 2rem;
+}
+
+#modalNotaEntradaMultiple .modal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff !important;
+}
+
+#modalNotaEntradaMultiple .modal-content {
+    border: 2px solid #23395d;
+    border-radius: 16px;
+}
+
+#modalNotaEntradaMultiple .modal-footer-azul {
+    background: #f1f4fa;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-top: 2px solid #23395d;
+    padding: 1.2rem 2rem;
+}
+
+#modalNotaEntradaMultiple .card-header {
+    background: #23395d;
+    color: #fff !important;
+    border-bottom: 2px solid #1a2d4a;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+}
+
+#modalNotaEntradaMultiple .card-header h6 {
+    color: #fff !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#modalNotaEntradaMultiple .card {
+    border: 2px solid #23395d;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#modalNotaEntradaMultiple .card-body {
+    padding: 1.5rem;
+    background: #fafbfd;
+}
+
+#modalNotaEntradaMultiple .table-dark th {
+    background: #23395d !important;
+    border-color: #1a2d4a !important;
+    color: #fff !important;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.6rem 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#modalNotaEntradaMultiple .table-bordered td {
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    background: #fff;
+    border-color: #dee2e6;
+}
+
+#modalNotaEntradaMultiple .form-label {
+    color: #23395d;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#modalNotaEntradaMultiple .form-control,
+#modalNotaEntradaMultiple .form-select {
+    border-radius: 8px;
+    border: 2px solid #dee2e6;
+    font-size: 0.95rem;
+    padding: 0.6rem 1rem;
+    background-color: #fff;
+}
+
+#modalNotaEntradaMultiple .form-control:focus,
+#modalNotaEntradaMultiple .form-select:focus {
+    border-color: #23395d;
+    box-shadow: 0 0 0 0.2rem rgba(35, 57, 93, 0.25);
+    background-color: #f8f9fa;
+}
+
+#modalNotaEntradaMultiple .btn {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+}
+
+#modalNotaEntradaMultiple .btn-primary {
+    background: #23395d;
+    border-color: #23395d;
+    color: #fff;
+}
+
+#modalNotaEntradaMultiple .btn-primary:hover {
+    background: #1a2d4a;
+    border-color: #1a2d4a;
+}
+
+#modalNotaEntradaMultiple .btn-secondary {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+#modalNotaEntradaMultiple .modal-body {
+    padding: 2rem;
+    background: #f8f9fa;
+}
+
+#modalNotaEntradaMultiple .text-primary {
+    color: #23395d !important;
+    font-weight: 600;
+}
+
+#modalNotaEntradaMultiple .form-check-label {
+    color: #23395d;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+#modalNotaEntradaMultiple .alert {
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+#modalNotaEntradaMultiple .text-muted {
+    color: #6c757d !important;
+    font-size: 0.85rem;
+}
+
+#modalNotaEntradaMultiple .list-group-item {
+    cursor: pointer;
+    border-color: #dee2e6;
+}
+
+#modalNotaEntradaMultiple .list-group-item:hover {
+    background: #f1f4fa;
+}
+
+/* Responsive adjustments para modal nota entrada múltiple */
+@media (max-width: 768px) {
+    #modalNotaEntradaMultiple .modal-dialog {
+        max-width: 95%;
+        margin: 1rem auto;
+    }
+
+    #modalNotaEntradaMultiple .modal-header {
+        padding: 1rem 1.5rem;
+    }
+
+    #modalNotaEntradaMultiple .modal-title {
+        font-size: 1.2rem;
+    }
+
+    #modalNotaEntradaMultiple .modal-body {
+        padding: 1.5rem;
+    }
+
+    #modalNotaEntradaMultiple .card-header h6 {
+        font-size: 1rem;
+    }
+}
+
 /* Responsive adjustments para modal nota entrada */
 @media (max-width: 768px) {
     #modalNotaEntrada .modal-dialog {

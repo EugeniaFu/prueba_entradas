@@ -1,0 +1,88 @@
+<div class="modal fade" id="modalNotaEntradaMultiple" tabindex="-1" aria-labelledby="modalNotaEntradaMultipleLabel"
+  aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl">
+    <form id="form-nota-entrada-multiple" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalNotaEntradaMultipleLabel">
+          <i class="bi bi-box-arrow-in-down me-2"></i>Nota de Entrada Múltiple
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3 align-items-stretch">
+          <!-- Columna Izquierda - Cliente y Rentas -->
+          <div class="col-md-5">
+            <div class="card h-100">
+              <div class="card-header text-center">
+                <h6 class="mb-0">
+                  <i class="bi bi-person-fill me-2"></i>Cliente y Rentas a Devolver
+                </h6>
+              </div>
+              <div class="card-body">
+                <!-- Paso 1: Selección de cliente -->
+                <div class="mb-3 position-relative">
+                  <label class="form-label">Buscar cliente</label>
+                  <input type="text" id="nem-buscador-cliente" class="form-control"
+                    placeholder="Escribe nombre, teléfono o código del cliente...">
+                  <div id="nem-resultados-cliente" class="list-group position-absolute w-100"
+                    style="z-index: 1060; display: none;"></div>
+                </div>
+
+                <div id="nem-cliente-seleccionado" class="alert alert-info d-none">
+                  <i class="bi bi-person-check me-2"></i>
+                  <strong id="nem-cliente-nombre"></strong>
+                  <button type="button" id="nem-btn-cambiar-cliente" class="btn btn-sm btn-secondary float-end">
+                    Cambiar cliente
+                  </button>
+                </div>
+
+                <!-- Paso 2: Lista de rentas pendientes -->
+                <div id="nem-paso-rentas" class="d-none">
+                  <label class="form-label">Rentas con piezas pendientes</label>
+                  <div id="nem-sin-rentas" class="alert alert-warning d-none">
+                    Este cliente no tiene rentas con piezas pendientes en esta sucursal.
+                  </div>
+                  <div id="nem-lista-rentas"></div>
+                </div>
+
+                <div class="mb-0 mt-3">
+                  <label for="nem-observaciones" class="form-label">Observaciones</label>
+                  <textarea id="nem-observaciones" class="form-control" rows="3"
+                    placeholder="Observaciones generales de esta entrega..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Columna Derecha - Captura de la devolución -->
+          <div class="col-md-7">
+            <div class="card h-100">
+              <div class="card-header text-center">
+                <h6 class="mb-0">
+                  <i class="bi bi-list-check me-2"></i>Captura de la Devolución
+                </h6>
+              </div>
+              <div class="card-body">
+                
+                <div id="nem-paso-piezas" class="d-none">
+                  <small class="text-muted d-block mb-2">Cada renta debe regresar completa.</small>
+                  <div id="nem-bloques-piezas" style="max-height: 480px; overflow-y: auto;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer modal-footer-azul">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary" id="nem-btn-generar" disabled>
+          <i class="bi bi-check2-circle me-2"></i>Generar Nota de Entrada Consolidada
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
