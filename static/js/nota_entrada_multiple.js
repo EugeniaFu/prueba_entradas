@@ -19,6 +19,70 @@ document.addEventListener('DOMContentLoaded', function () {
     const bloquesPiezasDiv = document.getElementById('nem-bloques-piezas');
     const btnGenerar = document.getElementById('nem-btn-generar');
 
+    const trasladoSectionDiv = document.getElementById('nem-traslado-section');
+    const recoleccionObligatoriaDiv = document.getElementById('nem-recoleccion-obligatoria');
+    const selectChoferRecoleccion = document.getElementById('nem-select-chofer-recoleccion');
+    const trasladoOpcionalDiv = document.getElementById('nem-traslado-opcional');
+    const trasladoExtraSelect = document.getElementById('nem-traslado-extra-select');
+    const costoTrasladoExtraInput = document.getElementById('nem-costo-traslado-extra');
+    const divChoferTrasladoExtra = document.getElementById('nem-div-chofer-traslado-extra');
+    const selectChoferTrasladoExtra = document.getElementById('nem-select-chofer-traslado-extra');
+
+    let nemCargadores = null;
+    function cargarCargadoresNem(select) {
+        if (nemCargadores) {
+            poblarSelectCargadoresNem(select, nemCargadores);
+            return;
+        }
+        fetch('/notas_entrada/cargadores')
+            .then(resp => resp.json())
+            .then(cargadores => {
+                nemCargadores = cargadores;
+                poblarSelectCargadoresNem(select, cargadores);
+            })
+            .catch(() => {});
+    }
+    function poblarSelectCargadoresNem(select, cargadores) {
+        select.innerHTML = '<option value="">Selecciona un chofer...</option>';
+        cargadores.forEach(c => {
+            const option = document.createElement('option');
+            option.value = c.id;
+            option.textContent = c.sucursal_nombre ? `${c.nombre_completo} (${c.sucursal_nombre})` : c.nombre_completo;
+            select.appendChild(option);
+        });
+    }
+
+    trasladoExtraSelect.addEventListener('change', function () {
+        if (trasladoExtraSelect.value === 'medio' || trasladoExtraSelect.value === 'redondo') {
+            costoTrasladoExtraInput.disabled = false;
+            divChoferTrasladoExtra.classList.remove('d-none');
+            cargarCargadoresNem(selectChoferTrasladoExtra);
+        } else {
+            costoTrasladoExtraInput.disabled = true;
+            costoTrasladoExtraInput.value = 0;
+            divChoferTrasladoExtra.classList.add('d-none');
+            selectChoferTrasladoExtra.value = '';
+        }
+    });
+
+    function actualizarSeccionTraslado(rentaIds) {
+        const tienePagado = rentaIds.some(id => {
+            const t = (window.notaEntradaMultipleRentasInfo[id].traslado || '').toLowerCase();
+            return t === 'redondo' || t === 'medio_regreso';
+        });
+
+        trasladoSectionDiv.classList.remove('d-none');
+
+        if (tienePagado) {
+            recoleccionObligatoriaDiv.classList.remove('d-none');
+            trasladoOpcionalDiv.classList.add('d-none');
+            cargarCargadoresNem(selectChoferRecoleccion);
+        } else {
+            recoleccionObligatoriaDiv.classList.add('d-none');
+            trasladoOpcionalDiv.classList.remove('d-none');
+        }
+    }
+
     function resetModal() {
         window.notaEntradaMultipleClienteId = null;
         window.notaEntradaMultiplePiezas = {};
@@ -33,6 +97,15 @@ document.addEventListener('DOMContentLoaded', function () {
         listaRentasDiv.innerHTML = '';
         bloquesPiezasDiv.innerHTML = '';
         document.getElementById('nem-observaciones').value = '';
+        trasladoSectionDiv.classList.add('d-none');
+        recoleccionObligatoriaDiv.classList.add('d-none');
+        trasladoOpcionalDiv.classList.add('d-none');
+        selectChoferRecoleccion.value = '';
+        trasladoExtraSelect.value = 'ninguno';
+        costoTrasladoExtraInput.value = 0;
+        costoTrasladoExtraInput.disabled = true;
+        divChoferTrasladoExtra.classList.add('d-none');
+        selectChoferTrasladoExtra.value = '';
         btnGenerar.disabled = true;
     }
 
@@ -160,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
             pasoPiezasDiv.classList.add('d-none');
             bloquesPiezasDiv.innerHTML = '';
             btnGenerar.disabled = true;
+            trasladoSectionDiv.classList.add('d-none');
             if (rentaIds.length === 1) {
                 Swal.fire({
                     icon: 'info',
@@ -174,6 +248,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         pasoPiezasDiv.classList.remove('d-none');
         btnGenerar.disabled = false;
+        actualizarSeccionTraslado(rentaIds);
 
         window.notaEntradaMultiplePiezas = {};
 
@@ -290,10 +365,26 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
+        const tienePagado = !recoleccionObligatoriaDiv.classList.contains('d-none');
+        if (tienePagado && !selectChoferRecoleccion.value) {
+            Swal.fire('Error', 'Selecciona el chofer que recolectará el equipo.', 'error');
+            return;
+        }
+        const trasladoExtraValue = trasladoExtraSelect.value;
+        if (!tienePagado && (trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo') && !selectChoferTrasladoExtra.value) {
+            Swal.fire('Error', 'Selecciona el chofer que realizará el traslado extra.', 'error');
+            return;
+        }
+
         const payload = {
             cliente_id: window.notaEntradaMultipleClienteId,
             sucursal_id: window.notaEntradaMultipleSucursalId,
             observaciones: document.getElementById('nem-observaciones').value,
+            chofer_recoleccion_id: tienePagado ? (selectChoferRecoleccion.value || null) : null,
+            traslado_extra: tienePagado ? 'ninguno' : trasladoExtraValue,
+            costo_traslado_extra: tienePagado ? 0 : (parseFloat(costoTrasladoExtraInput.value) || 0),
+            chofer_traslado_extra_id: (!tienePagado && (trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo'))
+                ? (selectChoferTrasladoExtra.value || null) : null,
             rentas: rentaIds.map(rentaId => ({
                 renta_id: rentaId,
                 piezas: window.notaEntradaMultiplePiezas[rentaId]

@@ -609,6 +609,10 @@ def crear_nota_entrada_multiple():
     sucursal_id = data.get('sucursal_id')
     rentas = data.get('rentas', [])
     observaciones = data.get('observaciones', '')
+    chofer_recoleccion_id = data.get('chofer_recoleccion_id') or None
+    traslado_extra = data.get('traslado_extra', 'ninguno')
+    costo_traslado_extra = data.get('costo_traslado_extra', 0)
+    chofer_traslado_extra_id = data.get('chofer_traslado_extra_id') or None
 
     if not cliente_id or not sucursal_id:
         return jsonify({'success': False, 'error': 'Falta cliente o sucursal.'}), 400
@@ -622,7 +626,9 @@ def crear_nota_entrada_multiple():
         return jsonify({'success': False, 'error': 'Datos de cliente/sucursal/renta inválidos.'}), 400
 
     success, nota_entrada_id, folio, err_msg = RentasService.crear_nota_entrada_consolidada(
-        cliente_id, sucursal_id, rentas, observaciones, session.get('user_id')
+        cliente_id, sucursal_id, rentas, observaciones, session.get('user_id'),
+        chofer_recoleccion_id=chofer_recoleccion_id, traslado_extra=traslado_extra,
+        costo_traslado_extra=costo_traslado_extra, chofer_traslado_extra_id=chofer_traslado_extra_id
     )
 
     if success:
@@ -1040,9 +1046,14 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
     primer_nota_entrada_id = rentas_consolidadas[0]['nota_entrada_id']
     cursor.execute("""
         SELECT ne.folio, ne.fecha_entrada_real, ne.observaciones, ne.usuario_id AS creador_id,
-               CONCAT(uo.nombre, ' ', uo.apellido1, ' ', uo.apellido2) AS creador_nombre
+               ne.requiere_traslado_extra, ne.costo_traslado_extra,
+               CONCAT(uo.nombre, ' ', uo.apellido1, ' ', uo.apellido2) AS creador_nombre,
+               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_recoleccion_nombre,
+               CONCAT(uce.nombre, ' ', uce.apellido1, ' ', uce.apellido2) AS chofer_traslado_extra_nombre
         FROM notas_entrada ne
         LEFT JOIN usuarios uo ON ne.usuario_id = uo.id
+        LEFT JOIN usuarios uc ON ne.chofer_recoleccion_id = uc.id
+        LEFT JOIN usuarios uce ON ne.chofer_traslado_extra_id = uce.id
         WHERE ne.id = %s
     """, (primer_nota_entrada_id,))
     nota = cursor.fetchone()
@@ -1125,7 +1136,7 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
     can.drawRightString(575, 715, fecha_entrada)
 
     can.setFont("Courier-Bold", 23)
-    can.drawString(480, 732, "ENTRADA")
+    can.drawString(390, 732, "ENTRADA MÚLTIPLE")
 
     can.setFont("Courier-Bold", 15)
     can.drawString(36, 715, "RENTA DE EQUIPO")
@@ -1151,6 +1162,15 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
     y_position = 665
     for line in direccion_lines:
         can.drawString(36, y_position, line)
+        y_position -= 12
+
+    if nota.get('chofer_recoleccion_nombre'):
+        can.drawString(36, y_position, f"RECOLECCIÓN: {nota['chofer_recoleccion_nombre'].upper()}")
+        y_position -= 12
+    elif (nota.get('requiere_traslado_extra') or 'ninguno') != 'ninguno':
+        costo_extra = float(nota.get('costo_traslado_extra') or 0)
+        chofer_extra = nota['chofer_traslado_extra_nombre'].upper() if nota.get('chofer_traslado_extra_nombre') else 'NO ASIGNADO'
+        can.drawString(36, y_position, f"TRASLADO EXTRA ({nota['requiere_traslado_extra'].upper()}): ${costo_extra:.2f} - CHOFER: {chofer_extra}")
         y_position -= 12
 
     y_position -= 15

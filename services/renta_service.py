@@ -450,7 +450,7 @@ class RentasService:
         try:
             cursor.execute("""
                 SELECT r.id, r.folio, r.direccion_obra, r.fecha_salida, r.fecha_entrada,
-                       r.estado_renta, r.renta_asociada_id
+                       r.estado_renta, r.renta_asociada_id, r.traslado
                 FROM rentas r
                 WHERE r.cliente_id = %s AND r.id_sucursal = %s
                   AND LOWER(TRIM(r.estado_renta)) IN ('en curso', 'activo', 'activa renovacion', 'programada', 'en recolección')
@@ -504,6 +504,7 @@ class RentasService:
                     'folio_salida': folio_salida,
                     'nota_salida_id': ns_row['nota_salida_id'],
                     'direccion_obra': renta['direccion_obra'],
+                    'traslado': renta['traslado'] or 'ninguno',
                     'fecha_salida': renta['fecha_salida'].strftime('%Y-%m-%d') if renta['fecha_salida'] else None,
                     'fecha_entrada': renta['fecha_entrada'].strftime('%Y-%m-%d') if renta['fecha_entrada'] else None,
                     'piezas': piezas_pendientes
@@ -515,12 +516,20 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def crear_nota_entrada_consolidada(cliente_id, sucursal_id, rentas_payload, observaciones, usuario_id):
+    def crear_nota_entrada_consolidada(cliente_id, sucursal_id, rentas_payload, observaciones, usuario_id,
+                                        chofer_recoleccion_id=None, traslado_extra='ninguno',
+                                        costo_traslado_extra=0, chofer_traslado_extra_id=None):
         """
         Crea UNA sola nota de entrada que consolida la devolución completa de varias
         rentas del mismo cliente y sucursal. Solo se permite cuando cada renta
         incluida cierra al 100% (sin piezas pendientes); si alguna queda parcial,
         se rechaza y debe devolverse aparte con el flujo normal de una sola renta.
+
+        Si alguna de las rentas consolidadas tiene traslado redondo/medio_regreso ya
+        pagado, ese viaje del chofer se aprovecha para recoger todas las rentas
+        seleccionadas, así que es obligatorio indicar el chofer. Si ninguna renta
+        tiene traslado pagado, se puede cobrar un traslado extra opcional (igual que
+        en la nota de entrada normal de una sola renta).
         """
         if not rentas_payload or len(rentas_payload) < 2:
             return False, None, None, "Selecciona al menos 2 rentas para consolidar."
@@ -534,7 +543,7 @@ class RentasService:
             for item in rentas_payload:
                 renta_id = item['renta_id']
                 cursor.execute("""
-                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio, fecha_entrada
+                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio, fecha_entrada, traslado
                     FROM rentas WHERE id = %s
                 """, (renta_id,))
                 renta_row = cursor.fetchone()
@@ -585,9 +594,35 @@ class RentasService:
                     'renta_id': renta_id,
                     'folio': renta_row['folio'],
                     'nota_salida_id': ns_row['nota_salida_id'],
+                    'traslado': (renta_row['traslado'] or 'ninguno').lower(),
                     'estado_retraso': estado_retraso_renta,
                     'piezas': item['piezas']
                 })
+
+            # ¿Alguna de las rentas consolidadas ya trae un traslado redondo o de
+            # regreso pagado? Si es así, ese viaje del chofer cubre la recolección
+            # de TODAS las rentas seleccionadas, así que el chofer es obligatorio y
+            # no se cobra nada extra de traslado.
+            tiene_traslado_pagado = any(info['traslado'] in ('redondo', 'medio_regreso') for info in info_rentas)
+
+            if tiene_traslado_pagado:
+                if not chofer_recoleccion_id:
+                    raise ValueError(
+                        "Alguna de las rentas seleccionadas ya tiene traslado pagado para recolección. "
+                        "Selecciona el chofer que recogerá el equipo."
+                    )
+                traslado_extra_final = 'ninguno'
+                costo_traslado_extra_final = 0
+                chofer_traslado_extra_id_final = None
+            else:
+                # Ninguna renta tiene traslado pagado: se puede cobrar un traslado
+                # extra opcional, igual que en la nota de entrada de una sola renta.
+                traslado_extra_final = traslado_extra or 'ninguno'
+                costo_traslado_extra_final = float(costo_traslado_extra or 0)
+                chofer_traslado_extra_id_final = chofer_traslado_extra_id
+                if traslado_extra_final in ('medio', 'redondo') and not chofer_traslado_extra_id_final:
+                    raise ValueError("Selecciona el chofer que realizará el traslado extra.")
+                chofer_recoleccion_id = None
 
             # Un solo folio de entrada compartido por todas las rentas consolidadas
             # (es solo el número impreso en el comprobante). Internamente cada renta
@@ -601,9 +636,14 @@ class RentasService:
                     INSERT INTO notas_entrada (
                         folio, renta_id, nota_salida_id, fecha_entrada_real,
                         requiere_traslado_extra, costo_traslado_extra, observaciones,
-                        estado, created_at, estado_retraso, accion_devolucion, usuario_id
-                    ) VALUES (%s, %s, %s, NOW(), 'ninguno', 0, %s, 'normal', NOW(), %s, 'no', %s)
-                """, (folio, info['renta_id'], info['nota_salida_id'], observaciones, info['estado_retraso'], usuario_id))
+                        estado, created_at, estado_retraso, accion_devolucion,
+                        chofer_recoleccion_id, chofer_traslado_extra_id, usuario_id
+                    ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, 'normal', NOW(), %s, 'no', %s, %s, %s)
+                """, (
+                    folio, info['renta_id'], info['nota_salida_id'],
+                    traslado_extra_final, costo_traslado_extra_final, observaciones,
+                    info['estado_retraso'], chofer_recoleccion_id, chofer_traslado_extra_id_final, usuario_id
+                ))
                 nota_entrada_id = cursor.lastrowid
                 if primer_nota_entrada_id is None:
                     primer_nota_entrada_id = nota_entrada_id

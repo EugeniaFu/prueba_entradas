@@ -46,6 +46,42 @@
                   <div id="nem-lista-rentas"></div>
                 </div>
 
+                <!-- Traslado / recolección -->
+                <div id="nem-traslado-section" class="d-none mt-3">
+                  <!-- Caso 1: alguna renta ya tiene traslado redondo/medio_regreso pagado -->
+                  <div id="nem-recoleccion-obligatoria" class="d-none">
+                    <div class="alert alert-info">
+                      <i class="bi bi-truck me-2"></i>
+                      Alguna renta seleccionada ya tiene traslado pagado para recolección. Ese viaje se
+                      aprovechará para recoger todas las rentas de esta nota.
+                    </div>
+                    <label for="nem-select-chofer-recoleccion" class="form-label">Chofer que recolecta</label>
+                    <select id="nem-select-chofer-recoleccion" class="form-select">
+                      <option value="">Selecciona un chofer...</option>
+                    </select>
+                  </div>
+
+                  <!-- Caso 2: ninguna renta tiene traslado pagado, se puede cobrar uno extra -->
+                  <div id="nem-traslado-opcional" class="d-none">
+                    <label for="nem-traslado-extra-select" class="form-label">¿Traslado Extra?</label>
+                    <select id="nem-traslado-extra-select" class="form-select">
+                      <option value="ninguno">No requiere</option>
+                      <option value="medio">Medio</option>
+                      <option value="redondo">Redondo</option>
+                    </select>
+                    <div class="mt-2">
+                      <label for="nem-costo-traslado-extra" class="form-label">Costo traslado extra</label>
+                      <input type="number" id="nem-costo-traslado-extra" class="form-control" min="0" step="0.01" value="0" disabled>
+                    </div>
+                    <div id="nem-div-chofer-traslado-extra" class="mt-2 d-none">
+                      <label for="nem-select-chofer-traslado-extra" class="form-label">Chofer que hará el traslado</label>
+                      <select id="nem-select-chofer-traslado-extra" class="form-select">
+                        <option value="">Selecciona un chofer...</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="mb-0 mt-3">
                   <label for="nem-observaciones" class="form-label">Observaciones</label>
                   <textarea id="nem-observaciones" class="form-control" rows="3"
