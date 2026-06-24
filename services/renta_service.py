@@ -516,20 +516,19 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def crear_nota_entrada_consolidada(cliente_id, sucursal_id, rentas_payload, observaciones, usuario_id,
-                                        chofer_recoleccion_id=None, traslado_extra='ninguno',
-                                        costo_traslado_extra=0, chofer_traslado_extra_id=None):
+    def crear_nota_entrada_consolidada(cliente_id, sucursal_id, rentas_payload, observaciones, usuario_id):
         """
         Crea UNA sola nota de entrada que consolida la devolución completa de varias
-        rentas del mismo cliente y sucursal. Solo se permite cuando cada renta
+        rentas del mismo cliente y sucursal, cuando el cliente trae el equipo él
+        mismo (no hay viaje de recolección que esperar, por lo que se conocen las
+        cantidades finales desde el principio). Solo se permite cuando cada renta
         incluida cierra al 100% (sin piezas pendientes); si alguna queda parcial,
         se rechaza y debe devolverse aparte con el flujo normal de una sola renta.
 
-        Si alguna de las rentas consolidadas tiene traslado redondo/medio_regreso ya
-        pagado, ese viaje del chofer se aprovecha para recoger todas las rentas
-        seleccionadas, así que es obligatorio indicar el chofer. Si ninguna renta
-        tiene traslado pagado, se puede cobrar un traslado extra opcional (igual que
-        en la nota de entrada normal de una sola renta).
+        Si el cliente solicita un traslado (o alguna renta ya lo tenía pagado), eso
+        ya no pasa por aquí: se maneja como despacho de recolección
+        (crear_recoleccion_multiple), porque en ese caso no se conocen las
+        cantidades finales hasta que el chofer regresa.
         """
         if not rentas_payload or len(rentas_payload) < 2:
             return False, None, None, "Selecciona al menos 2 rentas para consolidar."
@@ -543,7 +542,7 @@ class RentasService:
             for item in rentas_payload:
                 renta_id = item['renta_id']
                 cursor.execute("""
-                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio, fecha_entrada, traslado
+                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio, fecha_entrada
                     FROM rentas WHERE id = %s
                 """, (renta_id,))
                 renta_row = cursor.fetchone()
@@ -594,35 +593,9 @@ class RentasService:
                     'renta_id': renta_id,
                     'folio': renta_row['folio'],
                     'nota_salida_id': ns_row['nota_salida_id'],
-                    'traslado': (renta_row['traslado'] or 'ninguno').lower(),
                     'estado_retraso': estado_retraso_renta,
                     'piezas': item['piezas']
                 })
-
-            # ¿Alguna de las rentas consolidadas ya trae un traslado redondo o de
-            # regreso pagado? Si es así, ese viaje del chofer cubre la recolección
-            # de TODAS las rentas seleccionadas, así que el chofer es obligatorio y
-            # no se cobra nada extra de traslado.
-            tiene_traslado_pagado = any(info['traslado'] in ('redondo', 'medio_regreso') for info in info_rentas)
-
-            if tiene_traslado_pagado:
-                if not chofer_recoleccion_id:
-                    raise ValueError(
-                        "Alguna de las rentas seleccionadas ya tiene traslado pagado para recolección. "
-                        "Selecciona el chofer que recogerá el equipo."
-                    )
-                traslado_extra_final = 'ninguno'
-                costo_traslado_extra_final = 0
-                chofer_traslado_extra_id_final = None
-            else:
-                # Ninguna renta tiene traslado pagado: se puede cobrar un traslado
-                # extra opcional, igual que en la nota de entrada de una sola renta.
-                traslado_extra_final = traslado_extra or 'ninguno'
-                costo_traslado_extra_final = float(costo_traslado_extra or 0)
-                chofer_traslado_extra_id_final = chofer_traslado_extra_id
-                if traslado_extra_final in ('medio', 'redondo') and not chofer_traslado_extra_id_final:
-                    raise ValueError("Selecciona el chofer que realizará el traslado extra.")
-                chofer_recoleccion_id = None
 
             # Un solo folio de entrada compartido por todas las rentas consolidadas
             # (es solo el número impreso en el comprobante). Internamente cada renta
@@ -636,14 +609,9 @@ class RentasService:
                     INSERT INTO notas_entrada (
                         folio, renta_id, nota_salida_id, fecha_entrada_real,
                         requiere_traslado_extra, costo_traslado_extra, observaciones,
-                        estado, created_at, estado_retraso, accion_devolucion,
-                        chofer_recoleccion_id, chofer_traslado_extra_id, usuario_id
-                    ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, 'normal', NOW(), %s, 'no', %s, %s, %s)
-                """, (
-                    folio, info['renta_id'], info['nota_salida_id'],
-                    traslado_extra_final, costo_traslado_extra_final, observaciones,
-                    info['estado_retraso'], chofer_recoleccion_id, chofer_traslado_extra_id_final, usuario_id
-                ))
+                        estado, created_at, estado_retraso, accion_devolucion, usuario_id
+                    ) VALUES (%s, %s, %s, NOW(), 'ninguno', 0, %s, 'normal', NOW(), %s, 'no', %s)
+                """, (folio, info['renta_id'], info['nota_salida_id'], observaciones, info['estado_retraso'], usuario_id))
                 nota_entrada_id = cursor.lastrowid
                 if primer_nota_entrada_id is None:
                     primer_nota_entrada_id = nota_entrada_id
@@ -707,6 +675,120 @@ class RentasService:
                 cursor.execute("""
                     UPDATE rentas SET estado_cobro_extra = %s WHERE id = %s
                 """, ('Extra Pendiente' if hay_cobro_extra else None, info['renta_id']))
+
+            conn.commit()
+            return True, primer_nota_entrada_id, folio, None
+        except Exception as e:
+            conn.rollback()
+            return False, None, None, str(e)
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def crear_recoleccion_multiple(cliente_id, sucursal_id, renta_ids, chofer_recoleccion_id, observaciones, usuario_id,
+                                    traslado_extra='ninguno', costo_traslado_extra=0):
+        """
+        Despacha al chofer a recoger varias rentas del mismo cliente/sucursal en un
+        solo viaje, porque alguna de ellas ya tiene traslado redondo/medio_regreso
+        pagado, o porque el cliente solicita ahora que vayan a recoger. Todavía NO
+        se capturan cantidades reales (no se sabe qué va a traer el chofer hasta
+        que regrese) -- esto solo crea, para cada renta, la misma nota "vacía"
+        (todo en cero) que ya genera hoy el primer paso del flujo de una sola
+        renta. La captura real (completa o parcial) se hace después, renta por
+        renta, con el botón normal "Generar Nota de Entrada": el sistema ya
+        detecta esa nota vacía pendiente y permite completarla con renovación,
+        cobro extra o pendiente, igual que siempre.
+
+        Se puede cobrar un traslado extra aunque alguna renta ya tenga traslado
+        pagado: si hay mucho equipo y no entra todo en una sola vuelta de la
+        camioneta, se necesita un viaje adicional que sí se cobra.
+        """
+        if not renta_ids or len(renta_ids) < 2:
+            return False, None, None, "Selecciona al menos 2 rentas para el despacho."
+        if not chofer_recoleccion_id:
+            return False, None, None, "Selecciona el chofer que recolectará el equipo."
+
+        traslado_extra = traslado_extra or 'ninguno'
+        costo_traslado_extra = float(costo_traslado_extra or 0)
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            conn.start_transaction()
+
+            info_rentas = []
+            for renta_id in renta_ids:
+                cursor.execute("""
+                    SELECT id, cliente_id, id_sucursal, renta_asociada_id, estado_renta, folio
+                    FROM rentas WHERE id = %s
+                """, (renta_id,))
+                renta_row = cursor.fetchone()
+                if not renta_row:
+                    raise ValueError(f"Renta {renta_id} no encontrada.")
+                if renta_row['cliente_id'] != cliente_id or renta_row['id_sucursal'] != sucursal_id:
+                    raise ValueError(f"La renta {renta_id} no pertenece a este cliente o sucursal.")
+                if (renta_row['estado_renta'] or '').lower().strip() not in ('en curso', 'activo', 'activa renovacion', 'programada'):
+                    raise ValueError(f"La renta SUC{sucursal_id}-{renta_row['folio']} ya no admite recolección.")
+
+                padre_real_id = renta_row['renta_asociada_id'] or renta_id
+
+                cursor.execute("""
+                    SELECT id AS nota_salida_id FROM notas_salida
+                    WHERE renta_id = %s ORDER BY id DESC LIMIT 1
+                """, (padre_real_id,))
+                ns_row = cursor.fetchone()
+                if not ns_row:
+                    raise ValueError(f"La renta SUC{sucursal_id}-{renta_row['folio']} no tiene nota de salida asociada.")
+
+                pendientes = RentasService._calcular_piezas_pendientes_renta(cursor, padre_real_id)
+                if not pendientes:
+                    raise ValueError(f"La renta SUC{sucursal_id}-{renta_row['folio']} no tiene piezas pendientes por recoger.")
+
+                info_rentas.append({
+                    'renta_id': renta_id,
+                    'nota_salida_id': ns_row['nota_salida_id'],
+                    'piezas_pendientes': pendientes
+                })
+
+            # Mismo folio compartido para todo el viaje; cada renta sigue generando
+            # su propia fila/id en notas_entrada, como siempre.
+            folio = obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id)
+            primer_nota_entrada_id = None
+
+            for idx, info in enumerate(info_rentas):
+                # El costo del traslado extra es por VIAJE, no por renta: si se
+                # guardara en cada fila, "Cobrar Extra" lo sugeriría una vez por
+                # cada renta y se cobraría varias veces el mismo viaje. Se carga
+                # una sola vez, en la primera renta del grupo.
+                traslado_extra_fila = traslado_extra if idx == 0 else 'ninguno'
+                costo_traslado_extra_fila = costo_traslado_extra if idx == 0 else 0
+
+                cursor.execute("""
+                    INSERT INTO notas_entrada (
+                        folio, renta_id, nota_salida_id, fecha_entrada_real,
+                        requiere_traslado_extra, costo_traslado_extra, observaciones,
+                        estado, created_at, estado_retraso, accion_devolucion,
+                        chofer_recoleccion_id, usuario_id
+                    ) VALUES (%s, %s, %s, NOW(), %s, %s, %s, 'normal', NOW(), 'Sin Retraso', 'no', %s, %s)
+                """, (
+                    folio, info['renta_id'], info['nota_salida_id'],
+                    traslado_extra_fila, costo_traslado_extra_fila, observaciones,
+                    chofer_recoleccion_id, usuario_id
+                ))
+                nota_entrada_id = cursor.lastrowid
+                if primer_nota_entrada_id is None:
+                    primer_nota_entrada_id = nota_entrada_id
+
+                for pieza in info['piezas_pendientes']:
+                    cursor.execute("""
+                        INSERT INTO notas_entrada_detalle (
+                            nota_entrada_id, id_pieza, cantidad_esperada, cantidad_recibida,
+                            cantidad_buena, cantidad_danada, cantidad_sucia, cantidad_perdida
+                        ) VALUES (%s, %s, %s, 0, 0, 0, 0, 0)
+                    """, (nota_entrada_id, pieza['id_pieza'], pieza['cantidad_pendiente']))
+
+                cursor.execute("UPDATE rentas SET estado_renta = 'en recolección' WHERE id = %s", (info['renta_id'],))
 
             conn.commit()
             return True, primer_nota_entrada_id, folio, None

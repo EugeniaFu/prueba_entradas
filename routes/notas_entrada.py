@@ -324,7 +324,8 @@ def crear_nota_entrada(renta_id):
 
         # Buscar si ya existe una nota de entrada en recolección para esta renta
         cursor.execute("""
-            SELECT ne.id FROM notas_entrada ne
+            SELECT ne.id, ne.requiere_traslado_extra, ne.costo_traslado_extra, ne.estado_retraso
+            FROM notas_entrada ne
             WHERE ne.renta_id = %s
             AND (
                 SELECT COUNT(*) FROM notas_entrada_detalle ned
@@ -334,6 +335,18 @@ def crear_nota_entrada(renta_id):
             LIMIT 1
         """, (renta_id,))
         nota_existente = cursor.fetchone()
+
+        if nota_existente:
+            # Si esta segunda captura (cuando el chofer ya regresó) no trae
+            # traslado extra ni marca cobrar retraso, se preserva lo que ya se
+            # había registrado en el despacho -- de lo contrario el UPDATE de
+            # abajo borraría ese cobro solo porque el modal se reinicia en blanco
+            # cada vez que se abre.
+            if requiere_traslado_extra == 'ninguno' and not costo_traslado_extra:
+                requiere_traslado_extra = nota_existente['requiere_traslado_extra'] or 'ninguno'
+                costo_traslado_extra = float(nota_existente['costo_traslado_extra'] or 0)
+            if not cobrar_retraso and nota_existente['estado_retraso'] == 'Retraso Pendiente':
+                estado_retraso = 'Retraso Pendiente'
 
         # Gate: si la renta salió con traslado redondo o medio_regreso, la PRIMERA nota de
         # entrada debe ser obligatoriamente la de recolección (con chofer), para que la
@@ -604,15 +617,12 @@ def pendientes_cliente(cliente_id):
 @requiere_sesion()
 @requiere_permiso('crear_nota_entrada')
 def crear_nota_entrada_multiple():
+    """Caso A: el cliente trae el equipo de varias rentas él mismo, completo, en una sola visita."""
     data = request.get_json()
     cliente_id = data.get('cliente_id')
     sucursal_id = data.get('sucursal_id')
     rentas = data.get('rentas', [])
     observaciones = data.get('observaciones', '')
-    chofer_recoleccion_id = data.get('chofer_recoleccion_id') or None
-    traslado_extra = data.get('traslado_extra', 'ninguno')
-    costo_traslado_extra = data.get('costo_traslado_extra', 0)
-    chofer_traslado_extra_id = data.get('chofer_traslado_extra_id') or None
 
     if not cliente_id or not sucursal_id:
         return jsonify({'success': False, 'error': 'Falta cliente o sucursal.'}), 400
@@ -626,9 +636,43 @@ def crear_nota_entrada_multiple():
         return jsonify({'success': False, 'error': 'Datos de cliente/sucursal/renta inválidos.'}), 400
 
     success, nota_entrada_id, folio, err_msg = RentasService.crear_nota_entrada_consolidada(
-        cliente_id, sucursal_id, rentas, observaciones, session.get('user_id'),
-        chofer_recoleccion_id=chofer_recoleccion_id, traslado_extra=traslado_extra,
-        costo_traslado_extra=costo_traslado_extra, chofer_traslado_extra_id=chofer_traslado_extra_id
+        cliente_id, sucursal_id, rentas, observaciones, session.get('user_id')
+    )
+
+    if success:
+        return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id, 'folio': folio})
+    return jsonify({'success': False, 'error': err_msg})
+
+
+@notas_entrada_bp.route('/crear_recoleccion_multiple', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_nota_entrada')
+def crear_recoleccion_multiple():
+    """Caso B: alguna renta tiene traslado pagado, se manda un solo chofer a recoger
+    varias rentas. Solo despacha (no captura cantidades); la captura real se hace
+    después por renta, con el flujo normal de una sola renta."""
+    data = request.get_json()
+    cliente_id = data.get('cliente_id')
+    sucursal_id = data.get('sucursal_id')
+    renta_ids = data.get('renta_ids', [])
+    chofer_recoleccion_id = data.get('chofer_recoleccion_id')
+    observaciones = data.get('observaciones', '')
+    traslado_extra = data.get('traslado_extra', 'ninguno')
+    costo_traslado_extra = data.get('costo_traslado_extra', 0)
+
+    if not cliente_id or not sucursal_id:
+        return jsonify({'success': False, 'error': 'Falta cliente o sucursal.'}), 400
+
+    try:
+        cliente_id = int(cliente_id)
+        sucursal_id = int(sucursal_id)
+        renta_ids = [int(r) for r in renta_ids]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'Datos de cliente/sucursal/renta inválidos.'}), 400
+
+    success, nota_entrada_id, folio, err_msg = RentasService.crear_recoleccion_multiple(
+        cliente_id, sucursal_id, renta_ids, chofer_recoleccion_id, observaciones, session.get('user_id'),
+        traslado_extra=traslado_extra, costo_traslado_extra=costo_traslado_extra
     )
 
     if success:
@@ -669,7 +713,7 @@ def historial_notas_entrada(renta_id):
 #############################################
 #############################################
 #############################################
-########## PDF NOTAS DE SALIDA ############
+########## PDF NOTAS DE ENTRADA ############
 
 @notas_entrada_bp.route('/pdf/<int:nota_entrada_id>')
 @requiere_sesion()
@@ -678,11 +722,6 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # ¿Esta nota consolida varias rentas? El folio es solo el número impreso en
-    # el comprobante; cada renta consolidada tiene su propia fila en
-    # notas_entrada (su propio id, igual que en el flujo normal de una sola
-    # renta), así que la consolidación se detecta por filas que comparten
-    # folio + sucursal.
     cursor.execute("""
         SELECT ne.folio, r.id_sucursal
         FROM notas_entrada ne
@@ -999,9 +1038,6 @@ def generar_pdf_nota_entrada(nota_entrada_id):
         mimetype='application/pdf'
     )
 
-
-
-
 @notas_entrada_bp.route('/pdf_renta/<int:renta_id>')
 @requiere_sesion()
 @requiere_permiso('ver_notas_entrada')
@@ -1020,6 +1056,9 @@ def generar_pdf_nota_entrada_por_renta(renta_id):
     if not nota:
         return f"No hay nota de entrada para la renta {renta_id}", 404
     return redirect(url_for('notas_entrada.generar_pdf_nota_entrada', nota_entrada_id=nota['id']))
+
+
+
 
 
 #############################################
@@ -1048,12 +1087,10 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         SELECT ne.folio, ne.fecha_entrada_real, ne.observaciones, ne.usuario_id AS creador_id,
                ne.requiere_traslado_extra, ne.costo_traslado_extra,
                CONCAT(uo.nombre, ' ', uo.apellido1, ' ', uo.apellido2) AS creador_nombre,
-               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_recoleccion_nombre,
-               CONCAT(uce.nombre, ' ', uce.apellido1, ' ', uce.apellido2) AS chofer_traslado_extra_nombre
+               CONCAT(uc.nombre, ' ', uc.apellido1, ' ', uc.apellido2) AS chofer_recoleccion_nombre
         FROM notas_entrada ne
         LEFT JOIN usuarios uo ON ne.usuario_id = uo.id
         LEFT JOIN usuarios uc ON ne.chofer_recoleccion_id = uc.id
-        LEFT JOIN usuarios uce ON ne.chofer_traslado_extra_id = uce.id
         WHERE ne.id = %s
     """, (primer_nota_entrada_id,))
     nota = cursor.fetchone()
@@ -1063,7 +1100,7 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         return "Nota de entrada no encontrada", 404
 
     cursor.execute(f"""
-        SELECT r.id, r.folio, r.direccion_obra, r.id_sucursal,
+        SELECT r.id, r.folio, r.direccion_obra, r.id_sucursal, r.estado_renta,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.calle, c.numero_exterior, c.numero_interior,
                c.entre_calles, c.colonia, c.codigo_postal, s.plantilla_renta
@@ -1136,7 +1173,7 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
     can.drawRightString(575, 715, fecha_entrada)
 
     can.setFont("Courier-Bold", 23)
-    can.drawString(390, 732, "ENTRADA MÚLTIPLE")
+    can.drawString(480, 732, "ENTRADA")
 
     can.setFont("Courier-Bold", 15)
     can.drawString(36, 715, "RENTA DE EQUIPO")
@@ -1164,20 +1201,17 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         can.drawString(36, y_position, line)
         y_position -= 12
 
-    if nota.get('chofer_recoleccion_nombre'):
-        can.drawString(36, y_position, f"RECOLECCIÓN: {nota['chofer_recoleccion_nombre'].upper()}")
-        y_position -= 12
-    elif (nota.get('requiere_traslado_extra') or 'ninguno') != 'ninguno':
+
+    if (nota.get('requiere_traslado_extra') or 'ninguno') != 'ninguno':
         costo_extra = float(nota.get('costo_traslado_extra') or 0)
-        chofer_extra = nota['chofer_traslado_extra_nombre'].upper() if nota.get('chofer_traslado_extra_nombre') else 'NO ASIGNADO'
-        can.drawString(36, y_position, f"TRASLADO EXTRA ({nota['requiere_traslado_extra'].upper()}): ${costo_extra:.2f} - CHOFER: {chofer_extra}")
+        can.drawString(36, y_position, f"TRASLADO EXTRA ({nota['requiere_traslado_extra'].upper()}): ${costo_extra:.2f}")
         y_position -= 12
 
     y_position -= 15
     can.setFont("Carlito", 10)
     can.drawString(36, y_position, "RECIBÍ DE: ______________________________")
     y_position -= 15
-    can.drawString(36, y_position, f"EL SIGUIENTE EQUIPO, CONSOLIDADO DE {len(renta_ids)} RENTAS:")
+    can.drawString(36, y_position, f"EL SIGUIENTE EQUIPO:")
     y_position -= 20
 
     # === UNA SECCIÓN POR RENTA ===
@@ -1216,6 +1250,7 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         y_position -= 15
 
         can.setFont("Carlito", 10)
+        es_recoleccion = (renta.get('estado_renta') or '').lower() == 'en recolección'
 
         def mostrar_vacio_si_cero(val):
             return "" if not val else str(val)
@@ -1226,7 +1261,10 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
 
             can.drawString(70, y_position + 5, str(pieza['cantidad_esperada']))
             can.drawString(150, y_position + 5, pieza['nombre_pieza'].upper())
-            can.drawString(355, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_recibida']))
+            recibidas_texto = mostrar_vacio_si_cero(pieza['cantidad_recibida'])
+            if es_recoleccion and recibidas_texto == "":
+                recibidas_texto = "(               )"
+            can.drawString(355, y_position + 5, recibidas_texto)
             if hay_piezas_problematicas:
                 can.drawString(435, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
                 can.drawString(485, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
@@ -1261,7 +1299,8 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
     can.drawString(60, y_position, "RECIBE: ANDAMIOS COLOSIO")
     can.drawString(350, y_position, "ENTREGA: _______________________")
     y_position -= 10
-    can.drawString(60, y_position, f"NOMBRE: {usuario_nombre}")
+    nombre_recibe = nota['chofer_recoleccion_nombre'].upper() if nota.get('chofer_recoleccion_nombre') else usuario_nombre
+    can.drawString(60, y_position, f"NOMBRE: {nombre_recibe}")
     y_position -= 15
 
     if nota['observaciones']:

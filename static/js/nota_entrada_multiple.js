@@ -5,7 +5,9 @@ document.addEventListener('DOMContentLoaded', function () {
     window.notaEntradaMultipleSucursalId = null;
     window.notaEntradaMultipleClienteId = null;
     window.notaEntradaMultiplePiezas = {}; // { renta_id: [pieza, ...] }
-    window.notaEntradaMultipleRentasInfo = {}; // { renta_id: {folio, direccion_obra, ...} }
+    window.notaEntradaMultipleRentasInfo = {}; // { renta_id: {folio, direccion_obra, traslado, ...} }
+    window.notaEntradaMultipleRentaIdsSeleccionadas = [];
+    window.notaEntradaMultipleModoDespacho = false;
 
     const buscadorCliente = document.getElementById('nem-buscador-cliente');
     const resultadosCliente = document.getElementById('nem-resultados-cliente');
@@ -16,29 +18,31 @@ document.addEventListener('DOMContentLoaded', function () {
     const sinRentasDiv = document.getElementById('nem-sin-rentas');
     const listaRentasDiv = document.getElementById('nem-lista-rentas');
     const pasoPiezasDiv = document.getElementById('nem-paso-piezas');
+    const pasoDespachoDiv = document.getElementById('nem-paso-despacho');
     const bloquesPiezasDiv = document.getElementById('nem-bloques-piezas');
     const btnGenerar = document.getElementById('nem-btn-generar');
 
     const trasladoSectionDiv = document.getElementById('nem-traslado-section');
-    const recoleccionObligatoriaDiv = document.getElementById('nem-recoleccion-obligatoria');
-    const selectChoferRecoleccion = document.getElementById('nem-select-chofer-recoleccion');
-    const trasladoOpcionalDiv = document.getElementById('nem-traslado-opcional');
+    const avisoTrasladoPagadoDiv = document.getElementById('nem-aviso-traslado-pagado');
     const trasladoExtraSelect = document.getElementById('nem-traslado-extra-select');
     const costoTrasladoExtraInput = document.getElementById('nem-costo-traslado-extra');
-    const divChoferTrasladoExtra = document.getElementById('nem-div-chofer-traslado-extra');
-    const selectChoferTrasladoExtra = document.getElementById('nem-select-chofer-traslado-extra');
+    const divChoferRecoleccion = document.getElementById('nem-div-chofer-recoleccion');
+    const selectChoferRecoleccion = document.getElementById('nem-select-chofer-recoleccion');
+
+    const BTN_LABEL_CONSOLIDADA = '<i class="bi bi-check2-circle me-2"></i>Generar Nota de Entrada Consolidada';
+    const BTN_LABEL_DESPACHO = '<i class="bi bi-truck me-2"></i>Generar Despacho de Recolección';
 
     let nemCargadores = null;
-    function cargarCargadoresNem(select) {
+    function cargarCargadoresNem() {
         if (nemCargadores) {
-            poblarSelectCargadoresNem(select, nemCargadores);
+            poblarSelectCargadoresNem(selectChoferRecoleccion, nemCargadores);
             return;
         }
         fetch('/notas_entrada/cargadores')
             .then(resp => resp.json())
             .then(cargadores => {
                 nemCargadores = cargadores;
-                poblarSelectCargadoresNem(select, cargadores);
+                poblarSelectCargadoresNem(selectChoferRecoleccion, cargadores);
             })
             .catch(() => {});
     }
@@ -52,41 +56,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    trasladoExtraSelect.addEventListener('change', function () {
-        if (trasladoExtraSelect.value === 'medio' || trasladoExtraSelect.value === 'redondo') {
-            costoTrasladoExtraInput.disabled = false;
-            divChoferTrasladoExtra.classList.remove('d-none');
-            cargarCargadoresNem(selectChoferTrasladoExtra);
-        } else {
-            costoTrasladoExtraInput.disabled = true;
-            costoTrasladoExtraInput.value = 0;
-            divChoferTrasladoExtra.classList.add('d-none');
-            selectChoferTrasladoExtra.value = '';
-        }
-    });
-
-    function actualizarSeccionTraslado(rentaIds) {
-        const tienePagado = rentaIds.some(id => {
-            const t = (window.notaEntradaMultipleRentasInfo[id].traslado || '').toLowerCase();
-            return t === 'redondo' || t === 'medio_regreso';
-        });
-
-        trasladoSectionDiv.classList.remove('d-none');
-
-        if (tienePagado) {
-            recoleccionObligatoriaDiv.classList.remove('d-none');
-            trasladoOpcionalDiv.classList.add('d-none');
-            cargarCargadoresNem(selectChoferRecoleccion);
-        } else {
-            recoleccionObligatoriaDiv.classList.add('d-none');
-            trasladoOpcionalDiv.classList.remove('d-none');
-        }
-    }
-
     function resetModal() {
         window.notaEntradaMultipleClienteId = null;
         window.notaEntradaMultiplePiezas = {};
         window.notaEntradaMultipleRentasInfo = {};
+        window.notaEntradaMultipleRentaIdsSeleccionadas = [];
+        window.notaEntradaMultipleModoDespacho = false;
         buscadorCliente.value = '';
         resultadosCliente.style.display = 'none';
         resultadosCliente.innerHTML = '';
@@ -94,19 +69,19 @@ document.addEventListener('DOMContentLoaded', function () {
         buscadorCliente.parentElement.classList.remove('d-none');
         pasoRentasDiv.classList.add('d-none');
         pasoPiezasDiv.classList.add('d-none');
+        pasoDespachoDiv.classList.add('d-none');
         listaRentasDiv.innerHTML = '';
         bloquesPiezasDiv.innerHTML = '';
         document.getElementById('nem-observaciones').value = '';
         trasladoSectionDiv.classList.add('d-none');
-        recoleccionObligatoriaDiv.classList.add('d-none');
-        trasladoOpcionalDiv.classList.add('d-none');
-        selectChoferRecoleccion.value = '';
+        avisoTrasladoPagadoDiv.classList.add('d-none');
         trasladoExtraSelect.value = 'ninguno';
         costoTrasladoExtraInput.value = 0;
         costoTrasladoExtraInput.disabled = true;
-        divChoferTrasladoExtra.classList.add('d-none');
-        selectChoferTrasladoExtra.value = '';
+        divChoferRecoleccion.classList.add('d-none');
+        selectChoferRecoleccion.value = '';
         btnGenerar.disabled = true;
+        btnGenerar.innerHTML = BTN_LABEL_CONSOLIDADA;
     }
 
     // Abrir modal desde el botón de la barra superior
@@ -183,6 +158,8 @@ document.addEventListener('DOMContentLoaded', function () {
         pasoRentasDiv.classList.remove('d-none');
         listaRentasDiv.innerHTML = '<div class="text-muted">Cargando rentas pendientes...</div>';
         pasoPiezasDiv.classList.add('d-none');
+        pasoDespachoDiv.classList.add('d-none');
+        trasladoSectionDiv.classList.add('d-none');
         bloquesPiezasDiv.innerHTML = '';
         btnGenerar.disabled = true;
 
@@ -210,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <strong>SUC${window.notaEntradaMultipleSucursalId}-${String(r.folio).padStart(4, '0')}</strong>
                             <span class="text-muted">(Folio salida: ${String(r.folio_salida).padStart(5, '0')})</span>
                             &mdash; ${r.direccion_obra || 'Sin dirección'}
-                            
+                            ${(r.traslado === 'redondo' || r.traslado === 'medio_regreso') ? '<span class="badge bg-info ms-1">Traslado pagado</span>' : ''}
                         </label>
                     </div>
                 `).join('');
@@ -222,18 +199,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     listaRentasDiv.addEventListener('change', function (e) {
         if (!e.target.classList.contains('nem-checkbox-renta')) return;
-        renderBloquesPiezas();
+        actualizarSeleccion();
     });
 
-    function renderBloquesPiezas() {
+    trasladoExtraSelect.addEventListener('change', actualizarModo);
+
+    function actualizarSeleccion() {
         const checkboxes = listaRentasDiv.querySelectorAll('.nem-checkbox-renta:checked');
         const rentaIds = Array.from(checkboxes).map(c => c.value);
+        window.notaEntradaMultipleRentaIdsSeleccionadas = rentaIds;
+
+        trasladoSectionDiv.classList.add('d-none');
+        pasoPiezasDiv.classList.add('d-none');
+        pasoDespachoDiv.classList.add('d-none');
+        bloquesPiezasDiv.innerHTML = '';
+        window.notaEntradaMultiplePiezas = {};
 
         if (rentaIds.length < 2) {
-            pasoPiezasDiv.classList.add('d-none');
-            bloquesPiezasDiv.innerHTML = '';
             btnGenerar.disabled = true;
-            trasladoSectionDiv.classList.add('d-none');
             if (rentaIds.length === 1) {
                 Swal.fire({
                     icon: 'info',
@@ -246,10 +229,59 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        pasoPiezasDiv.classList.remove('d-none');
         btnGenerar.disabled = false;
-        actualizarSeccionTraslado(rentaIds);
+        trasladoSectionDiv.classList.remove('d-none');
 
+        const tienePagado = rentaIds.some(id => {
+            const t = (window.notaEntradaMultipleRentasInfo[id].traslado || '').toLowerCase();
+            return t === 'redondo' || t === 'medio_regreso';
+        });
+        avisoTrasladoPagadoDiv.classList.toggle('d-none', !tienePagado);
+
+        actualizarModo();
+    }
+
+    // El modal entra en modo "solo despacho" si alguna renta ya tenía traslado
+    // pagado, O si el usuario pide ahora un traslado (medio/redondo): en ambos
+    // casos sale un chofer físicamente y no se conocen las cantidades todavía.
+    function actualizarModo() {
+        const rentaIds = window.notaEntradaMultipleRentaIdsSeleccionadas;
+        if (rentaIds.length < 2) return;
+
+        const tienePagado = rentaIds.some(id => {
+            const t = (window.notaEntradaMultipleRentasInfo[id].traslado || '').toLowerCase();
+            return t === 'redondo' || t === 'medio_regreso';
+        });
+        const trasladoSolicitado = trasladoExtraSelect.value === 'medio' || trasladoExtraSelect.value === 'redondo';
+        const modoDespacho = tienePagado || trasladoSolicitado;
+        window.notaEntradaMultipleModoDespacho = modoDespacho;
+
+        if (trasladoSolicitado) {
+            costoTrasladoExtraInput.disabled = false;
+        } else {
+            costoTrasladoExtraInput.disabled = true;
+            costoTrasladoExtraInput.value = 0;
+        }
+
+        if (modoDespacho) {
+            divChoferRecoleccion.classList.remove('d-none');
+            cargarCargadoresNem();
+            pasoPiezasDiv.classList.add('d-none');
+            bloquesPiezasDiv.innerHTML = '';
+            window.notaEntradaMultiplePiezas = {};
+            pasoDespachoDiv.classList.remove('d-none');
+            btnGenerar.innerHTML = BTN_LABEL_DESPACHO;
+        } else {
+            divChoferRecoleccion.classList.add('d-none');
+            selectChoferRecoleccion.value = '';
+            pasoDespachoDiv.classList.add('d-none');
+            pasoPiezasDiv.classList.remove('d-none');
+            btnGenerar.innerHTML = BTN_LABEL_CONSOLIDADA;
+            renderBloquesPiezas(rentaIds);
+        }
+    }
+
+    function renderBloquesPiezas(rentaIds) {
         window.notaEntradaMultiplePiezas = {};
 
         bloquesPiezasDiv.innerHTML = rentaIds.map(rentaId => {
@@ -355,36 +387,81 @@ document.addEventListener('DOMContentLoaded', function () {
         bloquesPiezasDiv.querySelector(selectorBuena).value = pieza.cantidad_buena;
     });
 
+    function mostrarExito(json) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+        Swal.fire({
+            title: window.notaEntradaMultipleModoDespacho ? 'Despacho de recolección generado' : 'Nota de entrada consolidada generada',
+            text: `Folio #${String(json.folio).padStart(5, '0')}`,
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonText: 'Ver PDF',
+            cancelButtonText: 'Cerrar'
+        }).then(result => {
+            if (result.isConfirmed) {
+                window.open(`/notas_entrada/pdf/${json.nota_entrada_id}`, '_blank');
+            }
+            window.location.reload();
+        });
+    }
+
+    function mostrarErrorSubmit(mensaje) {
+        Swal.fire('Error', mensaje || 'No se pudo guardar.', 'error');
+        btnGenerar.disabled = false;
+        btnGenerar.innerHTML = window.notaEntradaMultipleModoDespacho ? BTN_LABEL_DESPACHO : BTN_LABEL_CONSOLIDADA;
+    }
+
     // Submit
     document.getElementById('form-nota-entrada-multiple').addEventListener('submit', function (e) {
         e.preventDefault();
 
-        const rentaIds = Object.keys(window.notaEntradaMultiplePiezas);
+        const rentaIds = window.notaEntradaMultipleRentaIdsSeleccionadas;
         if (rentaIds.length < 2) {
-            Swal.fire('Error', 'Selecciona al menos 2 rentas para consolidar.', 'error');
+            Swal.fire('Error', 'Selecciona al menos 2 rentas.', 'error');
             return;
         }
 
-        const tienePagado = !recoleccionObligatoriaDiv.classList.contains('d-none');
-        if (tienePagado && !selectChoferRecoleccion.value) {
-            Swal.fire('Error', 'Selecciona el chofer que recolectará el equipo.', 'error');
-            return;
-        }
-        const trasladoExtraValue = trasladoExtraSelect.value;
-        if (!tienePagado && (trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo') && !selectChoferTrasladoExtra.value) {
-            Swal.fire('Error', 'Selecciona el chofer que realizará el traslado extra.', 'error');
+        const observaciones = document.getElementById('nem-observaciones').value;
+
+        if (window.notaEntradaMultipleModoDespacho) {
+            // Despacho: recolección obligatoria y/o traslado solicitado
+            if (!selectChoferRecoleccion.value) {
+                Swal.fire('Error', 'Selecciona el chofer que recolectará el equipo.', 'error');
+                return;
+            }
+
+            const payload = {
+                cliente_id: window.notaEntradaMultipleClienteId,
+                sucursal_id: window.notaEntradaMultipleSucursalId,
+                observaciones,
+                chofer_recoleccion_id: selectChoferRecoleccion.value,
+                traslado_extra: trasladoExtraSelect.value,
+                costo_traslado_extra: parseFloat(costoTrasladoExtraInput.value) || 0,
+                renta_ids: rentaIds
+            };
+
+            btnGenerar.disabled = true;
+            btnGenerar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+            fetch('/notas_entrada/crear_recoleccion_multiple', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(resp => resp.json())
+                .then(json => {
+                    if (json.success) mostrarExito(json);
+                    else mostrarErrorSubmit(json.error);
+                })
+                .catch(() => mostrarErrorSubmit('Error al enviar los datos al servidor.'));
             return;
         }
 
+        // Captura completa de una sola vez (cliente entrega en persona)
         const payload = {
             cliente_id: window.notaEntradaMultipleClienteId,
             sucursal_id: window.notaEntradaMultipleSucursalId,
-            observaciones: document.getElementById('nem-observaciones').value,
-            chofer_recoleccion_id: tienePagado ? (selectChoferRecoleccion.value || null) : null,
-            traslado_extra: tienePagado ? 'ninguno' : trasladoExtraValue,
-            costo_traslado_extra: tienePagado ? 0 : (parseFloat(costoTrasladoExtraInput.value) || 0),
-            chofer_traslado_extra_id: (!tienePagado && (trasladoExtraValue === 'medio' || trasladoExtraValue === 'redondo'))
-                ? (selectChoferTrasladoExtra.value || null) : null,
+            observaciones,
             rentas: rentaIds.map(rentaId => ({
                 renta_id: rentaId,
                 piezas: window.notaEntradaMultiplePiezas[rentaId]
@@ -401,33 +478,10 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(resp => resp.json())
             .then(json => {
-                if (json.success) {
-                    const modal = bootstrap.Modal.getInstance(modalEl);
-                    modal.hide();
-                    Swal.fire({
-                        title: 'Nota de entrada consolidada generada',
-                        text: `Folio #${String(json.folio).padStart(5, '0')}`,
-                        icon: 'success',
-                        showCancelButton: true,
-                        confirmButtonText: 'Ver PDF',
-                        cancelButtonText: 'Cerrar'
-                    }).then(result => {
-                        if (result.isConfirmed) {
-                            window.open(`/notas_entrada/pdf/${json.nota_entrada_id}`, '_blank');
-                        }
-                        window.location.reload();
-                    });
-                } else {
-                    Swal.fire('Error', json.error || 'No se pudo guardar la nota de entrada consolidada.', 'error');
-                    btnGenerar.disabled = false;
-                    btnGenerar.innerHTML = '<i class="bi bi-check-circle"></i> Generar Nota de Entrada Consolidada';
-                }
+                if (json.success) mostrarExito(json);
+                else mostrarErrorSubmit(json.error);
             })
-            .catch(() => {
-                Swal.fire('Error', 'Error al enviar los datos al servidor.', 'error');
-                btnGenerar.disabled = false;
-                btnGenerar.innerHTML = '<i class="bi bi-check-circle"></i> Generar Nota de Entrada Consolidada';
-            });
+            .catch(() => mostrarErrorSubmit('Error al enviar los datos al servidor.'));
     });
 
     modalEl.addEventListener('hidden.bs.modal', resetModal);
