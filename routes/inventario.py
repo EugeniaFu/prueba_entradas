@@ -1060,7 +1060,7 @@ def finalizar_reparaciones():
             return jsonify({
                 'success': True,
                 'folio_nota_entrada': folio,
-                'pdf_url': f'/inventario/pdf-finalizacion-reparacion/{folio}',
+                'pdf_url': f'/inventario/pdf-finalizacion-reparacion/{sucursal_id}/{folio}',
                 'message': f'Reparaciones finalizadas exitosamente. Folio: {folio}. Piezas regresadas a disponibles.'
             })
 
@@ -1335,16 +1335,18 @@ def historial_transferencias_page(sucursal_id):
 
 ########## PDF DE TRANSFERENCIAS DE SALIDAS  ########## 
 
-@bp_inventario.route('/pdf-transferencia-salida/<folio>')
+@bp_inventario.route('/pdf-transferencia-salida/<int:sucursal_id>/<folio>')
 @requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
-def generar_pdf_transferencia_salida(folio):
-    
+def generar_pdf_transferencia_salida(sucursal_id, folio):
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Obtener datos de la transferencia de salida desde movimientos_inventario, incluyendo plantilla de sucursal origen
+        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
+        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria,
                    so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino, so.plantilla_renta
@@ -1352,10 +1354,11 @@ def generar_pdf_transferencia_salida(folio):
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales so ON mi.id_sucursal = so.id
             LEFT JOIN sucursales sd ON mi.sucursal_destino = sd.id
-            WHERE mi.folio_nota_salida = %s 
+            WHERE mi.folio_nota_salida = %s
+            AND mi.id_sucursal = %s
             AND mi.tipo_movimiento = 'transferencia_salida'
             ORDER BY p.nombre_pieza
-        """, (folio,))
+        """, (folio, sucursal_id))
 
         movimientos = cursor.fetchall()
 
@@ -1523,27 +1526,30 @@ def generar_pdf_transferencia_salida(folio):
 
 ########## PDF DE TRANSFERENCIAS DE ENTRADAS ########## 
 
-@bp_inventario.route('/pdf-transferencia-entrada/<folio>')
+@bp_inventario.route('/pdf-transferencia-entrada/<int:sucursal_id>/<folio>')
 @requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
-def generar_pdf_transferencia_entrada(folio):
-    
+def generar_pdf_transferencia_entrada(sucursal_id, folio):
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Obtener datos de la transferencia de entrada desde movimientos_inventario, incluyendo plantilla de sucursal destino
+        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
+        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria,
                    so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino, sd.plantilla_renta
             FROM movimientos_inventario mi
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales sd ON mi.id_sucursal = sd.id  -- sd = sucursal destino (quien recibe)
-            LEFT JOIN sucursales so ON mi.sucursal_destino = so.id  -- so = sucursal origen (quien envía) 
-            WHERE mi.folio_nota_entrada = %s 
+            LEFT JOIN sucursales so ON mi.sucursal_destino = so.id  -- so = sucursal origen (quien envía)
+            WHERE mi.folio_nota_entrada = %s
+            AND mi.id_sucursal = %s
             AND mi.tipo_movimiento = 'transferencia_entrada'
             ORDER BY p.nombre_pieza
-        """, (folio,))
+        """, (folio, sucursal_id))
 
         movimientos = cursor.fetchall()
 
@@ -1714,16 +1720,18 @@ def generar_pdf_transferencia_entrada(folio):
 ########## PDF DE ALTA DE EQUIPO NUEVO O RENTAS DEL ANTIGUO SISTEMA
 
 
-@bp_inventario.route('/pdf-alta-equipo/<folio>')
+@bp_inventario.route('/pdf-alta-equipo/<int:sucursal_id>/<folio>')
 @requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
-def generar_pdf_alta_equipo(folio):
-    
+def generar_pdf_alta_equipo(sucursal_id, folio):
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Obtener datos del movimiento de alta de equipo (incluye inventario general y plantilla de sucursal)
+        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
+        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
                    u.nombre as usuario_nombre, s.plantilla_renta
@@ -1731,10 +1739,11 @@ def generar_pdf_alta_equipo(folio):
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
             LEFT JOIN usuarios u ON mi.usuario = u.id
-            WHERE mi.folio_nota_entrada = %s 
+            WHERE mi.folio_nota_entrada = %s
+            AND mi.id_sucursal = %s
             AND mi.tipo_movimiento IN ('alta_equipo', 'alta_equipo_general')
             ORDER BY mi.fecha ASC, p.nombre_pieza ASC
-        """, (folio,))
+        """, (folio, sucursal_id))
         movimientos = cursor.fetchall()
         
         if not movimientos:
@@ -2102,16 +2111,18 @@ def generar_pdf_baja_equipo(folio):
 
 #################### PDF DE REPARACIÓN 
 
-@bp_inventario.route('/pdf-reparacion-lote/<folio>')
+@bp_inventario.route('/pdf-reparacion-lote/<int:sucursal_id>/<folio>')
 @requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
-def generar_pdf_reparacion_lote(folio):
-    
+def generar_pdf_reparacion_lote(sucursal_id, folio):
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Obtener datos del envío a reparación (incluye plantilla de sucursal)
+        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
+        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
                    u.nombre as usuario_nombre, s.plantilla_renta
@@ -2119,10 +2130,11 @@ def generar_pdf_reparacion_lote(folio):
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
             LEFT JOIN usuarios u ON mi.usuario = u.id
-            WHERE mi.folio_nota_salida = %s 
+            WHERE mi.folio_nota_salida = %s
+            AND mi.id_sucursal = %s
             AND mi.tipo_movimiento = 'reparacion_lote'
             ORDER BY mi.fecha ASC, p.nombre_pieza ASC
-        """, (folio,))
+        """, (folio, sucursal_id))
         movimientos = cursor.fetchall()
         
         if not movimientos:
@@ -2292,16 +2304,18 @@ def generar_pdf_reparacion_lote(folio):
 
 ########## PDF DE FINALIZACIÓN DE REPARACIONES (ENTRADA) ##########
 
-@bp_inventario.route('/pdf-finalizacion-reparacion/<folio>')
+@bp_inventario.route('/pdf-finalizacion-reparacion/<int:sucursal_id>/<folio>')
 @requiere_sesion()
 @requiere_permiso('ver_inventario_sucursal')
-def generar_pdf_finalizacion_reparacion(folio):
-    
+def generar_pdf_finalizacion_reparacion(sucursal_id, folio):
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Obtener datos de la finalización de reparación (incluye plantilla de sucursal)
+        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
+        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria, s.nombre as sucursal_nombre,
                    u.nombre as usuario_nombre, s.plantilla_renta
@@ -2309,10 +2323,11 @@ def generar_pdf_finalizacion_reparacion(folio):
             JOIN piezas p ON mi.id_pieza = p.id_pieza
             JOIN sucursales s ON mi.id_sucursal = s.id
             LEFT JOIN usuarios u ON mi.usuario = u.id
-            WHERE mi.folio_nota_entrada = %s 
+            WHERE mi.folio_nota_entrada = %s
+            AND mi.id_sucursal = %s
             AND mi.tipo_movimiento = 'finalizar_reparacion'
             ORDER BY mi.fecha ASC, p.nombre_pieza ASC
-        """, (folio,))
+        """, (folio, sucursal_id))
         movimientos = cursor.fetchall()
         
         if not movimientos:

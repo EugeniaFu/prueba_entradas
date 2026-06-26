@@ -430,7 +430,7 @@ function procesarAltaEquipoGeneral() {
                 reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
-                    const url = `/inventario/pdf-alta-equipo/${data.folio_nota_entrada}`;
+                    const url = `/inventario/pdf-alta-equipo/${sucursalId}/${data.folio_nota_entrada}`;
                     window.open(url, '_blank');
                 }
                 

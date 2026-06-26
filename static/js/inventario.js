@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         }).then((result) => {
                             if (result.isConfirmed && data.folio_nota_salida) {
                                 // Descargar PDF
-                                const url = `/inventario/pdf-reparacion-lote/${data.folio_nota_salida}`;
+                                const url = `/inventario/pdf-reparacion-lote/${sucursalId}/${data.folio_nota_salida}`;
                                 window.open(url, '_blank');
                             }
                             // Cerrar modal y recargar página
@@ -639,10 +639,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             if (result.isConfirmed) {
                                 // Descargar PDF según el tipo de operación
                                 if (esEnvio) {
-                                    const url = `/inventario/pdf-transferencia-salida/${data.folio_nota_salida}`;
+                                    const url = `/inventario/pdf-transferencia-salida/${sucursalOrigenId}/${data.folio_nota_salida}`;
                                     window.open(url, '_blank');
                                 } else {
-                                    const url = `/inventario/pdf-transferencia-entrada/${data.folio_nota_entrada}`;
+                                    const url = `/inventario/pdf-transferencia-entrada/${sucursalDestinoId}/${data.folio_nota_entrada}`;
                                     window.open(url, '_blank');
                                 }
                             }
@@ -803,10 +803,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             reverseButtons: true
                         }).then((result) => {
                             if (result.isConfirmed) {
-                                const url = `/inventario/pdf-alta-equipo/${data.folio_nota_entrada}`;
+                                const url = `/inventario/pdf-alta-equipo/${sucursalId}/${data.folio_nota_entrada}`;
                                 window.open(url, '_blank');
                             }
-                            
+
                             // Cerrar modal y recargar página
                             const modal = bootstrap.Modal.getInstance(document.getElementById('modalAltaEquipoNuevo'));
                             modal.hide();
@@ -1073,50 +1073,50 @@ function actualizarResumenTransferencia() {
 // ========================================
 
 // Función para descargar PDF de transferencia (envío)
-function descargarPDFTransferencia(folio) {
+function descargarPDFTransferencia(sucursalId, folio) {
     if (!folio) {
         Swal.fire('Error', 'Folio de transferencia no disponible', 'error');
         return;
     }
-    
+
     // Abrir PDF en nueva ventana
-    const url = `/inventario/pdf-transferencia-salida/${folio}`;
+    const url = `/inventario/pdf-transferencia-salida/${sucursalId}/${folio}`;
     window.open(url, '_blank');
 }
 
 // Función para descargar PDF de recepción
-function descargarPDFRecepcion(folio) {
+function descargarPDFRecepcion(sucursalId, folio) {
     if (!folio) {
         Swal.fire('Error', 'Folio de recepción no disponible', 'error');
         return;
     }
-    
+
     // Abrir PDF en nueva ventana
-    const url = `/inventario/pdf-transferencia-entrada/${folio}`;
+    const url = `/inventario/pdf-transferencia-entrada/${sucursalId}/${folio}`;
     window.open(url, '_blank');
 }
 
 // Función para descargar PDF de alta de equipo
-function descargarPDFAltaEquipo(folio) {
+function descargarPDFAltaEquipo(sucursalId, folio) {
     if (!folio) {
         Swal.fire('Error', 'Folio de alta no disponible', 'error');
         return;
     }
-    
+
     // Abrir PDF en nueva ventana
-    const url = `/inventario/pdf-alta-equipo/${folio}`;
+    const url = `/inventario/pdf-alta-equipo/${sucursalId}/${folio}`;
     window.open(url, '_blank');
 }
 
 // Función para descargar PDF de reparación
-function descargarPDFReparacion(folio) {
+function descargarPDFReparacion(sucursalId, folio) {
     if (!folio) {
         Swal.fire('Error', 'Folio de reparación no disponible', 'error');
         return;
     }
-    
+
     // Abrir PDF en nueva ventana
-    const url = `/inventario/pdf-reparacion-lote/${folio}`;
+    const url = `/inventario/pdf-reparacion-lote/${sucursalId}/${folio}`;
     window.open(url, '_blank');
 }
 

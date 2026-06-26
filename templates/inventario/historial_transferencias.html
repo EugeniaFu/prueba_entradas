@@ -166,7 +166,7 @@
                     <td>
                         {% if transferencia.folio and transferencia.tipo_movimiento in ['transferencia_salida', 'transferencia_entrada', 'alta_equipo', 'reparacion_lote', 'finalizar_reparacion'] %}
                             <button class="btn btn-outline-danger action-btn-transferencias" 
-                                    onclick="verPDFTransferenciaTipoMov('{{ transferencia.tipo_movimiento }}', '{{ transferencia.folio }}')"
+                                    onclick="verPDFTransferenciaTipoMov('{{ transferencia.tipo_movimiento }}', '{{ transferencia.folio }}', {{ sucursal.id_sucursal }})"
                                     title="Ver PDF">
                                 <i class="bi bi-file-earmark-pdf"></i>
                             </button>
@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Función para ver PDF según tipo_movimiento real
-function verPDFTransferenciaTipoMov(tipo_movimiento, folio) {
+function verPDFTransferenciaTipoMov(tipo_movimiento, folio, sucursalId) {
     if (!folio) {
         Swal.fire('Error', 'Folio no disponible', 'error');
         return;
@@ -272,7 +272,7 @@ function verPDFTransferenciaTipoMov(tipo_movimiento, folio) {
         Swal.fire('Error', 'Tipo de documento no reconocido', 'error');
         return;
     }
-    const url = `/inventario/${endpoint}/${folio}`;
+    const url = `/inventario/${endpoint}/${sucursalId}/${folio}`;
     window.open(url, '_blank');
 }
 
