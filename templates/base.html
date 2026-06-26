@@ -30,19 +30,23 @@
                     </div>
                     <!-- Menú desplegable por sucursal generado dinámicamente -->
                     <div class="accordion" id="sucursalesAccordion">
+                        {# Sucursal que se está viendo actualmente #}
+                        {% set sucursal_vista_id = (request.view_args or {}).get('sucursal_id') or request.args.get('sucursal_id') %}
+                        {% if sucursal_vista_id %}{% set sucursal_vista_id = sucursal_vista_id|int %}{% endif %}
                         {% for sucursal in list_sucursales %}
                         {# Solo mostramos el menú de la sucursal si el usuario no tiene sucursal_id fija (admin/dueño) o si coincide con la de su sesión #}
                         {% if not session['sucursal_id'] or session['sucursal_id'] == sucursal.id %}
+                        {% set sucursal_abierta = (session['sucursal_id'] == sucursal.id) or (sucursal_vista_id == sucursal.id) or (not sucursal_vista_id and loop.index == 1) %}
                         <!-- Sucursal: {{ sucursal.nombre }} -->
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="headingSucursal{{ sucursal.id }}">
-                                <button class="accordion-button {% if session['sucursal_id'] != sucursal.id and loop.index > 1 %}collapsed{% endif %}" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseSucursal{{ sucursal.id }}" aria-expanded="{% if session['sucursal_id'] == sucursal.id or loop.index == 1 %}true{% else %}false{% endif %}"
+                                <button class="accordion-button {% if not sucursal_abierta %}collapsed{% endif %}" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseSucursal{{ sucursal.id }}" aria-expanded="{{ 'true' if sucursal_abierta else 'false' }}"
                                     aria-controls="collapseSucursal{{ sucursal.id }}">
                                     <i class="bi bi-building"></i> {{ sucursal.nombre }}
                                 </button>
                             </h2>
-                            <div id="collapseSucursal{{ sucursal.id }}" class="accordion-collapse collapse {% if session['sucursal_id'] == sucursal.id or loop.index == 1 %}show{% endif %}"
+                            <div id="collapseSucursal{{ sucursal.id }}" class="accordion-collapse collapse {% if sucursal_abierta %}show{% endif %}"
                                 aria-labelledby="headingSucursal{{ sucursal.id }}" data-bs-parent="#sucursalesAccordion">
                                 <div class="accordion-body p-0">
                                     <ul class="nav flex-column ms-3">
