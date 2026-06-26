@@ -580,7 +580,7 @@ def crear_nota_entrada(renta_id):
 
 @notas_entrada_bp.route('/pendientes_cliente/<int:cliente_id>')
 @requiere_sesion()
-@requiere_permiso('ver_notas_entrada')
+@requiere_permiso('crear_nota_entrada_multiple')
 def pendientes_cliente(cliente_id):
     sucursal_id = request.args.get('sucursal_id', type=int)
     if not sucursal_id:
@@ -609,7 +609,7 @@ def pendientes_cliente(cliente_id):
 
 @notas_entrada_bp.route('/crear_multiple', methods=['POST'])
 @requiere_sesion()
-@requiere_permiso('crear_nota_entrada')
+@requiere_permiso('crear_nota_entrada_multiple')
 def crear_nota_entrada_multiple():
     """Caso A: el cliente trae el equipo de varias rentas él mismo, completo, en una sola visita."""
     data = request.get_json()
@@ -640,7 +640,7 @@ def crear_nota_entrada_multiple():
 
 @notas_entrada_bp.route('/crear_recoleccion_multiple', methods=['POST'])
 @requiere_sesion()
-@requiere_permiso('crear_nota_entrada')
+@requiere_permiso('crear_nota_entrada_multiple')
 def crear_recoleccion_multiple():
     """Caso B: alguna renta tiene traslado pagado, se manda un solo chofer a recoger
     varias rentas. Solo despacha (no captura cantidades); la captura real se hace

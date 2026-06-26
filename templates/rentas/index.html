@@ -51,10 +51,12 @@
         %}data-sucursal-actual="{{ sucursal_actual.id }}" {% endif %}>
         <i class="bi bi-file-earmark-medical"></i> Nueva Renta
       </a>
+      {% if puede_crear_nota_entrada_multiple %}
       <button type="button" class="btn btn-rentas-main btn-nota-entrada-multiple"
         data-sucursal-id="{{ sucursal_id if sucursal_id else (sucursal_actual.id if sucursal_actual.id != 'todas' else '') }}">
         <i class="bi bi-box-arrow-in-down"></i> Nota de Entrada Múltiple
       </button>
+      {% endif %}
     </div>
 
 

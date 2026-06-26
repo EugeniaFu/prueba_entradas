@@ -82,6 +82,7 @@ PERMISOS_SISTEMA = [
     ('crear_nota_salida', 'Generar una nota de salida (entregar piezas de renta)'),
     ('ver_notas_entrada', 'Consultar el historial y PDF de notas de entrada'),
     ('crear_nota_entrada', 'Generar una nota de entrada (recibir piezas de renta)'),
+    ('crear_nota_entrada_multiple', 'Generar notas de entrada múltiples (consolidar varias rentas de un cliente o despachar una recolección conjunta)'),
     
     # Prefacturas
     ('ver_prefactura', 'Consultar prefacturas generadas'),

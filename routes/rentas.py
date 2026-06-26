@@ -264,6 +264,7 @@ def modulo_rentas(sucursal_id=None):
 
     # Verificar si el usuario tiene permiso para ajustar precios
     puede_ajustar_precios = 'ajustar_precios_renta' in session.get('permisos', [])
+    puede_crear_nota_entrada_multiple = 'crear_nota_entrada_multiple' in session.get('permisos', [])
 
     return render_template(
         'rentas/index.html',
@@ -278,7 +279,8 @@ def modulo_rentas(sucursal_id=None):
         sucursal_actual=sucursal_actual,
         es_admin=(sucursal_id_usuario is None),
         rentas_pagadas=rentas_pagadas,
-        puede_ajustar_precios=puede_ajustar_precios
+        puede_ajustar_precios=puede_ajustar_precios,
+        puede_crear_nota_entrada_multiple=puede_crear_nota_entrada_multiple
     )
 
 
