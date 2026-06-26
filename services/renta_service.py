@@ -646,11 +646,13 @@ class RentasService:
                     if not cursor.fetchone():
                         continue
 
+                    # Buenas y sucias: +disponibles, -rentadas 
+                    cantidad_buena_o_sucia = cantidad_buena + cantidad_sucia
                     cursor.execute("""
                         UPDATE inventario_sucursal
                         SET disponibles = disponibles + %s, rentadas = rentadas - %s
                         WHERE id_sucursal = %s AND id_pieza = %s
-                    """, (cantidad_buena, cantidad_buena, sucursal_id, id_pieza))
+                    """, (cantidad_buena_o_sucia, cantidad_buena_o_sucia, sucursal_id, id_pieza))
 
                     if cantidad_danada > 0:
                         cursor.execute("""

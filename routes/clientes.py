@@ -9,12 +9,6 @@ from utils.decorators import requiere_sesion, requiere_permiso
 from services.cliente_service import ClienteService
 from services.renta_service import RentasService
 
-SUCURSAL_PREFIJOS = {
-    1: "01",  # Matriz
-    2: "02",  # Los Reyes
-    3: "03",  # Lerma
-}
-
 clientes_bp = Blueprint('clientes', __name__, url_prefix='/clientes')
 
 @clientes_bp.route('/', methods=['GET'])
@@ -314,7 +308,9 @@ def nuevo_cliente():
                 return render_template('clientes/nuevo_cliente.html', sucursales=sucursales)
         
         # Enviar al servicio
-        prefijo = SUCURSAL_PREFIJOS.get(int(sucursal_id), "00")
+        # El prefijo es el id de la sucursal con 2 dígitos, así nunca hay que
+        # tocar este código al dar de alta una sucursal nueva.
+        prefijo = f"{int(sucursal_id):02d}"
         success, err_msg = ClienteService.crear_cliente_completo(datos_cliente, sucursal_id, prefijo, documentos_nuevos)
         
         if success:

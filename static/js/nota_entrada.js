@@ -318,6 +318,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                     document.getElementById('tabla-piezas-salieron').innerHTML = piezasHtml;
                     document.getElementById('tabla-evaluacion-piezas').innerHTML = evaluacionHtml;
+
+                    // Si la renta está forzada a recolección, las filas recién
+                    // creadas arriba deben quedar bloqueadas (no se pudo hacer
+                    // antes porque todavía no existían en el DOM).
+                    if (window.notaEntradaEnRecoleccion) {
+                        document.querySelectorAll('.cantidad-recibida, .cantidad-buena, .cantidad-danada, .cantidad-sucia, .cantidad-perdida').forEach(input => {
+                            input.disabled = true;
+                            input.value = '';
+                        });
+                    }
                 })
                 .catch(err => {
                     console.error('Error al obtener nota de entrada:', err);

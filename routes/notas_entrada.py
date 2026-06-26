@@ -293,7 +293,7 @@ def crear_nota_entrada(renta_id):
                 'error': 'Selecciona el chofer que realizará el traslado extra.'
             }), 403
 
-        # --- Lógica para distinguir renovación total vs parcial ---
+        # Lógica para distinguir renovación total vs parcial 
         cursor.execute("""
             SELECT COUNT(*) AS total_renovaciones
             FROM rentas
@@ -318,7 +318,7 @@ def crear_nota_entrada(renta_id):
         total_piezas_salida = sum([p['cantidad_salida'] for p in piezas_salida])
         total_piezas_recibidas = sum([int(p.get('cantidad_recibida', 0)) for p in piezas])
 
-        # Respetar la decisión del usuario sobre cobrar retraso, independientemente de renovaciones
+        # cobrar retraso, independientemente de renovaciones
         cobrar_retraso = data.get('cobrar_retraso', False)
         estado_retraso = 'Retraso Pendiente' if cobrar_retraso else 'Sin Retraso'
 
@@ -348,10 +348,8 @@ def crear_nota_entrada(renta_id):
             if not cobrar_retraso and nota_existente['estado_retraso'] == 'Retraso Pendiente':
                 estado_retraso = 'Retraso Pendiente'
 
-        # Gate: si la renta salió con traslado redondo o medio_regreso, la PRIMERA nota de
-        # entrada debe ser obligatoriamente la de recolección (con chofer), para que la
-        # secretaria no pueda finalizar la entrada con cantidades sin que el chofer haya
-        # verificado físicamente el equipo.
+        # La renta salió con traslado redondo o medio_regreso, es obligatorio seleccionar al Chofer responsable
+        
         requiere_recoleccion = (renta_check['traslado'] or '').lower() in ('redondo', 'medio_regreso') if renta_check else False
         es_recoleccion_actual = all(
             (pieza.get('cantidad_recibida', 0) in [0, '', None]) for pieza in piezas
@@ -440,15 +438,16 @@ def crear_nota_entrada(renta_id):
             if not inventario_row:
                 continue
 
-            # Buenas: +disponibles, -rentadas
+            # Buenas y sucias: +disponibles, -rentadas 
+            cantidad_buena_o_sucia = cantidad_buena + cantidad_sucia
             cursor.execute("""
                 UPDATE inventario_sucursal
-                SET 
+                SET
                     disponibles = disponibles + %s,
                     rentadas = rentadas - %s
                 WHERE id_sucursal = %s AND id_pieza = %s
             """, (
-                cantidad_buena, cantidad_buena, id_sucursal, id_pieza
+                cantidad_buena_o_sucia, cantidad_buena_o_sucia, id_sucursal, id_pieza
             ))
 
             # Dañadas: +daniadas, -rentadas
@@ -476,7 +475,6 @@ def crear_nota_entrada(renta_id):
                     cantidad_perdida, cantidad_perdida, cantidad_perdida, id_sucursal, id_pieza
                 ))
 
-        # --- NUEVO FLUJO DE ESTADO ---
         # Detectar si la nota es de recolección (todas las recibidas en 0)
         es_recoleccion = all(
             (pieza.get('cantidad_recibida', 0) in [0, '', None]) for pieza in piezas
@@ -572,17 +570,13 @@ def crear_nota_entrada(renta_id):
 
 
 
-####################################################################
-####################################################################
-####################################################################
-####################################################################
 
 
 ####################################################################
 ####################################################################
 ####################################################################
 ####################################################################
-########## NOTA DE ENTRADA MÚLTIPLE (consolidación por cliente) ###
+########## NOTA DE ENTRADA MÚLTIPLE ###
 
 @notas_entrada_bp.route('/pendientes_cliente/<int:cliente_id>')
 @requiere_sesion()
@@ -706,6 +700,17 @@ def historial_notas_entrada(renta_id):
         if isinstance(nota['fecha_entrada_real'], datetime):
             nota['fecha_entrada_real'] = nota['fecha_entrada_real'].strftime('%Y-%m-%d %H:%M')
     return jsonify(notas)
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1056,6 +1061,12 @@ def generar_pdf_nota_entrada_por_renta(renta_id):
     if not nota:
         return f"No hay nota de entrada para la renta {renta_id}", 404
     return redirect(url_for('notas_entrada.generar_pdf_nota_entrada', nota_entrada_id=nota['id']))
+
+
+
+
+
+
 
 
 
