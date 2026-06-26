@@ -1408,6 +1408,26 @@ class RentasService:
             """, (renta_id,))
             productos = cursor.fetchall()
 
+            # Renovaciones parciales
+            padre_real_id = renta['renta_asociada_id'] or renta_id
+            piezas_pendientes = {
+                p['id_pieza']: p['cantidad_pendiente']
+                for p in RentasService._calcular_piezas_pendientes_renta(cursor, padre_real_id)
+            }
+            for prod in productos:
+                cursor.execute("""
+                    SELECT id_pieza, cantidad FROM producto_piezas WHERE id_producto = %s
+                """, (prod['id_producto'],))
+                piezas_producto = cursor.fetchall()
+                if piezas_producto:
+                    cantidad_pendiente = max(
+                        -(-piezas_pendientes.get(pp['id_pieza'], 0) // pp['cantidad'])
+                        for pp in piezas_producto
+                    )
+                    prod['cantidad_pendiente'] = min(max(0, cantidad_pendiente), prod['cantidad'])
+                else:
+                    prod['cantidad_pendiente'] = 0
+
             fecha_limite = "INDEFINIDA"
             if renta['fecha_entrada']:
                 from datetime import timedelta

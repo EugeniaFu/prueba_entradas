@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     function cargarPendientesRenovacion(rentaId) {
-        fetch(`/api/rentas_pendientes/${rentaId}`)
+        fetch(`/rentas/api/rentas_pendientes/${rentaId}`)
             .then(resp => resp.json())
             .then(data => {
                 pendientesRenovacion = data.pendientes || [];
