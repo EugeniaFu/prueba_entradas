@@ -60,7 +60,10 @@ def create_app(config_name='default'):
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, nombre FROM sucursales")
+            try:
+                cursor.execute("SELECT id, nombre FROM sucursales WHERE activo = 1")
+            except Exception:
+                cursor.execute("SELECT id, nombre FROM sucursales")
             sucursales = cursor.fetchall()
             cursor.close()
             conn.close()

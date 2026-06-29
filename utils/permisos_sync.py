@@ -68,6 +68,8 @@ PERMISOS_SISTEMA = [
     ('ver_sucursales', 'Ver la lista de sucursales'),
     ('crear_sucursal', 'Registrar una nueva sucursal'),
     ('editar_sucursal', 'Editar datos de una sucursal'),
+    ('baja_sucursal', 'Dar de baja o reactivar una sucursal'),
+    ('eliminar_sucursal', 'Eliminar definitivamente una sucursal sin actividad'),
     
     # Roles y Permisos (Nuevo)
     ('gestionar_roles_permisos', 'Tener acceso a la matriz de roles global y poder modificar qué rol hace qué cosa'),

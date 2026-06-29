@@ -274,7 +274,10 @@ def nuevo_cliente():
         # Obtener sucursales por si hay fallo y debemos re-renderizar
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM sucursales")
+        try:
+            cursor.execute("SELECT * FROM sucursales WHERE activo = 1")
+        except Exception:
+            cursor.execute("SELECT * FROM sucursales")
         sucursales = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -323,10 +326,12 @@ def nuevo_cliente():
     # Si es GET, consultamos las sucursales para el Admin
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Quitamos "WHERE activo = 1" ya que la columna no existe
-    cursor.execute("SELECT * FROM sucursales")
+    try:
+        cursor.execute("SELECT * FROM sucursales WHERE activo = 1")
+    except Exception:
+        cursor.execute("SELECT * FROM sucursales")
     sucursales = cursor.fetchall()
     cursor.close()
     conn.close()
-    
+
     return render_template('clientes/nuevo_cliente.html', sucursales=sucursales)

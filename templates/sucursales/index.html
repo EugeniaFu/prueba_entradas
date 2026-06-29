@@ -11,9 +11,17 @@
 <div class="clientes-box-container">
     <div class="clientes-section-header">
         <h2 class="clientes-section-title"><i class="bi bi-building"></i> Gestión de Sucursales</h2>
-        <button class="btn btn-clientes-main" data-bs-toggle="modal" data-bs-target="#modalNuevaSucursal">
-            <i class="bi bi-plus-circle"></i> Nueva Sucursal
-        </button>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('sucursales.sucursales', ver_bajas=0 if ver_bajas == '1' else 1) }}"
+                class="btn btn-clientes-filter {{ 'active' if ver_bajas == '1' else '' }}">
+                {{ 'Ver Bajas' if ver_bajas != '1' else 'Ver Activas' }}
+            </a>
+            {% if ver_bajas != '1' %}
+            <button class="btn btn-clientes-main" data-bs-toggle="modal" data-bs-target="#modalNuevaSucursal">
+                <i class="bi bi-plus-circle"></i> Nueva Sucursal
+            </button>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Alertas Flash -->
@@ -37,6 +45,7 @@
                     <th>Dirección</th>
                     <th>PDF Renta</th>
                     <th>PDF Cotización</th>
+                    <th class="text-center">Estatus</th>
                     <th class="text-center">Acciones</th>
                 </tr>
             </thead>
@@ -47,7 +56,7 @@
                     <td>{{ sucursal.nombre }}</td>
                     <td>{{ sucursal.direccion }}</td>
 
-                    
+
                     <td class="text-center">
                         {% if sucursal.plantilla_renta %}
                             <a href="/{{ sucursal.plantilla_renta }}" target="_blank" title="Ver plantilla de renta">
@@ -67,9 +76,34 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
+                        {% if sucursal.activo %}
+                        <span class="badge bg-success">Activa</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Dada de baja</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if sucursal.activo %}
                         <button class="btn btn-square btn-outline-warning p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;" data-bs-toggle="modal" data-bs-target="#modalEditarSucursal{{ sucursal.id }}" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        <button class="btn btn-square btn-outline-danger p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;"
+                            title="Dar de baja"
+                            onclick="confirmarBajaSucursal('{{ url_for('sucursales.baja_sucursal', id=sucursal.id) }}', '{{ sucursal.nombre }}')">
+                            <i class="bi bi-building-dash"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn btn-square btn-outline-primary p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;"
+                            title="Reactivar"
+                            onclick="confirmarReactivarSucursal('{{ url_for('sucursales.reactivar_sucursal', id=sucursal.id) }}', '{{ sucursal.nombre }}')">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                        <button class="btn btn-square btn-outline-danger p-0 d-inline-flex align-items-center justify-content-center" style="width:36px;height:36px;min-width:36px;min-height:36px;"
+                            title="Eliminar definitivamente"
+                            onclick="confirmarEliminarSucursal('{{ url_for('sucursales.eliminar_sucursal', id=sucursal.id) }}', '{{ sucursal.nombre }}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
                     </td>
                 </tr>
 
@@ -111,7 +145,9 @@
                 {% endfor %}
                 {% if not sucursales %}
                 <tr>
-                    <td colspan="4" class="text-center text-muted">No hay sucursales registradas.</td>
+                    <td colspan="7" class="text-center text-muted">
+                        {{ 'No hay sucursales dadas de baja.' if ver_bajas == '1' else 'No hay sucursales registradas.' }}
+                    </td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -152,7 +188,63 @@
                 </div>
             </div>
         </form>
-            <form method="post" action="{{ url_for('sucursales.nueva_sucursal') }}" enctype="multipart/form-data">
     </div>
 </div>
+
+<script>
+function enviarPost(url) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function confirmarBajaSucursal(url, nombre) {
+    Swal.fire({
+        title: '¿Dar de baja sucursal?',
+        html: `¿Seguro que deseas dar de baja a <strong>${nombre}</strong>?<br>` +
+              'Su historial (rentas, clientes, inventario) seguirá disponible; solo dejará de aparecer para operaciones nuevas.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#f0ad4e',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, dar de baja',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) enviarPost(url);
+    });
+}
+
+function confirmarReactivarSucursal(url, nombre) {
+    Swal.fire({
+        title: '¿Reactivar sucursal?',
+        text: `¿Seguro que deseas reactivar ${nombre}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, reactivar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) enviarPost(url);
+    });
+}
+
+function confirmarEliminarSucursal(url, nombre) {
+    Swal.fire({
+        title: '¡ATENCIÓN!',
+        html: `¿Seguro que deseas eliminar definitivamente <strong>${nombre}</strong>?<br>` +
+              'Esta acción NO se puede deshacer y solo es posible si la sucursal nunca tuvo actividad.',
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) enviarPost(url);
+    });
+}
+</script>
 {% endblock %}

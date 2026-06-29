@@ -327,11 +327,15 @@ class RentasService:
 
     @staticmethod
     def obtener_sucursales():
-        """Obtiene todas las sucursales del sistema."""
+        """Obtiene las sucursales activas del sistema (para selectores de
+        operaciones nuevas: renta, renovación, etc.)."""
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
+            try:
+                cursor.execute("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY id")
+            except Exception:
+                cursor.execute("SELECT id, nombre FROM sucursales ORDER BY id")
             return cursor.fetchall()
         finally:
             cursor.close()
