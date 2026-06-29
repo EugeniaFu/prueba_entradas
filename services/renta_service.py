@@ -252,12 +252,20 @@ class RentasService:
                     r.fecha_registro, r.fecha_salida, r.fecha_entrada,
                     r.estado_renta, r.estado_pago, r.total_con_iva,
                     r.renta_asociada_id, r.direccion_obra,
-                    ne.estado_retraso
+                    ne.estado_retraso,
+                    (SELECT COUNT(*) FROM notas_salida WHERE renta_id = r.id) > 0 AS tiene_salida,
+                    (SELECT folio FROM notas_salida WHERE renta_id = r.id ORDER BY id DESC LIMIT 1) AS folio_salida,
+                    (ne.id IS NOT NULL) AS tiene_entrada,
+                    (SELECT COUNT(*) FROM prefacturas WHERE renta_id = r.id) > 0 AS tiene_prefactura,
+                    nce.id AS cobro_extra_id,
+                    ncr.id AS cobro_retraso_id
                 FROM rentas r
                 JOIN sucursales s ON r.id_sucursal = s.id
                 LEFT JOIN notas_entrada ne ON ne.id = (
                     SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id
                 )
+                LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
+                LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
                 WHERE r.cliente_id = %s AND r.estado_renta != 'eliminada'
                 ORDER BY r.id ASC
             """, (cliente_id,))
@@ -295,7 +303,10 @@ class RentasService:
 
                 historial.append({
                     'raiz_id': raiz_id,
+                    'renta_id_actual': actual['id'],
                     'folio': raiz['folio'],
+                    'id_sucursal': raiz['id_sucursal'],
+                    'folio_salida': raiz['folio_salida'],
                     'sucursal_nombre': raiz['sucursal_nombre'],
                     'fecha_inicio': raiz['fecha_salida'],
                     'fecha_fin': actual['fecha_entrada'] if estado_renta_actual == 'finalizada' else None,
