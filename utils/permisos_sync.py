@@ -61,6 +61,7 @@ PERMISOS_SISTEMA = [
     # Módulo Caja y Reportes
     ('ver_movimientos_caja', 'Acceder al control de caja (efectivo y digital)'),
     ('crear_movimiento_caja', 'Registrar entradas o salidas de dinero en caja'),
+    ('crear_corte_caja', 'Registrar el corte de caja (conteo de billetes y monedas) del día'),
     ('ver_reportes', 'Ver el reporte diario de operación'),
     
     # Módulo de Sucursales (Nuevo)

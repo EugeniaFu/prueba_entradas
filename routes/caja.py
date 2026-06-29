@@ -15,6 +15,56 @@ from utils.decorators import requiere_sesion, requiere_permiso
 
 caja_bp = Blueprint('caja', __name__, url_prefix='/caja')
 
+
+def _asegurar_tablas_corte_caja(cursor):
+    """Crea las tablas del corte de caja si todavía no existen (mismo patrón
+    perezoso que ya usa dashboard_notas). El corte es solo una foto/auditoría
+    del efectivo físico contado: nunca inserta nada en movimientos_caja, así
+    que no afecta el acumulado de ingresos/egresos que ya se maneja hoy."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cortes_caja (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sucursal_id INT NOT NULL,
+            fecha DATE NOT NULL,
+            usuario_id INT,
+            saldo_sistema DECIMAL(12,2) NOT NULL DEFAULT 0,
+            total_contado DECIMAL(12,2) NOT NULL DEFAULT 0,
+            diferencia DECIMAL(12,2) NOT NULL DEFAULT 0,
+            observaciones TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_corte_sucursal_fecha (sucursal_id, fecha)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS corte_caja_detalle (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            corte_caja_id INT NOT NULL,
+            tipo ENUM('billete', 'moneda') NOT NULL,
+            denominacion DECIMAL(8,2) NOT NULL,
+            cantidad INT NOT NULL DEFAULT 0,
+            FOREIGN KEY (corte_caja_id) REFERENCES cortes_caja(id) ON DELETE CASCADE
+        )
+    """)
+
+
+def obtener_corte_caja(cursor, sucursal_id, fecha):
+    """Devuelve el corte de caja registrado para esa sucursal/fecha (con su
+    detalle de billetes/monedas), o None si no se ha registrado ninguno."""
+    _asegurar_tablas_corte_caja(cursor)
+    cursor.execute("""
+        SELECT * FROM cortes_caja WHERE sucursal_id = %s AND fecha = %s
+    """, (sucursal_id, fecha))
+    corte = cursor.fetchone()
+    if not corte:
+        return None
+    cursor.execute("""
+        SELECT tipo, denominacion, cantidad FROM corte_caja_detalle
+        WHERE corte_caja_id = %s ORDER BY tipo ASC, denominacion DESC
+    """, (corte['id'],))
+    corte['detalle'] = cursor.fetchall()
+    return corte
+
 def registrar_movimiento_automatico(tipo, concepto, monto, metodo_pago, usuario_id, sucursal_id, 
                                   referencia_tabla, referencia_id, numero_seguimiento=None, observaciones=None):
     try:
@@ -438,6 +488,141 @@ def obtener_resumen():
         print(f"Error al obtener resumen: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+def _resolver_sucursal_id(es_admin, sucursal_id_usuario, sucursal_id_param):
+    if es_admin:
+        sucursal_id = sucursal_id_param
+        if sucursal_id is None:
+            sucursal_id = 1  # Matriz por defecto
+        return sucursal_id
+    return sucursal_id_usuario
+
+
+@caja_bp.route('/api/corte')
+@requiere_sesion()
+@requiere_permiso('ver_movimientos_caja')
+def obtener_corte_caja_api():
+    """Devuelve el corte de caja (billetes/monedas) ya registrado para la
+    fecha/sucursal indicada, para precargar el formulario si ya se contó."""
+    try:
+        fecha = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        sucursal_id = _resolver_sucursal_id(es_admin, sucursal_id_usuario, request.args.get('sucursal_id', type=int))
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        corte = obtener_corte_caja(cursor, sucursal_id, fecha)
+
+        cursor.close()
+        conn.close()
+
+        if corte:
+            corte['saldo_sistema'] = float(corte['saldo_sistema'])
+            corte['total_contado'] = float(corte['total_contado'])
+            corte['diferencia'] = float(corte['diferencia'])
+            for d in corte['detalle']:
+                d['denominacion'] = float(d['denominacion'])
+
+        return jsonify({'success': True, 'corte': corte})
+
+    except Exception as e:
+        print(f"Error al obtener corte de caja: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@caja_bp.route('/api/corte', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_corte_caja')
+def guardar_corte_caja_api():
+    
+    try:
+        data = request.get_json() or {}
+        fecha = data.get('fecha') or date.today().strftime('%Y-%m-%d')
+        denominaciones = data.get('denominaciones', [])  # [{tipo, denominacion, cantidad}, ...]
+        observaciones = (data.get('observaciones') or '').strip()
+
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+        if es_admin:
+            sucursal_id = data.get('sucursal_id')
+            if not sucursal_id:
+                return jsonify({'success': False, 'error': 'Debe especificar a qué sucursal pertenece el corte'}), 400
+        else:
+            sucursal_id = sucursal_id_usuario
+
+        usuario_id = session.get('user_id')
+        if not usuario_id:
+            return jsonify({'success': False, 'error': 'Usuario no autenticado'}), 401
+
+        total_contado = 0.0
+        filas_validas = []
+        for fila in denominaciones:
+            try:
+                cantidad = int(fila.get('cantidad') or 0)
+                denominacion = float(fila.get('denominacion'))
+                tipo = fila.get('tipo')
+            except (TypeError, ValueError):
+                continue
+            if cantidad <= 0 or tipo not in ('billete', 'moneda'):
+                continue
+            filas_validas.append((tipo, denominacion, cantidad))
+            total_contado += cantidad * denominacion
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        _asegurar_tablas_corte_caja(cursor)
+
+        fecha_dt = datetime.strptime(fecha, '%Y-%m-%d').date()
+        saldo_sistema = obtener_saldo_acumulado_hasta(cursor, sucursal_id, fecha_dt)
+        diferencia = total_contado - saldo_sistema
+
+        cursor.execute("""
+            SELECT id FROM cortes_caja WHERE sucursal_id = %s AND fecha = %s
+        """, (sucursal_id, fecha))
+        existente = cursor.fetchone()
+
+        if existente:
+            corte_id = existente['id']
+            cursor.execute("""
+                UPDATE cortes_caja
+                SET usuario_id = %s, saldo_sistema = %s, total_contado = %s,
+                    diferencia = %s, observaciones = %s
+                WHERE id = %s
+            """, (usuario_id, saldo_sistema, total_contado, diferencia, observaciones or None, corte_id))
+            cursor.execute("DELETE FROM corte_caja_detalle WHERE corte_caja_id = %s", (corte_id,))
+        else:
+            cursor.execute("""
+                INSERT INTO cortes_caja (sucursal_id, fecha, usuario_id, saldo_sistema, total_contado, diferencia, observaciones)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (sucursal_id, fecha, usuario_id, saldo_sistema, total_contado, diferencia, observaciones or None))
+            corte_id = cursor.lastrowid
+
+        for tipo, denominacion, cantidad in filas_validas:
+            cursor.execute("""
+                INSERT INTO corte_caja_detalle (corte_caja_id, tipo, denominacion, cantidad)
+                VALUES (%s, %s, %s, %s)
+            """, (corte_id, tipo, denominacion, cantidad))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': 'Corte de caja registrado correctamente',
+            'saldo_sistema': saldo_sistema,
+            'total_contado': total_contado,
+            'diferencia': diferencia
+        })
+
+    except Exception as e:
+        print(f"Error al guardar corte de caja: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @caja_bp.route('/api/ingresos-digitales')
 @requiere_sesion()
 @requiere_permiso('ver_movimientos_caja')
@@ -670,6 +855,10 @@ def generar_pdf_movimientos():
         saldo_inicial_periodo = obtener_saldo_acumulado_hasta(cursor, sucursal_id, fecha_inicio_dt - timedelta(days=1))
         saldo_final_periodo = saldo_inicial_periodo + total_ingresos - total_egresos
 
+        # El corte de billetes/monedas es un cierre de UN solo día -- si el
+        # reporte cubre un rango, no aplica y se omite del PDF.
+        corte = obtener_corte_caja(cursor, sucursal_id, fecha_inicio) if fecha_inicio == fecha_fin else None
+
         cursor.close()
         conn.close()
 
@@ -845,7 +1034,59 @@ def generar_pdf_movimientos():
             
             # Espacio adicional entre movimientos
             y_pos -= 3
-        
+
+        # === CORTE DE CAJA (billetes y monedas) ===
+        # Solo aplica cuando el reporte es de un solo día y ya se registró un corte.
+        if corte:
+            if y_pos < 220:
+                can.showPage()
+                y_pos = letter[1] - 60
+
+            y_pos -= 15
+            can.setFont("Helvetica-Bold", 10)
+            can.drawString(40, y_pos, "CORTE DE CAJA")
+            y_pos -= 20
+
+            can.setFont("Helvetica-Bold", 9)
+            can.drawString(40, y_pos, "TIPO")
+            can.drawString(120, y_pos, "DENOMINACIÓN")
+            can.drawString(260, y_pos, "CANTIDAD")
+            can.drawString(360, y_pos, "SUBTOTAL")
+            can.line(40, y_pos - 3, 460, y_pos - 3)
+            y_pos -= 15
+
+            can.setFont("Carlito", 9)
+            for fila in corte['detalle']:
+                if y_pos < 100:
+                    can.showPage()
+                    can.setFont("Carlito", 9)
+                    y_pos = letter[1] - 60
+
+                denom = fila['denominacion']
+                denom_txt = f"${denom:,.2f}" if denom < 1 else f"${denom:,.0f}"
+                subtotal = denom * fila['cantidad']
+                can.drawString(40, y_pos, fila['tipo'].upper())
+                can.drawString(120, y_pos, denom_txt)
+                can.drawString(260, y_pos, str(fila['cantidad']))
+                can.drawString(360, y_pos, f"${subtotal:,.2f}")
+                y_pos -= 13
+
+            y_pos -= 10
+            can.setFont("Helvetica-Bold", 10)
+            can.drawString(40, y_pos, f"TOTAL CONTADO: ${corte['total_contado']:,.2f}")
+            y_pos -= 14
+            can.drawString(40, y_pos, f"SALDO SEGÚN SISTEMA: ${corte['saldo_sistema']:,.2f}")
+            y_pos -= 14
+            diferencia = corte['diferencia']
+            etiqueta_diferencia = "SOBRANTE" if diferencia > 0 else ("FALTANTE" if diferencia < 0 else "SIN DIFERENCIA")
+            can.drawString(40, y_pos, f"DIFERENCIA: ${diferencia:,.2f} ({etiqueta_diferencia})")
+            y_pos -= 14
+
+            if corte.get('observaciones'):
+                can.setFont("Carlito", 9)
+                can.drawString(40, y_pos, f"OBSERVACIONES: {corte['observaciones'].upper()}")
+                y_pos -= 14
+
         # === INFORMACIÓN DEL USUARIO ===
         y_pos -= 20
         can.setFont("Carlito", 9)

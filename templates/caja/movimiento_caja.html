@@ -43,102 +43,33 @@
         <!-- TAB: MOVIMIENTOS EN EFECTIVO -->
         <div class="tab-pane fade show active" id="efectivo" role="tabpanel" aria-labelledby="efectivo-tab">
             
-            <!-- Filtros y Resumen Efectivo -->
+            <!-- Resumen de Caja (ancho completo) -->
             <div class="row mb-4">
-                <!-- Filtros Efectivo -->
-                <div class="col-md-8">
+                <div class="col-12">
                     <div class="card">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">
-                                <i class="bi bi-funnel me-2"></i>Filtros - Efectivo
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label for="fechaInicioEfectivo" class="form-label">Fecha Inicio</label>
-                                    <input type="date" class="form-control" id="fechaInicioEfectivo" name="fechaInicioEfectivo">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="fechaFinEfectivo" class="form-label">Fecha Fin</label>
-                                    <input type="date" class="form-control" id="fechaFinEfectivo" name="fechaFinEfectivo">
-                                </div>
-                                
-                                {% if es_admin %}
-                                <!-- Solo administradores pueden cambiar de sucursal -->
-                                <div class="col-md-3">
-                                    <label for="filtroSucursalEfectivo" class="form-label">Sucursal</label>
-                                    <select class="form-select border-primary" id="filtroSucursalEfectivo" name="filtroSucursalEfectivo">
-                                        {% for s in sucursales %}
-                                        <option value="{{ s.id }}">{{ s.nombre }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                {% else %}
-                                <!-- Secretarias solo ven su sucursal asignada -->
-                                <div class="col-md-3">
-                                    <label for="sucursalFijaEfectivo" class="form-label">Sucursal</label>
-                                    <input type="text" class="form-control" id="sucursalFijaEfectivo" 
-                                           value="{{ sucursal_asignada.nombre if sucursal_asignada else 'N/A' }}" 
-                                           readonly style="background-color: #e9ecef; font-weight: 600;">
-                                </div>
-                                {% endif %}
-
-                                <div class="col-md-3">
-                                    <label for="tipoMovimientoEfectivo" class="form-label">Tipo</label>
-                                    <select class="form-select" id="tipoMovimientoEfectivo" name="tipoMovimientoEfectivo">
-                                        <option value="">Todos los tipos</option>
-                                        <option value="ingreso">Solo Ingresos</option>
-                                        <option value="egreso">Solo Egresos</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="origenMovimientoEfectivo" class="form-label">Origen</label>
-                                    <select class="form-select" id="origenMovimientoEfectivo" name="origenMovimientoEfectivo">
-                                        <option value="">Todos los orígenes</option>
-                                        <option value="manual">Movimientos Manuales</option>
-                                        <option value="automatico">Pagos Sistema</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6 d-flex align-items-end">
-                                    <button type="button" class="btn btn-primary" id="btnFiltrarEfectivo">
-                                        <i class="bi bi-search me-1"></i>Filtrar
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary ms-2" id="btnLimpiarFiltrosEfectivo">
-                                        <i class="bi bi-x-circle me-1"></i>Limpiar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Resumen Efectivo -->
-                <div class="col-md-4">
-                    <div class="card h-100">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <i class="bi bi-graph-up me-2"></i>Resumen de Caja
                             </h5>
                         </div>
                         <div class="card-body">
-                            <div class="row text-center">
-                                <div class="col-12 mb-3">
-                                    <div class="p-3 bg-success bg-opacity-10 rounded">
+                            <div class="row text-center g-3">
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-success bg-opacity-10 rounded h-100">
                                         <h6 class="text-success mb-1">Total Ingresos</h6>
                                         <h4 class="text-success mb-0" id="totalIngresosEfectivo">$0.00</h4>
                                         <small class="text-muted" id="countIngresosEfectivo">0 movimientos</small>
                                     </div>
                                 </div>
-                                <div class="col-12 mb-3">
-                                    <div class="p-3 bg-danger bg-opacity-10 rounded">
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-danger bg-opacity-10 rounded h-100">
                                         <h6 class="text-danger mb-1">Total Egresos</h6>
                                         <h4 class="text-danger mb-0" id="totalEgresosEfectivo">$0.00</h4>
                                         <small class="text-muted" id="countEgresosEfectivo">0 movimientos</small>
                                     </div>
                                 </div>
-                                <div class="col-12">
-                                    <div class="p-3 bg-primary bg-opacity-10 rounded">
+                                <div class="col-md-4">
+                                    <div class="p-3 bg-primary bg-opacity-10 rounded h-100">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <small class="text-muted">Saldo Inicial</small>
                                             <strong class="text-primary" id="saldoInicialPeriodo">$0.00</strong>
@@ -150,6 +81,134 @@
                                         </div>
                                         <small class="text-muted" id="fechaResumenEfectivo">Hoy</small>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros y Corte de Caja -->
+            <div class="row mb-4">
+                <!-- Corte de Caja (billetes y monedas) -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-cash-coin me-2"></i>Corte de Caja
+                            </h5>
+                            <input type="date" class="form-control form-control-sm w-auto" id="fechaCorteCaja">
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-muted">Billetes</h6>
+                                    <table class="table table-sm align-middle" id="tablaBilletesCorte">
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-muted">Monedas</h6>
+                                    <table class="table table-sm align-middle" id="tablaMonedasCorte">
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="observacionesCorteCaja" class="form-label">Observaciones</label>
+                                <textarea class="form-control" id="observacionesCorteCaja" rows="2"></textarea>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
+                                    <div class="p-2 bg-secondary bg-opacity-10 rounded text-center">
+                                        <small class="text-muted">Total Contado</small>
+                                        <h5 class="mb-0" id="totalContadoCorte">$0.00</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-2 bg-primary bg-opacity-10 rounded text-center">
+                                        <small class="text-muted">Saldo Sistema</small>
+                                        <h5 class="mb-0" id="saldoSistemaCorte">--</h5>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-2 rounded text-center" id="contenedorDiferenciaCorte">
+                                        <small class="text-muted">Diferencia</small>
+                                        <h5 class="mb-0" id="diferenciaCorte">--</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <button type="button" class="btn btn-success" id="btnGuardarCorteCaja">
+                                    <i class="bi bi-check-circle me-1"></i>Guardar Corte de Caja
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros y Resumen Efectivo -->
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-funnel me-2"></i>Filtros - Efectivo
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="fechaInicioEfectivo" class="form-label">Fecha Inicio</label>
+                                    <input type="date" class="form-control" id="fechaInicioEfectivo" name="fechaInicioEfectivo">
+                                </div>
+                                <div class="col-12">
+                                    <label for="fechaFinEfectivo" class="form-label">Fecha Fin</label>
+                                    <input type="date" class="form-control" id="fechaFinEfectivo" name="fechaFinEfectivo">
+                                </div>
+
+                                {% if es_admin %}
+                                <!-- Solo administradores pueden cambiar de sucursal -->
+                                <div class="col-12">
+                                    <label for="filtroSucursalEfectivo" class="form-label">Sucursal</label>
+                                    <select class="form-select border-primary" id="filtroSucursalEfectivo" name="filtroSucursalEfectivo">
+                                        {% for s in sucursales %}
+                                        <option value="{{ s.id }}">{{ s.nombre }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                {% else %}
+                                <!-- Secretarias solo ven su sucursal asignada -->
+                                <div class="col-12">
+                                    <label for="sucursalFijaEfectivo" class="form-label">Sucursal</label>
+                                    <input type="text" class="form-control" id="sucursalFijaEfectivo"
+                                           value="{{ sucursal_asignada.nombre if sucursal_asignada else 'N/A' }}"
+                                           readonly style="background-color: #e9ecef; font-weight: 600;">
+                                </div>
+                                {% endif %}
+
+                                <div class="col-12">
+                                    <label for="tipoMovimientoEfectivo" class="form-label">Tipo</label>
+                                    <select class="form-select" id="tipoMovimientoEfectivo" name="tipoMovimientoEfectivo">
+                                        <option value="">Todos los tipos</option>
+                                        <option value="ingreso">Solo Ingresos</option>
+                                        <option value="egreso">Solo Egresos</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label for="origenMovimientoEfectivo" class="form-label">Origen</label>
+                                    <select class="form-select" id="origenMovimientoEfectivo" name="origenMovimientoEfectivo">
+                                        <option value="">Todos los orígenes</option>
+                                        <option value="manual">Movimientos Manuales</option>
+                                        <option value="automatico">Pagos Sistema</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 d-flex">
+                                    <button type="button" class="btn btn-primary" id="btnFiltrarEfectivo">
+                                        <i class="bi bi-search me-1"></i>Filtrar
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary ms-2" id="btnLimpiarFiltrosEfectivo">
+                                        <i class="bi bi-x-circle me-1"></i>Limpiar
+                                    </button>
                                 </div>
                             </div>
                         </div>

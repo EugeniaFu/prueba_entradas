@@ -30,14 +30,16 @@ $(document).ready(function() {
         // Configurar fechas por defecto usando zona horaria local de Campeche
         const hoy = getFechaLocal();
         $('#fechaInicioEfectivo, #fechaFinEfectivo, #fechaInicioDigital, #fechaFinDigital').val(hoy);
-        
+        $('#fechaCorteCaja').val(hoy);
+
         // Cargar datos iniciales
         cargarMovimientosEfectivo();
         cargarResumenEfectivo();
-        
+        inicializarCorteCaja();
+
         // Configurar event listeners
         configurarEventListeners();
-        
+
         console.log('Sistema de caja inicializado correctamente');
     }
     
@@ -68,6 +70,11 @@ $(document).ready(function() {
             cargarMovimientosEfectivo();
             cargarResumenEfectivo();
         });
+
+        // ====== CORTE DE CAJA ======
+        $('#fechaCorteCaja').on('change', cargarCorteCaja);
+        $('#filtroSucursalEfectivo').on('change', cargarCorteCaja);
+        $('#btnGuardarCorteCaja').click(guardarCorteCaja);
         
         // ====== FILTROS DIGITALES ======
         $('#btnFiltrarDigital').click(function() {
@@ -234,7 +241,182 @@ $(document).ready(function() {
             $('#fechaResumenEfectivo').text('Período seleccionado');
         }
     }
-    
+
+    // ========================================================================
+    // CORTE DE CAJA (billetes y monedas) - solo conteo/auditoría, no afecta
+    // el acumulado de ingresos/egresos ni crea movimientos de caja.
+    // ========================================================================
+
+    const DENOMINACIONES_BILLETES = [1000, 500, 200, 100, 50, 20];
+    const DENOMINACIONES_MONEDAS = [10, 5, 2, 1, 0.50, 0.20, 0.10];
+
+    function formatearDenominacion(valor) {
+        return valor < 1 ? '$' + valor.toFixed(2) : '$' + valor.toFixed(0);
+    }
+
+    function inicializarCorteCaja() {
+        const $billetes = $('#tablaBilletesCorte tbody');
+        const $monedas = $('#tablaMonedasCorte tbody');
+
+        DENOMINACIONES_BILLETES.forEach(function(denom) {
+            $billetes.append(filaDenominacion('billete', denom));
+        });
+        DENOMINACIONES_MONEDAS.forEach(function(denom) {
+            $monedas.append(filaDenominacion('moneda', denom));
+        });
+
+        $('#tablaBilletesCorte, #tablaMonedasCorte').on('input', '.cantidad-denominacion', recalcularTotalContado);
+
+        cargarCorteCaja();
+    }
+
+    function filaDenominacion(tipo, denominacion) {
+        return `
+            <tr>
+                <td>${formatearDenominacion(denominacion)}</td>
+                <td style="max-width:90px;">
+                    <input type="number" min="0" value="0" class="form-control form-control-sm cantidad-denominacion"
+                           data-tipo="${tipo}" data-denominacion="${denominacion}">
+                </td>
+                <td class="text-end subtotal-denominacion" style="min-width:90px;">$0.00</td>
+            </tr>
+        `;
+    }
+
+    function recalcularTotalContado() {
+        let total = 0;
+        $('.cantidad-denominacion').each(function() {
+            const $input = $(this);
+            const cantidad = parseInt($input.val()) || 0;
+            const denominacion = parseFloat($input.data('denominacion'));
+            const subtotal = cantidad * denominacion;
+            $input.closest('tr').find('.subtotal-denominacion').text('$' + subtotal.toFixed(2));
+            total += subtotal;
+        });
+        $('#totalContadoCorte').text('$' + total.toLocaleString('es-MX', {minimumFractionDigits: 2}));
+        return total;
+    }
+
+    function obtenerSucursalIdCorte() {
+        return $('#filtroSucursalEfectivo').length ? $('#filtroSucursalEfectivo').val() : null;
+    }
+
+    function actualizarIndicadoresCorte(saldoSistema, diferencia) {
+        $('#saldoSistemaCorte').text('$' + saldoSistema.toLocaleString('es-MX', {minimumFractionDigits: 2}));
+
+        const $diferencia = $('#diferenciaCorte');
+        const $contenedor = $('#contenedorDiferenciaCorte');
+        $contenedor.removeClass('bg-success bg-danger bg-secondary bg-opacity-10');
+        $diferencia.removeClass('text-success text-danger text-muted');
+
+        const etiqueta = diferencia > 0 ? ' (sobrante)' : (diferencia < 0 ? ' (faltante)' : '');
+        $diferencia.text('$' + diferencia.toLocaleString('es-MX', {minimumFractionDigits: 2}) + etiqueta);
+
+        if (diferencia === 0) {
+            $contenedor.addClass('bg-secondary bg-opacity-10');
+            $diferencia.addClass('text-muted');
+        } else if (diferencia > 0) {
+            $contenedor.addClass('bg-success bg-opacity-10');
+            $diferencia.addClass('text-success');
+        } else {
+            $contenedor.addClass('bg-danger bg-opacity-10');
+            $diferencia.addClass('text-danger');
+        }
+    }
+
+    function cargarCorteCaja() {
+        const fecha = $('#fechaCorteCaja').val();
+        const sucursalId = obtenerSucursalIdCorte();
+
+        // Limpiar mientras carga
+        $('.cantidad-denominacion').val(0);
+        $('#observacionesCorteCaja').val('');
+        $('#saldoSistemaCorte').text('--');
+        $('#diferenciaCorte').text('--');
+        $('#contenedorDiferenciaCorte').removeClass('bg-success bg-danger bg-secondary bg-opacity-10');
+        recalcularTotalContado();
+
+        $.ajax({
+            url: '/caja/api/corte',
+            method: 'GET',
+            data: { fecha: fecha, sucursal_id: sucursalId },
+            success: function(response) {
+                if (!response.success) return;
+                const corte = response.corte;
+                if (!corte) return;
+
+                corte.detalle.forEach(function(fila) {
+                    $(`.cantidad-denominacion[data-tipo="${fila.tipo}"][data-denominacion="${fila.denominacion}"]`)
+                        .val(fila.cantidad);
+                });
+                $('#observacionesCorteCaja').val(corte.observaciones || '');
+                recalcularTotalContado();
+                actualizarIndicadoresCorte(corte.saldo_sistema, corte.diferencia);
+            },
+            error: function(xhr) {
+                console.error('Error al cargar corte de caja:', xhr);
+            }
+        });
+    }
+
+    function guardarCorteCaja() {
+        const fecha = $('#fechaCorteCaja').val();
+        const sucursalId = obtenerSucursalIdCorte();
+
+        if (sucursalId !== null && !sucursalId) {
+            mostrarError('Debe seleccionar a qué sucursal pertenece el corte');
+            return;
+        }
+
+        const denominaciones = [];
+        $('.cantidad-denominacion').each(function() {
+            const cantidad = parseInt($(this).val()) || 0;
+            if (cantidad > 0) {
+                denominaciones.push({
+                    tipo: $(this).data('tipo'),
+                    denominacion: parseFloat($(this).data('denominacion')),
+                    cantidad: cantidad
+                });
+            }
+        });
+
+        const data = {
+            fecha: fecha,
+            denominaciones: denominaciones,
+            observaciones: $('#observacionesCorteCaja').val().trim()
+        };
+        if (sucursalId) data.sucursal_id = sucursalId;
+
+        const $btn = $('#btnGuardarCorteCaja');
+        const textoOriginal = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Guardando...');
+
+        $.ajax({
+            url: '/caja/api/corte',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    mostrarExito(response.message);
+                    actualizarIndicadoresCorte(response.saldo_sistema, response.diferencia);
+                } else {
+                    mostrarError('Error: ' + response.error);
+                }
+            },
+            error: function(xhr) {
+                let mensaje = 'Error al guardar el corte de caja';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    mensaje = xhr.responseJSON.error;
+                }
+                mostrarError(mensaje);
+            },
+            complete: function() {
+                $btn.prop('disabled', false).html(textoOriginal);
+            }
+        });
+    }
+
     // ========================================================================
     // FUNCIONES DE CARGA DE DATOS - INGRESOS DIGITALES
     // ========================================================================
