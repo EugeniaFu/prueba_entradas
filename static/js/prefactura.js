@@ -685,12 +685,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 const json = await res.json();
                 if (json.success) {
                     Swal.fire({
-                        title: 'Prefactura generada exitosamente',
-                        text: `Folio: ${json.prefactura_id}. ¿Deseas imprimir la prefactura ahora?`,
+                        title: '¡Prefactura Exitosa!',
+                        html: `La prefactura se guardó correctamente.<br>Prefactura: <strong>#${json.prefactura_id}</strong>`,
                         icon: 'success',
                         showCancelButton: true,
-                        confirmButtonText: 'Sí, imprimir',
-                        cancelButtonText: 'No, continuar',
+                        confirmButtonText: 'Descargar PDF',
+                        cancelButtonText: 'Cerrar',
+                        reverseButtons: true,
                         allowOutsideClick: false
                     }).then(result => {
                         const modalElement = document.getElementById('modalPrefacturaPago');

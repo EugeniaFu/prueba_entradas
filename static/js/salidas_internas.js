@@ -153,12 +153,15 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             Swal.fire({
-                title: '¿Confirmar salida interna?',
+                title: '¿Confirmar Salida Interna?',
                 text: `Se registrará la salida de ${productosSeleccionados.length} tipo(s) de productos`,
                 icon: 'question',
                 showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, crear salida',
-                cancelButtonText: 'Cancelar'
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
                     crearSalidaInterna(data);
@@ -190,8 +193,8 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(result => {
             if (result.success) {
                 Swal.fire({
-                    title: '¡Éxito!',
-                    html: `${result.message}<br><strong>Folio de nota de salida: #${result.folio_nota_salida}</strong>`,
+                    title: '¡Salida interna registrada!',
+                    html: `Salida registrada correctamente.<br>Folio de nota de salida: <strong>#${result.folio_nota_salida}</strong>`,
                     icon: 'success',
                     showCancelButton: true,
                     confirmButtonText: 'Descargar PDF',
@@ -320,17 +323,20 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (piezas.length === 0) {
-                Swal.fire('Error', 'Captura al menos una pieza que regrese o se dé de baja.', 'warning');
+                Swal.fire('Error', 'Captura al menos una pieza que regrese o se dé de baja.', 'error');
                 return;
             }
 
             Swal.fire({
-                title: '¿Confirmar?',
+                title: '¿Confirmar Entrada?',
                 text: 'Se registrará esta entrada y se actualizará el inventario.',
-                icon: 'warning',
+                icon: 'question',
                 showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, registrar',
-                cancelButtonText: 'Cancelar'
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
                     finalizarSalida(salidaId, { piezas, observaciones });
@@ -361,8 +367,8 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(result => {
             if (result.success) {
                 Swal.fire({
-                    title: '¡Éxito!',
-                    html: `${result.message}<br><strong>Folio de nota de entrada: #${result.folio_nota_entrada}</strong>`,
+                    title: '¡Salida Interna Finalizada!',
+                    html: `Entrada registrada correctamente.<br>Folio de Entrada: <strong>#${result.folio_nota_entrada}</strong>`,
                     icon: 'success',
                     showCancelButton: true,
                     confirmButtonText: 'Descargar PDF',

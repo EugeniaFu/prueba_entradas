@@ -127,8 +127,12 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(json => {
             if (json.success) {
                 bootstrap.Modal.getInstance(document.getElementById('modalRenovacionPendientes')).hide();
-                Swal.fire('Renovación creada', 'La renovación se ha registrado correctamente.', 'success')
-                    .then(() => window.location.reload());
+                Swal.fire({
+                    title: '¡Renovación Exitosa!',
+                    text: 'La renovación se ha registrado correctamente.',
+                    icon: 'success',
+                    confirmButtonText: 'Entendido'
+                }).then(() => window.location.reload());
             } else {
                 Swal.fire('Error', json.error || 'No se pudo crear la renovación.', 'error');
             }

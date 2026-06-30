@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const motivo = document.getElementById('motivo-cancelacion').value.trim();
 
             if (!motivo) {
-                Swal.fire('Error', 'Debes ingresar el motivo de cancelación.', 'warning');
+                Swal.fire('Atención', 'Ingresa el motivo de cancelación.', 'warning');
                 return;
             }
 
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const monto = document.getElementById('monto-reembolso').value;
 
             if (campoReembolsoVisible && (!monto || monto === '')) {
-                Swal.fire('Error', 'Debes ingresar el monto de reembolso.', 'warning');
+                Swal.fire('Atención', 'Ingresa el monto de reembolso.', 'warning');
                 return;
             }
 
@@ -110,7 +110,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(resp => resp.json())
                 .then(data => {
                     if (data.status === 'ok') {
-                        Swal.fire('Cancelada', data.mensaje, 'success').then(() => {
+                        Swal.fire({
+                            title: '¡Renta Cancelada!',
+                            text: data.mensaje,
+                            icon: 'success',
+                            confirmButtonText: 'Entendido'
+                        }).then(() => {
                             window.location.reload();
                         });
                     } else {

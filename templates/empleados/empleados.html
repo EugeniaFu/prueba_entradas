@@ -349,19 +349,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = btn.closest('form');
             const nombre = btn.getAttribute('data-nombre') || 'este empleado';
             Swal.fire({
-                title: '¿Dar de baja empleado?',
+                title: '¿Dar de Baja Empleado?',
                 html: `<b>${nombre}</b><br>El empleado no podrá acceder al sistema, pero sus datos se conservarán.`,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#c62828',
-                cancelButtonColor: '#b0b0b0',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, dar de baja',
                 cancelButtonText: 'Cancelar',
-                customClass: {
-                    confirmButton: 'btn btn-danger',
-                    cancelButton: 'btn btn-secondary'
-                },
-                buttonsStyling: false
+                reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
                     form.submit();
@@ -376,19 +372,15 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = btn.closest('form');
             const nombre = btn.getAttribute('data-nombre') || 'este empleado';
             Swal.fire({
-                title: '¿Reactivar empleado?',
+                title: '¿Reactivar Empleado?',
                 html: `<b>${nombre}</b><br>El empleado podrá acceder nuevamente al sistema.`,
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonColor: '#2e7d32',
-                cancelButtonColor: '#b0b0b0',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, reactivar',
                 cancelButtonText: 'Cancelar',
-                customClass: {
-                    confirmButton: 'btn btn-success',
-                    cancelButton: 'btn btn-secondary'
-                },
-                buttonsStyling: false
+                reverseButtons: true
             }).then((result) => {
                 if (result.isConfirmed) {
                     form.submit();

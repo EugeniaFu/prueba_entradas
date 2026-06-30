@@ -559,7 +559,7 @@ def crear_nota_entrada(renta_id):
             """, (renta_id,))
 
         conn.commit()
-        return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id})
+        return jsonify({'success': True, 'nota_entrada_id': nota_entrada_id, 'folio': folio})
     except Exception as e:
         conn.rollback()
         return jsonify({'success': False, 'error': str(e)})

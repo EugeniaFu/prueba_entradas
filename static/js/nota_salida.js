@@ -181,12 +181,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     modal.hide();
 
                     Swal.fire({
-                        title: 'Nota de salida generada',
-                        text: `Folio: ${json.folio}. ¿Deseas imprimir la nota de salida ahora?`,
+                        title: '¡Salida Exitosa!',
+                        html: `La nota de salida se guardó correctamente.<br>Folio de Salida: <strong>#${json.folio}</strong>`,
                         icon: 'success',
                         showCancelButton: true,
-                        confirmButtonText: 'Sí, imprimir',
-                        cancelButtonText: 'No'
+                        confirmButtonText: 'Descargar PDF',
+                        cancelButtonText: 'Cerrar',
+                        reverseButtons: true
                     }).then(result => {
                         if (result.isConfirmed) {
                             window.open(`/notas_salida/pdf/${json.nota_salida_id}`, '_blank');

@@ -246,8 +246,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Éxito!',
-                            text: data.message,
+                            title: '¡Equipo enviado a reparación!',
+                            html: `Lote enviado a reparación correctamente.<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
                             confirmButtonText: 'Descargar PDF',
@@ -318,14 +318,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Éxito!', 
-                            text: data.message, 
+                            title: '¡Reparación Finalizada!',
+                            html: `Las piezas regresaron a disponibles correctamente.<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
-                            confirmButtonText: '<i class="bi bi-file-earmark-pdf me-2"></i>Ver PDF',
+                            confirmButtonText: 'Descargar PDF',
                             cancelButtonText: 'Cerrar',
-                            confirmButtonColor: '#d33',
-                            cancelButtonColor: '#3085d6'
+                            reverseButtons: true
                         }).then((result) => {
                             if (result.isConfirmed && data.pdf_url) {
                                 // Abrir PDF en nueva ventana
@@ -623,12 +622,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        const mensaje = esEnvio ? 
-                            `¡Equipos enviados exitosamente!<br>Folio de nota de salida: <strong>#${data.folio_nota_salida}</strong>` :
-                            `¡Equipos recibidos exitosamente!<br>Folio de nota de entrada: <strong>#${data.folio_nota_entrada}</strong>`;
-                        
+                        const mensaje = esEnvio ?
+                            `¡Equipos enviados exitosamente!<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>` :
+                            `¡Equipos recibidos exitosamente!<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`;
+
                         Swal.fire({
-                            title: '¡Éxito!',
+                            title: esEnvio ? '¡Transferencia Enviada!' : '¡Transferencia Recibida!',
                             html: mensaje,
                             icon: 'success',
                             showCancelButton: true,
@@ -794,8 +793,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Éxito!',
-                            html: `¡Equipos dados de alta exitosamente!<br>Folio de nota de entrada: <strong>#${data.folio_nota_entrada}</strong>`,
+                            title: '¡Alta Exitosa!',
+                            html: `¡Equipos dados de alta correctamente!<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
                             confirmButtonText: 'Descargar PDF',
@@ -961,7 +960,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire('¡Éxito!', data.message, 'success').then(() => {
+                        Swal.fire({
+                            title: '¡Éxito!',
+                            html: `¡Equipos marcado como dañado correctamente!`,
+                            text: data.message,
+                            icon: 'success',
+                            confirmButtonText: 'Entendido'
+                        }).then(() => {
                             // Cerrar modal y recargar página
                             const modal = bootstrap.Modal.getInstance(document.getElementById('modalMarcarDaniadas'));
                             modal.hide();

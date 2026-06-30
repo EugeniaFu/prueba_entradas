@@ -908,6 +908,7 @@ def crear_cotizacion():
             return jsonify({
                 'success': True,
                 'cotizacion_id': cotizacion_id,
+                'numero_cotizacion': numero_cotizacion,
                 'pdf_url': f'/cotizaciones/pdf/{cotizacion_id}'
             })
         else:

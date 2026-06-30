@@ -140,14 +140,15 @@
 <script>
 function confirmarBaja(url, nombre) {
     Swal.fire({
-        title: '¿Dar de baja cliente?',
+        title: '¿Dar de Baja Cliente?',
         text: `¿Estás seguro que deseas dar de baja a ${nombre}?`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#f0ad4e',
+        confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, dar de baja',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = url;
@@ -157,14 +158,15 @@ function confirmarBaja(url, nombre) {
 
 function confirmarReactivacion(url, nombre) {
     Swal.fire({
-        title: '¿Reactivar cliente?',
-        text: `¿Estás seguro que deseas reactivar a ${nombre}?`,
+        title: '¿Reactivar Cliente?',
+        text: `¿Está seguro de reactivar a ${nombre}?`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#28a745',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, reactivar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = url;
@@ -174,14 +176,15 @@ function confirmarReactivacion(url, nombre) {
 
 function confirmarEliminacion(url, nombre) {
     Swal.fire({
-        title: '¡ATENCIÓN!',
-        text: `¿Estás seguro que deseas eliminar definitivamente a ${nombre}? Esta acción NO se puede deshacer.`,
+        title: 'Eliminar Cliente',
+        text: `¿Seguro de eliminar a ${nombre}? Esta acción NO se puede deshacer.`,
         icon: 'error',
         showCancelButton: true,
         confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = url;

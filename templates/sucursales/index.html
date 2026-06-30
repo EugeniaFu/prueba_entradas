@@ -207,10 +207,11 @@ function confirmarBajaSucursal(url, nombre) {
               'Su historial (rentas, clientes, inventario) seguirá disponible; solo dejará de aparecer para operaciones nuevas.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#f0ad4e',
+        confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, dar de baja',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) enviarPost(url);
     });
@@ -225,7 +226,8 @@ function confirmarReactivarSucursal(url, nombre) {
         confirmButtonColor: '#28a745',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, reactivar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) enviarPost(url);
     });
@@ -241,7 +243,8 @@ function confirmarEliminarSucursal(url, nombre) {
         confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) enviarPost(url);
     });

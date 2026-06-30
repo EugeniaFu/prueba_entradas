@@ -31,12 +31,14 @@ function guardarNota() {
     btnGuardar.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>Guardando...';
     btnGuardar.disabled = true;
 
+    const sucursalId = document.querySelector('.bloc-notas-card')?.dataset.sucursalId || null;
+
     fetch('/dashboard/notas', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ nota: nota })
+        body: JSON.stringify({ nota: nota, sucursal_id: sucursalId })
     })
         .then(response => response.json())
         .then(data => {
@@ -63,18 +65,11 @@ function eliminarNota(id) {
         text: 'Esta acción no se puede deshacer.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<i class="bi bi-trash3"></i> Sí, eliminar',
+        confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar',
         confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
-        reverseButtons: true,
-        focusCancel: true,
-        customClass: {
-            popup: 'rounded-4 shadow-lg',
-            confirmButton: 'btn btn-danger px-4 mx-2',
-            cancelButton: 'btn btn-secondary px-4 mx-2'
-        },
-        buttonsStyling: false
+        reverseButtons: true
     }).then((result) => {
         if (!result.isConfirmed) return;
 

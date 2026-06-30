@@ -451,15 +451,11 @@ document.addEventListener('DOMContentLoaded', function () {
         html: `<b>${nombre}</b><br>Esta acción puede revertirse después.`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#23395d',
-        cancelButtonColor: '#b0b0b0',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, descontinuar',
         cancelButtonText: 'Cancelar',
-        customClass: {
-          confirmButton: 'btn btn-primary',
-          cancelButton: 'btn btn-secondary'
-        },
-        buttonsStyling: false
+        reverseButtons: true
       }).then((result) => {
         if (result.isConfirmed) {
           form.submit();
@@ -478,15 +474,11 @@ document.addEventListener('DOMContentLoaded', function () {
         html: `<b>${nombre}</b><br>El producto volverá a estar disponible para operaciones.`,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#2e7d32',
-        cancelButtonColor: '#b0b0b0',
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, activar',
         cancelButtonText: 'Cancelar',
-        customClass: {
-          confirmButton: 'btn btn-success',
-          cancelButton: 'btn btn-secondary'
-        },
-        buttonsStyling: false
+        reverseButtons: true
       }).then((result) => {
         if (result.isConfirmed) {
           form.submit();

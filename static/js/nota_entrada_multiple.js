@@ -391,12 +391,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const modal = bootstrap.Modal.getInstance(modalEl);
         modal.hide();
         Swal.fire({
-            title: window.notaEntradaMultipleModoDespacho ? 'Despacho de recolección generado' : 'Nota de entrada consolidada generada',
-            text: `Folio #${String(json.folio).padStart(5, '0')}`,
+            title: window.notaEntradaMultipleModoDespacho ? '¡Rrecolección generada!' : '¡Nota de entrada consolidada generada!',
+            html: `Se guardó correctamente.<br>Folio: <strong>#${String(json.folio).padStart(5, '0')}</strong>`,
             icon: 'success',
             showCancelButton: true,
-            confirmButtonText: 'Ver PDF',
-            cancelButtonText: 'Cerrar'
+            confirmButtonText: 'Descargar PDF',
+            cancelButtonText: 'Cerrar',
+            reverseButtons: true
         }).then(result => {
             if (result.isConfirmed) {
                 window.open(`/notas_entrada/pdf/${json.nota_entrada_id}`, '_blank');

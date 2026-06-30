@@ -222,7 +222,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then(res => res.json())
                     .then(json => {
                         if (json.status === 'ok') {
-                            Swal.fire('Listo', json.mensaje, 'success').then(() => window.location.reload());
+                            Swal.fire({
+                                title: '¡Renovación Editada!',
+                                text: json.mensaje,
+                                icon: 'success',
+                                confirmButtonText: 'Entendido'
+                            }).then(() => window.location.reload());
                         } else {
                             Swal.fire('Error', json.mensaje || 'No se pudo guardar la edición.', 'error');
                             btnGuardarRenovacion.disabled = false;

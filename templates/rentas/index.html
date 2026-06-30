@@ -926,7 +926,7 @@
       const fechaEntrada = document.getElementById('nueva-fecha-entrada').value;
 
       if (!fechaEntrada) {
-        Swal.fire('Error', 'Debe seleccionar una fecha válida.', 'warning');
+        Swal.fire('Atención', 'Debe seleccionar una fecha válida.', 'warning');
         return;
       }
 
@@ -944,7 +944,12 @@
           }
 
           if (data.success) {
-            Swal.fire('Éxito', data.message, 'success').then(() => {
+            Swal.fire({
+              title: '¡Éxito!',
+              text: data.message,
+              icon: 'success',
+              confirmButtonText: 'Entendido'
+            }).then(() => {
               modalFechaEntrada.hide();
               window.location.reload();
             });
@@ -998,7 +1003,12 @@
         .then(resp => resp.json())
         .then(data => {
           if (data.status === 'ok') {
-            Swal.fire('Eliminada', data.mensaje, 'success').then(() => {
+            Swal.fire({
+              title: '¡Eliminada!',
+              text: data.mensaje,
+              icon: 'success',
+              confirmButtonText: 'Entendido'
+            }).then(() => {
               modalEliminar.hide();
               window.location.reload();
             });

@@ -518,12 +518,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Mostrar SweetAlert con opción de ver PDF
                     Swal.fire({
-                        title: 'Cotización creada exitosamente',
-                        text: '¿Deseas ver el PDF de la cotización?',
+                        title: '¡Cotización Exitosa!',
+                        html: `Cotización creada correctamente.<br>Folio: <strong>#${data.numero_cotizacion}</strong>`,
                         icon: 'success',
                         showCancelButton: true,
-                        confirmButtonText: 'Sí, ver PDF',
+                        confirmButtonText: 'Descargar PDF',
                         cancelButtonText: 'Cerrar',
+                        reverseButtons: true,
                         allowOutsideClick: false,
                         allowEscapeKey: false
                     }).then((result) => {
@@ -599,7 +600,8 @@ function convertirARenta(cotizacionId) {
         confirmButtonColor: '#28a745',
         cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, convertir',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             fetch(`/cotizaciones/${cotizacionId}/convertir-renta`, {
@@ -615,11 +617,12 @@ function convertirARenta(cotizacionId) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire(
-                            'Convertida',
-                            'La cotización ha sido marcada como renta exitosamente.',
-                            'success'
-                        ).then(() => {
+                        Swal.fire({
+                            title: '¡Convertida!',
+                            text: 'La cotización ha sido marcada como renta exitosamente.',
+                            icon: 'success',
+                            confirmButtonText: 'Entendido'
+                        }).then(() => {
                             location.reload();
                         });
                     } else {
@@ -645,14 +648,15 @@ function convertirARenta(cotizacionId) {
 // Función para eliminar cotización
 function eliminarCotizacion(cotizacionId) {
     Swal.fire({
-        title: '¿Estás seguro?',
-        text: 'Esta acción eliminará permanentemente la cotización y no se puede deshacer.',
+        title: '¿Eliminar cotización?',
+        text: 'Esta acción no se puede deshacer.',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             fetch(`/cotizaciones/${cotizacionId}/eliminar`, {
@@ -664,11 +668,12 @@ function eliminarCotizacion(cotizacionId) {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire(
-                            'Eliminada',
-                            'La cotización ha sido eliminada exitosamente.',
-                            'success'
-                        ).then(() => {
+                        Swal.fire({
+                            title: '¡Cotización Eliminada!',
+                            text: 'La cotización ha sido eliminada exitosamente.',
+                            icon: 'success',
+                            confirmButtonText: 'Entendido'
+                        }).then(() => {
                             location.reload();
                         });
                     } else {

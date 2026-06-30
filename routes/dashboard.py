@@ -8,27 +8,83 @@ from utils.decorators import requiere_sesion, requiere_permiso
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
+
+def _asegurar_tabla_dashboard_notas(cursor):
+    """Crea dashboard_notas si no existe, y agrega la columna sucursal_id si
+    la tabla ya existía de antes sin ella (migración perezosa)."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dashboard_notas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nota TEXT NOT NULL,
+            usuario_id INT,
+            sucursal_id INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    """)
+    try:
+        cursor.execute("SELECT sucursal_id FROM dashboard_notas LIMIT 1")
+        cursor.fetchall()
+    except Exception:
+        cursor.execute("ALTER TABLE dashboard_notas ADD COLUMN sucursal_id INT")
+
+
+def _obtener_sucursal_matriz_id(cursor):
+    """ID de la sucursal que se usa como default del dashboard para el admin.
+    Se busca por nombre (Matriz) y si no existe se cae a la sucursal activa
+    con el id más chico, para no romper si todavía no hay una 'Matriz'."""
+    cursor.execute("""
+        SELECT id FROM sucursales
+        WHERE activo = 1 AND nombre LIKE %s
+        ORDER BY id LIMIT 1
+    """, ('%matriz%',))
+    row = cursor.fetchone()
+    if row:
+        return row['id']
+    cursor.execute("SELECT id FROM sucursales WHERE activo = 1 ORDER BY id LIMIT 1")
+    row = cursor.fetchone()
+    return row['id'] if row else None
+
+
 @dashboard_bp.route('/')
 @requiere_sesion()
 @requiere_permiso('ver_dashboard')
 def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     # Obtener sucursal del usuario
-    sucursal_id = session.get('sucursal_id')
-    es_admin = (sucursal_id is None)
-    
+    sucursal_id_usuario = session.get('sucursal_id')
+    es_admin = (sucursal_id_usuario is None)
+
+    sucursales_selector = []
+    sucursal_id = None  # None = "todas" (solo posible para admin)
+
+    if es_admin:
+        cursor.execute("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")
+        sucursales_selector = cursor.fetchall()
+
+        param = request.args.get('sucursal_id', '').strip()
+        if param == 'todas':
+            sucursal_id = None
+        elif param:
+            try:
+                sucursal_id = int(param)
+            except ValueError:
+                sucursal_id = _obtener_sucursal_matriz_id(cursor)
+        else:
+            # Sin selección explícita: default a Matriz Colosio
+            sucursal_id = _obtener_sucursal_matriz_id(cursor)
+    else:
+        sucursal_id = sucursal_id_usuario
+
     # Determinar filtro de sucursal
     where_sucursal = ""
     params = []
-    if not es_admin and sucursal_id:
+    if sucursal_id:
         where_sucursal = "WHERE r.id_sucursal = %s"
         params = [sucursal_id]
-    elif es_admin and sucursal_id and sucursal_id != 'todas':
-        where_sucursal = "WHERE r.id_sucursal = %s"
-        params = [sucursal_id]
-    
+
     try:
         # 1. RENTAS A VENCER (el equipo debe regresar HOY)
         # Incluye: rentas originales sin renovaciones activas + renovaciones activas que vencen hoy
@@ -187,8 +243,11 @@ def dashboard():
         """, params * 3)
         pagos_pendientes = cursor.fetchall()
         
-        # 6. OBTENER NOTAS DEL BLOC (crear tabla si no existe)
-        try:
+        # 6. OBTENER NOTAS DEL BLOC (crear tabla/columna si no existen)
+        _asegurar_tabla_dashboard_notas(cursor)
+        conn.commit()
+
+        if sucursal_id:
             cursor.execute("""
                 SELECT id, nota, created_at
                 FROM dashboard_notas
@@ -196,29 +255,23 @@ def dashboard():
                 ORDER BY created_at DESC
             """, (sucursal_id,))
             notas_bloc = cursor.fetchall()
-        except:
-            # Crear tabla de notas si no existe
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS dashboard_notas (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    nota TEXT NOT NULL,
-                    usuario_id INT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                )
-            """)
-            conn.commit()
+        else:
+            # "Todas las sucursales" seleccionado: una nota es de UNA sucursal
+            # específica, así que aquí no se muestra ni se puede crear ninguna.
             notas_bloc = []
-        
+
         cursor.close()
         conn.close()
-        
+
         return render_template('dashboard/dashboard.html',
                              rentas_a_vencer=rentas_a_vencer,
                              rentas_vencidas=rentas_vencidas,
                              rentas_programadas=rentas_programadas,
                              pagos_pendientes=pagos_pendientes,
-                             notas_bloc=notas_bloc)
+                             notas_bloc=notas_bloc,
+                             es_admin=es_admin,
+                             sucursales_selector=sucursales_selector,
+                             sucursal_seleccionada=sucursal_id)
     except Exception as e:
         cursor.close()
         conn.close()
@@ -230,21 +283,41 @@ def dashboard():
 def agregar_nota():
     data = request.get_json()
     nota = data.get('nota', '').strip()
-    sucursal_id = session.get('sucursal_id')
     usuario_id = session.get('user_id')
+
+    sucursal_id_usuario = session.get('sucursal_id')
+    es_admin = (sucursal_id_usuario is None)
+
+    if es_admin:
+        # El admin puede estar viendo el dashboard de cualquier sucursal; la
+        # nota se guarda en la que tenga seleccionada en ese momento.
+        try:
+            sucursal_id = int(data.get('sucursal_id'))
+        except (TypeError, ValueError):
+            sucursal_id = None
+    else:
+        # Para la secretaria, siempre se fuerza su propia sucursal de sesión
+        # (no se confía en lo que mande el navegador).
+        sucursal_id = sucursal_id_usuario
 
     if not nota:
         return jsonify({'success': False, 'error': 'Nota vacía'})
-    
+
     if not sucursal_id:
-        return jsonify({'success': False, 'error': 'Sucursal no definida en sesión'})
+        return jsonify({'success': False, 'error': 'Selecciona una sucursal específica para poder agregar notas.'})
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
     try:
+        _asegurar_tabla_dashboard_notas(cursor)
+
+        cursor.execute("SELECT id FROM sucursales WHERE id = %s", (sucursal_id,))
+        if not cursor.fetchone():
+            return jsonify({'success': False, 'error': 'Sucursal inválida'})
+
         cursor.execute("""
-            INSERT INTO dashboard_notas (nota, usuario_id, sucursal_id) 
+            INSERT INTO dashboard_notas (nota, usuario_id, sucursal_id)
             VALUES (%s, %s, %s)
         """, (nota, usuario_id, sucursal_id))
 
@@ -263,12 +336,24 @@ def agregar_nota():
 @requiere_sesion()
 def eliminar_nota(nota_id):
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
+    cursor = conn.cursor(dictionary=True)
+
     try:
+        sucursal_id_usuario = session.get('sucursal_id')
+        es_admin = (sucursal_id_usuario is None)
+
+        if not es_admin:
+            # La secretaria solo puede borrar notas de su propia sucursal.
+            cursor.execute("SELECT sucursal_id FROM dashboard_notas WHERE id = %s", (nota_id,))
+            nota = cursor.fetchone()
+            if not nota or nota['sucursal_id'] != sucursal_id_usuario:
+                cursor.close()
+                conn.close()
+                return jsonify({'success': False, 'error': 'No tienes permiso para eliminar esta nota'}), 403
+
         cursor.execute("DELETE FROM dashboard_notas WHERE id = %s", (nota_id,))
         conn.commit()
-        
+
         cursor.close()
         conn.close()
         return jsonify({'success': True})

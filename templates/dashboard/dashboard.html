@@ -14,11 +14,24 @@
     <div class="dashboard-container">
         <!-- Título principal -->
         <div class="row mb-4">
-            <div class="col-12">
-                <h2 class="dashboard-title">
-                    <i class="bi bi-speedometer2 me-2"></i>Panel de Control
-                </h2>
-                <p class="dashboard-subtitle">¡Hola! Aquí tienes un resumen de las actividades importantes.</p>
+            <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="dashboard-title">
+                        <i class="bi bi-speedometer2 me-2"></i>Panel de Control
+                    </h2>
+                    <p class="dashboard-subtitle">¡Hola! Aquí tienes un resumen de las actividades importantes.</p>
+                </div>
+                {% if es_admin %}
+                <form method="get" class="d-flex align-items-center gap-2">
+                    <label for="selectorSucursalDashboard" class="form-label mb-0">Sucursal:</label>
+                    <select class="form-select" id="selectorSucursalDashboard" name="sucursal_id" onchange="this.form.submit()">
+                        {% for s in sucursales_selector %}
+                        <option value="{{ s.id }}" {% if sucursal_seleccionada == s.id %}selected{% endif %}>{{ s.nombre }}</option>
+                        {% endfor %}
+                        <option value="todas" {% if not sucursal_seleccionada %}selected{% endif %}>Todas las sucursales</option>
+                    </select>
+                </form>
+                {% endif %}
             </div>
         </div>
 
@@ -216,14 +229,19 @@
 
             <!-- BLOC DE NOTAS -->
             <div class="col-lg-12 col-md-12 mb-4">
-                <div class="bloc-notas-card">
+                <div class="bloc-notas-card" data-sucursal-id="{{ sucursal_seleccionada or '' }}">
                     <div class="card-header-sistema">
                         <span><i class="bi bi-journal-text"></i>Bloc de Notas  </span>
+                        {% if sucursal_seleccionada %}
                         <button class="btn btn-light btn-sm" onclick="toggleNewNote()">
                             <i class="bi bi-plus"></i>Nueva
                         </button>
+                        {% endif %}
                     </div>
                     <div style="padding: 1rem;">
+                        {% if not sucursal_seleccionada %}
+                        <p class="text-muted mb-0">Selecciona una sucursal específica para ver o agregar notas.</p>
+                        {% endif %}
                         <div class="mb-3" id="nuevaNotaSection" style="display: none;">
                             <textarea id="nuevaNota" class="form-control" placeholder="Escribir una nota importante..."
                                 rows="3"></textarea>

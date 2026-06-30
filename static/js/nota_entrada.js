@@ -545,6 +545,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const json = await res.json();
                 if (json.success) {
                     const notaEntradaId = json.nota_entrada_id;
+                    const folioEntrada = json.folio;
                     const modal = bootstrap.Modal.getInstance(document.getElementById('modalNotaEntrada'));
                     modal.hide();
 
@@ -575,12 +576,13 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else {
                         // Si NO es renovación, mostramos el SweetAlert normal
                         Swal.fire({
-                            title: 'Nota de entrada generada',
-                            text: 'La nota de entrada se guardó correctamente.',
+                            title: '¡Entrada Exitosa!',
+                            html: `La nota de entrada se guardó correctamente.<br>Folio de Entrada: <strong>#${folioEntrada}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
-                            confirmButtonText: 'Ver PDF',
-                            cancelButtonText: 'Cerrar'
+                            confirmButtonText: 'Descargar PDF',
+                            cancelButtonText: 'Cerrar',
+                            reverseButtons: true
                         }).then((result) => {
                             if (result.isConfirmed) {
                                 window.open(`/notas_entrada/pdf/${notaEntradaId}`, '_blank');

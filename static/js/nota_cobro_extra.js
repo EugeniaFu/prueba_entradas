@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Validación
             if (detalles.length === 0) {
-                Swal.fire('Error', 'Agrega al menos un concepto con cantidad y costo mayor a 0.', 'warning');
+                Swal.fire('Atención', 'Agrega al menos un concepto con cantidad y costo mayor a 0.', 'warning');
                 return;
             }
 
@@ -251,11 +251,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: 'Cobro extra guardado correctamente.',
+                            title: '¡Cobro extra guardado!',
+                            html: `El cobro extra se guardó correctamente.<br>Folio: <strong>#${data.cobro_id}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
-                            confirmButtonText: 'Ver PDF',
-                            cancelButtonText: 'Cerrar'
+                            confirmButtonText: 'Descargar PDF',
+                            cancelButtonText: 'Cerrar',
+                            reverseButtons: true
                         }).then((result) => {
                             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalCobroExtra'));
                             modal.hide();

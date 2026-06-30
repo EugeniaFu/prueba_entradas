@@ -421,8 +421,8 @@ function procesarAltaEquipoGeneral() {
     .then(data => {
         if (data.success) {
             Swal.fire({
-                title: '¡Éxito!',
-                html: `¡Equipos dados de alta exitosamente!<br>Folio de nota de entrada: <strong>#${data.folio_nota_entrada}</strong>`,
+                title: '¡Alta Exitosa!',
+                html: `¡Equipos dados de alta correctamente!<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`,
                 icon: 'success',
                 showCancelButton: true,
                 confirmButtonText: 'Descargar PDF',
@@ -826,7 +826,8 @@ function verificarYDescontinuarPieza(idPieza, nombrePieza) {
             confirmButtonText: 'Descontinuar de todas formas',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d'
+            cancelButtonColor: '#6c757d',
+            reverseButtons: true
           }).then((result) => {
             if (result.isConfirmed) {
               descontinuarPieza(idPieza, nombrePieza);
@@ -860,8 +861,7 @@ function descontinuarPieza(idPieza, nombrePieza) {
           title: '¡Pieza descontinuada!',
           text: data.message,
           icon: 'success',
-          confirmButtonText: 'Entendido',
-          confirmButtonColor: '#0d6efd'
+          confirmButtonText: 'Entendido'
         }).then(() => {
           window.location.reload();
         });
@@ -879,14 +879,15 @@ function descontinuarPieza(idPieza, nombrePieza) {
 function reactivarPieza(idPieza, nombrePieza) {
   Swal.fire({
     title: '¿Reactivar pieza?',
-    html: `¿Estás seguro que deseas reactivar la pieza <strong>"${nombrePieza}"</strong>?<br><br>
-           <small class="text-muted">La pieza volverá a estar disponible para asociar a productos.</small>`,
+    html: `La pieza volverá a estar disponible para asociar a productos <strong>"${nombrePieza}"</strong>?<br><br>,
+           <small class="text-muted"></small>`,
     icon: 'question',
     showCancelButton: true,
     confirmButtonColor: '#28a745',
     cancelButtonColor: '#6c757d',
     confirmButtonText: 'Sí, reactivar',
-    cancelButtonText: 'Cancelar'
+    cancelButtonText: 'Cancelar',
+    reverseButtons: true
   }).then((result) => {
     if (result.isConfirmed) {
       fetch(`/inventario/reactivar-pieza/${idPieza}`, {
@@ -902,8 +903,7 @@ function reactivarPieza(idPieza, nombrePieza) {
               title: '¡Pieza reactivada!',
               text: data.message,
               icon: 'success',
-              confirmButtonText: 'Entendido',
-              confirmButtonColor: '#0d6efd'
+              confirmButtonText: 'Entendido'
             }).then(() => {
               window.location.reload();
             });
@@ -922,20 +922,14 @@ function reactivarPieza(idPieza, nombrePieza) {
 // Función para eliminación definitiva
 function eliminarPiezaDefinitivamente(idPieza, nombrePieza) {
   Swal.fire({
-    title: '⚠️ ¡ELIMINACIÓN DEFINITIVA!',
+    title: '¡Eliminación!',
     html: `
       <div class="text-start">
-        <p>Estás a punto de <strong>eliminar definitivamente</strong> la pieza:</p>
+        <p>¿Está seguro de eliminar esta pieza?</p>
         <div class="alert alert-danger">
           <strong>${nombrePieza}</strong>
         </div>
-        <p><strong>⚠️ ADVERTENCIA:</strong></p>
-        <ul class="text-start">
-          <li>Esta acción <strong>NO se puede deshacer</strong></li>
-          <li>La pieza se eliminará del sistema para siempre</li>
-          <li>Solo es posible si no tiene inventario ni historial</li>
-        </ul>
-        <p>¿Estás <strong>completamente seguro</strong>?</p>
+      
       </div>
     `,
     icon: 'warning',
@@ -944,19 +938,21 @@ function eliminarPiezaDefinitivamente(idPieza, nombrePieza) {
     cancelButtonColor: '#6c757d',
     confirmButtonText: 'SÍ, ELIMINAR DEFINITIVAMENTE',
     cancelButtonText: 'Cancelar',
+    reverseButtons: true,
     focusCancel: true
   }).then((result) => {
     if (result.isConfirmed) {
       // Segunda confirmación
       Swal.fire({
-        title: '¿Estás 100% seguro?',
-        text: 'Esta es tu última oportunidad para cancelar',
-        icon: 'error',
+        title: '¿Eliminar?',
+        text: 'Confrimación de eliminación',
+        icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
         confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'No, cancelar'
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true
       }).then((segundaConfirmacion) => {
         if (segundaConfirmacion.isConfirmed) {
           ejecutarEliminacionDefinitiva(idPieza, nombrePieza);
@@ -981,7 +977,6 @@ function ejecutarEliminacionDefinitiva(idPieza, nombrePieza) {
           text: data.message,
           icon: 'success',
           confirmButtonText: 'Entendido',
-          confirmButtonColor: '#0d6efd'
         }).then(() => {
           window.location.reload();
         });
