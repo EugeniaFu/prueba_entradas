@@ -278,13 +278,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 pagosHtml += `<table class="table table-sm table-bordered"><thead><tr><th>Folio</th><th>Tipo</th><th>Método</th><th>Monto</th><th>Fecha</th><th>PDF</th></tr></thead><tbody>`;
                 pagos.forEach(p => {
                     totalAbonado += parseFloat(p.monto) || 0;
+                    const folioStr = '#' + String(p.folio || p.id).padStart(4, '0');
                     pagosHtml += `<tr>
-                        <td>${p.id}</td>
+                        <td>${folioStr}</td>
                         <td>${p.tipo}</td>
                         <td>${p.metodo_pago}</td>
                         <td>$${parseFloat(p.monto).toFixed(2)}</td>
                         <td>${p.fecha_emision}</td>
-                        <td><a href="/prefactura/pdf/${p.id}" target="_blank">PDF</a></td>
+                        <td><a href="${p.pdf_url}" target="_blank">PDF</a></td>
                     </tr>`;
                 });
                 pagosHtml += `</tbody></table>`;
@@ -312,6 +313,24 @@ document.addEventListener('DOMContentLoaded', function () {
             // Lógica para mostrar el monto correcto según tipo de prefactura
             function actualizarMontoPagar() {
                 const tipo = tipoSelect ? tipoSelect.value : 'inicial';
+
+                // Alternar sección combinada / simple
+                const seccionSimple = document.getElementById('seccion-pago-simple');
+                const seccionCombinada = document.getElementById('seccion-pago-combinado');
+                if (tipo === 'combinado') {
+                    if (seccionSimple) seccionSimple.style.display = 'none';
+                    if (seccionCombinada) seccionCombinada.style.display = '';
+                    // Inicializar referencia de total para el combinado
+                    const totalRefEl = document.getElementById('total-combinado-referencia');
+                    const pagoTotalEl = document.getElementById('pago-total-pago');
+                    const totalVal = pagoTotalEl ? parseFloat(pagoTotalEl.textContent) || 0 : 0;
+                    if (totalRefEl) totalRefEl.textContent = totalVal.toFixed(2);
+                    actualizarResumenCombinado();
+                    return;
+                }
+                if (seccionSimple) seccionSimple.style.display = '';
+                if (seccionCombinada) seccionCombinada.style.display = 'none';
+
                 const infoSaldo = document.getElementById('info-saldo');
                 const montoExactoInput = document.getElementById('monto-exacto-input');
                 const montoExactoDisplay = document.getElementById('monto-exacto-display');
@@ -514,6 +533,44 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     });
                 }
+
+                // === LISTENERS PAGO COMBINADO ===
+                function actualizarResumenCombinado() {
+                    if (window._actualizarResumenCombinado) window._actualizarResumenCombinado();
+                }
+                function actualizarCamposCombinado(num) {
+                    const metodoEl = document.getElementById(`metodo-combinado-${num}`);
+                    const seguimientoDiv = document.getElementById(`combinado-${num}-seguimiento`);
+                    if (!metodoEl) return;
+                    const metodo = metodoEl.value;
+                    // Solo mostrar seguimiento para métodos no-efectivo
+                    if (seguimientoDiv) seguimientoDiv.style.display = (metodo === 'EFECTIVO') ? 'none' : '';
+                    actualizarResumenCombinado();
+                }
+
+                ['1', '2'].forEach(num => {
+                    const metodoEl = document.getElementById(`metodo-combinado-${num}`);
+                    if (metodoEl) {
+                        metodoEl.addEventListener('change', () => actualizarCamposCombinado(num));
+                    }
+                });
+
+                const monto1El = document.getElementById('monto-combinado-1');
+                if (monto1El) {
+                    monto1El.addEventListener('input', function () {
+                        const pagoTotalEl = document.getElementById('pago-total-pago');
+                        const total = pagoTotalEl ? parseFloat(pagoTotalEl.textContent) || 0 : 0;
+                        const m1 = parseFloat(this.value) || 0;
+                        const m2 = Math.max(0, total - m1);
+                        const monto2El = document.getElementById('monto-combinado-2');
+                        if (monto2El) monto2El.value = m2.toFixed(2);
+                        actualizarResumenCombinado();
+                    });
+                }
+
+                // Inicializar estado visual de campos combinados
+                actualizarCamposCombinado('1');
+                actualizarCamposCombinado('2');
             } // Fin de configurarListenersPago
         }).catch(err => {
             const detalleElement = document.getElementById('prefactura-detalle-pago');
@@ -523,6 +580,26 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Error al obtener prefactura o abonos:', err);
         });
     }
+
+    // Actualiza el resumen visual del pago combinado
+    function actualizarResumenCombinado() {
+        const pagoTotalEl = document.getElementById('pago-total-pago');
+        const total = pagoTotalEl ? parseFloat(pagoTotalEl.textContent) || 0 : 0;
+        const m1 = parseFloat((document.getElementById('monto-combinado-1') || {}).value) || 0;
+        const m2 = parseFloat((document.getElementById('monto-combinado-2') || {}).value) || 0;
+        const suma = m1 + m2;
+
+        const sumaEl = document.getElementById('suma-combinado');
+        const refEl = document.getElementById('total-combinado-referencia');
+        const avisoEl = document.getElementById('combinado-diferencia-aviso');
+
+        if (sumaEl) sumaEl.textContent = suma.toFixed(2);
+        if (refEl) refEl.textContent = total.toFixed(2);
+        if (avisoEl) {
+            avisoEl.style.display = (Math.abs(suma - total) > 0.5) ? '' : 'none';
+        }
+    }
+    window._actualizarResumenCombinado = actualizarResumenCombinado;
 
     // Mantén el listener para el botón manual (por si lo usas en otras partes)
     document.body.addEventListener('click', function (e) {
@@ -553,12 +630,111 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
 
             const facturable = document.getElementById('facturable');
-            const metodo = document.getElementById('metodo-pago-pago');
+            const tipoSelectSubmit = document.getElementById('tipo_prefactura_pago');
+            const tipoSubmit = tipoSelectSubmit ? tipoSelectSubmit.value : 'inicial';
 
             if (!facturable || !facturable.value) {
                 Swal.fire('Error', 'Debes seleccionar si requiere facturación', 'error');
                 return;
             }
+
+            // === FLUJO PAGO COMBINADO ===
+            if (tipoSubmit === 'combinado') {
+                const pagoTotalEl = document.getElementById('pago-total-pago');
+                const totalCombinado = pagoTotalEl ? parseFloat(pagoTotalEl.textContent) || 0 : 0;
+
+                const metodo1 = (document.getElementById('metodo-combinado-1') || {}).value || '';
+                const metodo2 = (document.getElementById('metodo-combinado-2') || {}).value || '';
+                const monto1 = parseFloat((document.getElementById('monto-combinado-1') || {}).value) || 0;
+                const monto2 = parseFloat((document.getElementById('monto-combinado-2') || {}).value) || 0;
+
+                if (!metodo1 || !metodo2) {
+                    Swal.fire('Error', 'Selecciona un método de pago para cada parte', 'error');
+                    return;
+                }
+                if (metodo1 === metodo2) {
+                    Swal.fire('Error', 'Los dos métodos de pago deben ser distintos', 'error');
+                    return;
+                }
+                if (monto1 <= 0 || monto2 <= 0) {
+                    Swal.fire('Error', 'Ambos montos deben ser mayores a cero', 'error');
+                    return;
+                }
+                if (Math.abs(monto1 + monto2 - totalCombinado) > 1.0) {
+                    Swal.fire('Error', `La suma de pagos ($${(monto1 + monto2).toFixed(2)}) no coincide con el total ($${totalCombinado.toFixed(2)})`, 'error');
+                    return;
+                }
+
+                // Construir payload — para EFECTIVO combinado el cliente paga el monto exacto
+                const pagos = [];
+                for (const [num, metodo, monto] of [['1', metodo1, monto1], ['2', metodo2, monto2]]) {
+                    const pagoObj = { metodo_pago: metodo, monto, monto_recibido: monto, cambio: 0 };
+                    if (metodo !== 'EFECTIVO') {
+                        const seg = ((document.getElementById(`seguimiento-combinado-${num}`) || {}).value || '').trim();
+                        if (!seg) {
+                            Swal.fire('Error', `Ingresa el número de seguimiento del pago ${num}`, 'error');
+                            return;
+                        }
+                        pagoObj.numero_seguimiento = seg;
+                    }
+                    pagos.push(pagoObj);
+                }
+
+                const btn = document.getElementById('btn-generar-pago-pago');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+                }
+
+                const rentaIdCombinado = form.dataset.rentaId;
+                try {
+                    const res = await fetch(`/prefactura/pago_combinado/${rentaIdCombinado}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tipo: 'inicial',
+                            pagos,
+                            facturable: facturable.value === '1'
+                        })
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        Swal.fire({
+                            title: '¡Pago Combinado Exitoso!',
+                            html: `El pago combinado se registró correctamente.<br>Folio: <strong>#${String(json.folio).padStart(4, '0')}</strong>`,
+                            icon: 'success',
+                            showCancelButton: true,
+                            confirmButtonText: 'Descargar PDF',
+                            cancelButtonText: 'Cerrar',
+                            reverseButtons: true,
+                            allowOutsideClick: false
+                        }).then(result => {
+                            const modalElement = document.getElementById('modalPrefacturaPago');
+                            if (modalElement) {
+                                const mi = bootstrap.Modal.getInstance(modalElement);
+                                if (mi) mi.hide();
+                            }
+                            if (result.isConfirmed) {
+                                window.open(`/prefactura/pdf_combinado/${json.sucursal_id}/${json.folio}`, '_blank');
+                            }
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', json.error || 'No se pudo registrar el pago combinado', 'error');
+                    }
+                } catch (err) {
+                    Swal.fire('Error', 'Error al enviar los datos al servidor', 'error');
+                } finally {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Generar Prefactura';
+                    }
+                }
+                return; // No continuar con flujo normal
+            }
+            // === FIN FLUJO PAGO COMBINADO ===
+
+            const metodo = document.getElementById('metodo-pago-pago');
             if (!metodo || !metodo.value) {
                 Swal.fire('Error', 'Debes seleccionar un método de pago', 'error');
                 return;

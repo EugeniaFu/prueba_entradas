@@ -94,15 +94,55 @@ def obtener_historial_pagos(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute('''
-        SELECT id, tipo, metodo_pago, monto, DATE_FORMAT(fecha_emision, '%d/%m/%Y %H:%i') as fecha_emision
+        SELECT id, tipo, metodo_pago, monto, folio, id_sucursal,
+               DATE_FORMAT(fecha_emision, '%d/%m/%Y %H:%i') as fecha_emision
         FROM prefacturas
         WHERE renta_id = %s AND pagada = 1
-        ORDER BY fecha_emision ASC
+        ORDER BY fecha_emision ASC, id ASC
     ''', (renta_id,))
-    pagos = cursor.fetchall()
+    filas = cursor.fetchall()
     cursor.close()
     conn.close()
-    return jsonify(pagos)
+
+    # Agrupar por folio: folios con >1 fila = pago combinado
+    grupos = {}
+    orden = []
+    for f in filas:
+        key = f['folio']
+        if key not in grupos:
+            grupos[key] = []
+            orden.append(key)
+        grupos[key].append(f)
+
+    resultado = []
+    for folio in orden:
+        rows = grupos[folio]
+        if len(rows) == 1:
+            r = dict(rows[0])
+            r['pdf_url'] = f"/prefactura/pdf/{r['id']}"
+            r['es_combinado'] = False
+            resultado.append(r)
+        else:
+            metodos = ' + '.join(r['metodo_pago'] for r in rows)
+            monto_total = sum(float(r['monto']) for r in rows)
+            sucursal_id = rows[0]['id_sucursal']
+            resultado.append({
+                'id': rows[0]['id'],
+                'folio': folio,
+                'tipo': 'combinado',
+                'metodo_pago': metodos,
+                'monto': monto_total,
+                'fecha_emision': rows[0]['fecha_emision'],
+                'id_sucursal': sucursal_id,
+                'pdf_url': f"/prefactura/pdf_combinado/{sucursal_id}/{folio}",
+                'es_combinado': True,
+                'detalle_combinado': [
+                    {'metodo_pago': r['metodo_pago'], 'monto': float(r['monto'])}
+                    for r in rows
+                ]
+            })
+
+    return jsonify(resultado)
 
 @prefactura_bp.route('/api/info-redondeo/<int:renta_id>')
 @requiere_sesion()
@@ -987,16 +1027,442 @@ def generar_pdf_prefactura(prefactura_id):
         mimetype='application/pdf'
     )
 
+@prefactura_bp.route('/pago_combinado/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('pagar_prefactura')
+def registrar_pago_combinado(renta_id):
+    data = request.get_json()
+    tipo = data.get('tipo', 'inicial')
+    pagos = data.get('pagos', [])
+    facturable = data.get('facturable', False)
+    facturable_int = 1 if facturable else 0
+
+    if len(pagos) < 2:
+        return jsonify({'success': False, 'error': 'Se requieren al menos 2 métodos de pago'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id_sucursal FROM rentas WHERE id = %s", (renta_id,))
+        row = cursor.fetchone()
+        sucursal_id = (row[0] if isinstance(row, (tuple, list)) else row['id_sucursal']) if row else None
+        sucursal_id = sucursal_id or session.get('sucursal_id') or 1
+
+        folio = obtener_folio_consecutivo_prefactura(sucursal_id)
+
+        prefactura_ids = []
+        for pago in pagos:
+            metodo = (pago.get('metodo_pago') or '').strip().upper()
+            monto = float(pago.get('monto') or 0)
+            if not metodo or monto <= 0:
+                continue
+
+            monto_recibido = pago.get('monto_recibido')
+            cambio = float(pago.get('cambio') or 0)
+            numero_seguimiento = pago.get('numero_seguimiento') or ''
+            if metodo != 'EFECTIVO':
+                cambio = 0.0
+
+            cursor.execute("""
+                INSERT INTO prefacturas (
+                    renta_id, fecha_emision, tipo, pagada, metodo_pago, monto,
+                    monto_recibido, cambio, numero_seguimiento, generada, facturable, folio, id_sucursal
+                ) VALUES (%s, NOW(), %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
+            """, (renta_id, tipo, metodo, monto, monto_recibido, cambio,
+                  numero_seguimiento, facturable_int, folio, sucursal_id))
+            prefactura_id = cursor.lastrowid
+            prefactura_ids.append(prefactura_id)
+
+            if metodo == 'EFECTIVO':
+                registrar_movimiento_automatico(
+                    tipo='ingreso',
+                    concepto=f"Pago combinado prefactura #{folio} - Renta #{renta_id}",
+                    monto=monto,
+                    metodo_pago='EFECTIVO',
+                    usuario_id=session.get('user_id'),
+                    sucursal_id=sucursal_id,
+                    referencia_tabla='prefacturas',
+                    referencia_id=prefactura_id,
+                    observaciones='Generado automáticamente desde prefactura combinada'
+                )
+
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) FROM prefacturas WHERE renta_id = %s AND pagada = 1
+        """, (renta_id,))
+        total_pagado_bd = float(cursor.fetchone()[0])
+
+        cursor.execute("SELECT total_con_iva FROM rentas WHERE id = %s", (renta_id,))
+        total_renta = float(cursor.fetchone()[0])
+
+        cursor.execute("""
+            SELECT COUNT(*) FROM prefacturas
+            WHERE renta_id = %s AND pagada = 1 AND metodo_pago = 'EFECTIVO'
+        """, (renta_id,))
+        hay_efectivo = cursor.fetchone()[0] > 0
+
+        diferencia = total_renta - total_pagado_bd
+        if total_pagado_bd >= total_renta or (hay_efectivo and abs(diferencia) < 1.00):
+            nuevo_estado = 'Pago realizado'
+        elif total_pagado_bd > 0:
+            nuevo_estado = 'Saldo pendiente'
+        else:
+            nuevo_estado = 'Pago pendiente'
+
+        cursor.execute(
+            "UPDATE rentas SET estado_pago=%s, metodo_pago=%s WHERE id=%s",
+            (nuevo_estado, 'COMBINADO', renta_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        saldo_pendiente = max(0.0, round(total_renta - total_pagado_bd, 2))
+        if hay_efectivo and abs(saldo_pendiente) < 1.00:
+            saldo_pendiente = 0.0
+
+        return jsonify({
+            'success': True,
+            'folio': folio,
+            'sucursal_id': sucursal_id,
+            'prefactura_ids': prefactura_ids,
+            'saldo_pendiente': saldo_pendiente,
+            'nuevo_estado': nuevo_estado
+        })
+
+    except Exception as e:
+        print(f"Error al registrar prefactura combinada: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@prefactura_bp.route('/pdf_combinado/<int:sucursal_id>/<int:folio>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
+def generar_pdf_combinado(sucursal_id, folio):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Obtener todas las filas del folio combinado
+    cursor.execute("""
+        SELECT p.*, r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
+               r.traslado, r.costo_traslado, r.id_sucursal,
+               CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
+               c.codigo_cliente, c.telefono, c.correo,
+               c.calle, c.numero_exterior, c.numero_interior, c.entre_calles,
+               c.colonia, c.codigo_postal, c.municipio, c.estado, c.rfc,
+               s.plantilla_renta
+        FROM prefacturas p
+        JOIN rentas r ON p.renta_id = r.id
+        JOIN clientes c ON r.cliente_id = c.id
+        JOIN sucursales s ON r.id_sucursal = s.id
+        WHERE p.folio = %s AND p.id_sucursal = %s
+        ORDER BY p.id ASC
+    """, (folio, sucursal_id))
+    filas = cursor.fetchall()
+
+    if not filas:
+        cursor.close()
+        conn.close()
+        return "No se encontró el folio combinado", 404
+
+    pref = filas[0]  # datos del cliente / renta vienen de la primera fila
+    renta_id = pref['renta_id']
+
+    cursor.execute("""
+        SELECT prod.nombre, rd.cantidad, rd.dias_renta, rd.costo_unitario, rd.subtotal
+        FROM renta_detalle rd
+        JOIN productos prod ON rd.id_producto = prod.id_producto
+        WHERE rd.renta_id = %s
+    """, (renta_id,))
+    detalles = cursor.fetchall()
+
+    cursor.execute("SELECT total_con_iva FROM rentas WHERE id = %s", (renta_id,))
+    total_renta_info = cursor.fetchone()
+    total_renta = float(total_renta_info['total_con_iva']) if total_renta_info else 0.0
+
+    usuario_nombre = "USUARIO NO IDENTIFICADO"
+    usuario_id = session.get('user_id')
+    if usuario_id:
+        cursor.execute("""
+            SELECT CONCAT(nombre, ' ', apellido1, ' ', apellido2) as nombre_completo
+            FROM usuarios WHERE id = %s
+        """, (usuario_id,))
+        u = cursor.fetchone()
+        if u:
+            usuario_nombre = u['nombre_completo'].upper()
+
+    cursor.close()
+    conn.close()
+
+    # Construir canvas
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+
+    try:
+        font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+        if os.path.exists(font_path):
+            pdfmetrics.registerFont(TTFont('Carlito', font_path))
+    except Exception:
+        pass
+
+    can.setFont("Courier-Bold", 15)
+    can.drawString(490, 732, "PREFACTURA")
+
+    y_cliente = 715
+    can.setFont("Carlito", 10)
+    can.drawString(36, y_cliente, f"CLIENTE: {pref['codigo_cliente']} - {pref['cliente_nombre'].upper()}")
+    y_cliente -= 13
+    can.drawString(36, y_cliente, f"TELÉFONO: {pref['telefono'] or 'NO REGISTRADO'}")
+    y_cliente -= 13
+    can.drawString(36, y_cliente, f"CORREO: {pref['correo'] or 'NO REGISTRADO'}")
+    y_cliente -= 13
+
+    direccion_completa = pref['calle'] or ''
+    if pref['numero_exterior']:
+        direccion_completa += f" #{pref['numero_exterior']}"
+    if pref['numero_interior']:
+        direccion_completa += f", INT. {pref['numero_interior']}"
+    if pref['entre_calles']:
+        direccion_completa += f" (ENTRE {pref['entre_calles']})"
+    if pref['colonia']:
+        direccion_completa += f", COL. {pref['colonia']}"
+    if pref['codigo_postal']:
+        direccion_completa += f" - C.P. {pref['codigo_postal']}"
+    for line in simpleSplit(f"DIRECCIÓN: {direccion_completa.upper()}", "Carlito", 10, 530):
+        can.drawString(36, y_cliente, line)
+        y_cliente -= 13
+
+    can.drawString(36, y_cliente, f"ESTADO: {(pref['estado'] or 'NO REGISTRADO').upper()}")
+    can.drawString(290, y_cliente, f"MUNICIPIO: {(pref['municipio'] or 'NO REGISTRADO').upper()}")
+    y_cliente -= 13
+    can.drawString(36, y_cliente, f"RFC: {(pref['rfc'] or 'NO REGISTRADO').upper()}")
+    facturable_texto = "SÍ" if pref['facturable'] else "NO"
+    can.drawString(290, y_cliente, f"FACTURABLE: {facturable_texto}")
+    y_cliente -= 20
+
+    can.setFont("Carlito", 12)
+    can.drawRightString(575, 715, f"{pref['fecha_emision'].strftime('%d/%m/%Y - %H:%M:%S')}")
+    can.setFont("Courier-Bold", 20)
+    can.drawRightString(575, 690, f"#{str(folio).zfill(4)}")
+
+    # Tabla de productos
+    y_tabla = y_cliente - 5
+    can.line(28, y_tabla + 20, 585, y_tabla + 20)
+    can.setFont("Helvetica-Bold", 9)
+    can.drawString(36, y_tabla + 10, "DESCRIPCIÓN")
+    can.drawRightString(350, y_tabla + 10, "CANT.")
+    can.drawRightString(400, y_tabla + 10, "DÍAS")
+    can.drawRightString(490, y_tabla + 10, "PRECIO UNIT.")
+    can.drawRightString(570, y_tabla + 10, "SUBTOTAL")
+    can.line(28, y_tabla + 5, 585, y_tabla + 5)
+    y_tabla -= 15
+
+    can.setFont("Carlito", 10)
+    subtotal_general = 0
+    for item in detalles:
+        can.drawString(36, y_tabla + 5, item['nombre'][:35].upper())
+        can.drawRightString(350, y_tabla + 5, str(item['cantidad']))
+        can.drawRightString(400, y_tabla + 5, str(item['dias_renta'] or 'N/A'))
+        can.drawRightString(490, y_tabla + 5, f"${item['costo_unitario']:.2f}")
+        can.drawRightString(570, y_tabla + 5, f"${item['subtotal']:.2f}")
+        subtotal_general += float(item['subtotal'])
+        y_tabla -= 13
+        if y_tabla < 300:
+            break
+    y_tabla -= 5
+
+    can.line(28, y_tabla + 15, 585, y_tabla + 15)
+    y_totales = y_tabla + 10 - 10
+
+    costo_traslado = float(pref.get('costo_traslado') or 0)
+    total_sin_iva = subtotal_general + costo_traslado
+    iva_val = float(pref.get('iva') or 0)
+
+    periodo_renta = f"{pref['fecha_salida'].strftime('%d/%m/%Y')}"
+    if pref['fecha_entrada']:
+        periodo_renta += f" - {pref['fecha_entrada'].strftime('%d/%m/%Y')}"
+    else:
+        periodo_renta += " - Indefinido"
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(36, y_totales, f"PERIODO DE RENTA: {periodo_renta}")
+
+    can.setFont("Carlito", 10)
+    can.drawString(400, y_totales, "SUBTOTAL:")
+    can.drawRightString(570, y_totales, f"${subtotal_general:.2f}")
+    y_totales -= 12
+
+    traslado_tipo = pref.get('traslado', 'ninguno')
+    can.drawString(400, y_totales, f"TRASLADO ({traslado_tipo}):")
+    can.drawRightString(570, y_totales, f"${costo_traslado:.2f}")
+    y_totales -= 12
+
+    can.drawString(400, y_totales, "IVA (16%):")
+    can.drawRightString(570, y_totales, f"${iva_val:.2f}")
+    y_totales -= 12
+
+    can.setFont("Helvetica-Bold", 9)
+    can.drawString(400, y_totales, "TOTAL RENTA:")
+    can.drawRightString(570, y_totales, f"${total_renta:.2f}")
+
+    monto_entero = int(total_renta)
+    monto_centavos = int(round((total_renta - monto_entero) * 100))
+    monto_letras = num2words(monto_entero, lang='es').upper()
+    if monto_centavos > 0:
+        monto_letras = f"SON: {monto_letras} PESOS CON {monto_centavos:02d}/100 M.N."
+    else:
+        monto_letras = f"SON: {monto_letras} PESOS 00/100 M.N."
+    can.setFont("Carlito", 9)
+    letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)
+    y_letras = y_totales
+    for line in letras_lines:
+        can.drawString(36, y_letras, line)
+        y_letras -= 10
+    y_totales -= max(12, len(letras_lines) * 10)
+
+    # === SECCIÓN PAGO COMBINADO ===
+    can.line(28, y_totales + 5, 585, y_totales + 5)
+    y_totales -= 10
+    can.setFont("Helvetica-Bold", 11)
+    can.drawString(36, y_totales, "PAGO COMBINADO:")
+    y_totales -= 15
+
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(36, y_totales, "MÉTODO")
+    can.drawRightString(300, y_totales, "MONTO")
+    can.drawRightString(400, y_totales, "RECIBIDO")
+    can.drawRightString(500, y_totales, "CAMBIO")
+    can.drawString(510, y_totales, "SEGUIMIENTO")
+    y_totales -= 12
+
+    can.setFont("Carlito", 9)
+    total_pagado_combinado = 0.0
+    for fila in filas:
+        metodo_f = fila['metodo_pago']
+        monto_f = float(fila['monto'])
+        total_pagado_combinado += monto_f
+        can.drawString(36, y_totales, metodo_f)
+        can.drawRightString(300, y_totales, f"${monto_f:.2f}")
+        if metodo_f == 'EFECTIVO':
+            mr = fila.get('monto_recibido')
+            cb = fila.get('cambio')
+            can.drawRightString(400, y_totales, f"${float(mr):.2f}" if mr else f"${monto_f:.2f}")
+            can.drawRightString(500, y_totales, f"${float(cb):.2f}" if cb else "$0.00")
+            can.drawString(510, y_totales, "-")
+        else:
+            can.drawRightString(400, y_totales, f"${monto_f:.2f}")
+            can.drawRightString(500, y_totales, "$0.00")
+            ns = fila.get('numero_seguimiento') or '-'
+            can.drawString(510, y_totales, str(ns)[:18])
+        y_totales -= 11
+
+    y_totales -= 5
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(200, y_totales, "TOTAL PAGADO:")
+    can.drawRightString(320, y_totales, f"${total_pagado_combinado:.2f}")
+    y_totales -= 20
+
+    # Avisos
+    y_avisos = y_totales - 6
+    can.line(28, y_avisos + 16, 585, y_avisos + 16)
+    y_avisos -= 5
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "REQUISITOS DEL CLIENTE:")
+    y_avisos -= 12
+    can.setFont("Carlito", 8)
+    can.drawString(60, y_avisos, "LOS SIGUIENTES DOCUMENTOS PUEDEN SER EN IMAGEN O EN COPIA IMPRESA:")
+    y_avisos -= 12
+    can.drawString(70, y_avisos, "• IDENTIFICACIÓN OFICIAL.")
+    y_avisos -= 10
+    can.drawString(70, y_avisos, "• LICENCIA DE CONDUCIR.")
+    y_avisos -= 10
+    can.drawString(70, y_avisos, "• CONSTANCIA DE SITUACIÓN FISCAL.")
+    y_avisos -= 10
+    can.drawString(70, y_avisos, "• COMPROBANTE DE DOMICILIO.")
+    y_avisos -= 15
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "REQUISITOS DE RENTA:")
+    y_avisos -= 11
+    can.setFont("Carlito", 8)
+    can.drawString(70, y_avisos, "• SE REQUIERE EL PAGO COMPLETO POR ADELANTADO DE LA RENTA.")
+    y_avisos -= 10
+    can.drawString(70, y_avisos, "• UBICACIÓN EXACTA DE LA OBRA (POR GOOGLE MAPS)")
+    y_avisos -= 15
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "¡IMPORTANTE!")
+    y_avisos -= 11
+    can.setFont("Carlito", 8)
+    can.drawString(70, y_avisos, "• EL PERIODO DE RENTA INCLUYE DOMINGOS, DÍAS INHÁBILES Y FESTIVOS.")
+    y_avisos -= 10
+    can.drawString(70, y_avisos, "• NO SE ARMA, NI SE DESARMA EL EQUIPO.")
+    y_avisos -= 10
+    can.setFont("Carlito", 10)
+    can.line(60, y_avisos, 250, y_avisos)
+    y_avisos -= 15
+    can.drawString(60, y_avisos, f"ATENDIDO POR: {usuario_nombre}")
+
+    can.save()
+    packet.seek(0)
+
+    try:
+        plantilla_path = None
+        if pref.get('plantilla_renta'):
+            plantilla_path = os.path.join(current_app.root_path, pref['plantilla_renta'])
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+        if os.path.exists(plantilla_path):
+            plantilla_pdf = PdfReader(plantilla_path)
+            page = plantilla_pdf.pages[0]
+            page.merge_page(overlay_pdf.pages[0])
+            output.add_page(page)
+        else:
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+    except Exception as e:
+        print(f"Error con plantilla PDF combinada: {e}")
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+        for page in overlay_pdf.pages:
+            output.add_page(page)
+
+    output_stream = BytesIO()
+    output.write(output_stream)
+    output_stream.seek(0)
+    return send_file(output_stream, download_name=f"prefactura_combinada_{folio}.pdf", mimetype='application/pdf')
+
+
 @prefactura_bp.route('/pdf_renta/<int:renta_id>')
 @requiere_sesion()
 @requiere_permiso('ver_prefactura')
 def generar_pdf_prefactura_por_renta(renta_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    # Buscar prefactura por renta_id
-    cursor.execute("SELECT id FROM prefacturas WHERE renta_id = %s ORDER BY id DESC LIMIT 1", (renta_id,))
-    prefactura = cursor.fetchone()
-    if not prefactura:
+    cursor.execute("""
+        SELECT id, folio, id_sucursal FROM prefacturas
+        WHERE renta_id = %s AND pagada = 1
+        ORDER BY id DESC LIMIT 1
+    """, (renta_id,))
+    ultima = cursor.fetchone()
+    if not ultima:
+        cursor.close()
+        conn.close()
         return f"No hay prefactura para la renta {renta_id}", 404
-    # Redirigir a la función original con el id de prefactura encontrado
-    return redirect(url_for('prefactura.generar_pdf_prefactura', prefactura_id=prefactura['id']))
+
+    # Verificar si el folio corresponde a un pago combinado (>1 fila con mismo folio)
+    cursor.execute("""
+        SELECT COUNT(*) as cnt FROM prefacturas
+        WHERE folio = %s AND id_sucursal = %s AND renta_id = %s
+    """, (ultima['folio'], ultima['id_sucursal'], renta_id))
+    cnt = cursor.fetchone()['cnt']
+    cursor.close()
+    conn.close()
+
+    if cnt > 1:
+        return redirect(url_for('prefactura.generar_pdf_combinado',
+                                sucursal_id=ultima['id_sucursal'],
+                                folio=ultima['folio']))
+    return redirect(url_for('prefactura.generar_pdf_prefactura', prefactura_id=ultima['id']))

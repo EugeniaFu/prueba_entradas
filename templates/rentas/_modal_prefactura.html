@@ -24,6 +24,7 @@
                   <select id="tipo_prefactura_pago" name="tipo_prefactura" class="form-select">
                     <option value="inicial">Inicial</option>
                     <option value="abono">Abono</option>
+                    <option value="combinado">Pago combinado (múltiples métodos)</option>
                   </select>
                 </div>
                 <div class="mb-3">
@@ -71,36 +72,124 @@
                     <option value="0">No</option>
                   </select>
                 </div>
-                <div class="mb-3">
-                  <label for="metodo-pago-pago" class="form-label">Método de pago</label>
-                  <select id="metodo-pago-pago" name="metodo_pago" class="form-select" required>
-                    <option value="EFECTIVO">Efectivo</option>
-                    <option value="T.DÉBITO">Tarjeta Débito</option>
-                    <option value="T.CRÉDITO">Tarjeta Crédito</option>
-                    <option value="TRANSFERENCIA">Transferencia</option>
-                  </select>
-                </div>
-                <div id="pago-efectivo-pago" class="mb-3" style="display:none;">
-                  <label for="monto-recibido-pago" class="form-label">Monto recibido</label>
-                  <input type="number" id="monto-recibido-pago" name="monto_recibido" class="form-control" min="0" step="0.01">
-                  <div class="mt-2"><strong>Cambio: $<span id="cambio-pago">0.00</span></strong></div>
-                </div>
-                <div id="pago-seguimiento-pago" class="mb-3" style="display:none;">
-                  <label for="numero-seguimiento-pago" class="form-label">Número de seguimiento</label>
-                  <input type="text" id="numero-seguimiento-pago" name="numero_seguimiento" class="form-control" placeholder="Número de seguimiento del banco">
-                  <div class="mt-2">
-                    <label for="monto-exacto-display" class="form-label">Monto exacto</label>
-                    <div class="input-group">
-                      <span class="input-group-text">$</span>
-                      <input type="number" id="monto-exacto-input" class="form-control" min="0" step="0.01" style="display:none;">
-                      <span id="monto-exacto-display" class="form-control-plaintext">0.00</span>
+
+                <!-- Pago simple (inicial / abono) -->
+                <div id="seccion-pago-simple">
+                  <div class="mb-3">
+                    <label for="metodo-pago-pago" class="form-label">Método de pago</label>
+                    <select id="metodo-pago-pago" name="metodo_pago" class="form-select">
+                      <option value="EFECTIVO">Efectivo</option>
+                      <option value="T.DÉBITO">Tarjeta Débito</option>
+                      <option value="T.CRÉDITO">Tarjeta Crédito</option>
+                      <option value="TRANSFERENCIA">Transferencia</option>
+                    </select>
+                  </div>
+                  <div id="pago-efectivo-pago" class="mb-3" style="display:none;">
+                    <label for="monto-recibido-pago" class="form-label">Monto recibido</label>
+                    <input type="number" id="monto-recibido-pago" name="monto_recibido" class="form-control" min="0" step="0.01">
+                    <div class="mt-2"><strong>Cambio: $<span id="cambio-pago">0.00</span></strong></div>
+                  </div>
+                  <div id="pago-seguimiento-pago" class="mb-3" style="display:none;">
+                    <label for="numero-seguimiento-pago" class="form-label">Número de seguimiento</label>
+                    <input type="text" id="numero-seguimiento-pago" name="numero_seguimiento" class="form-control" placeholder="Número de seguimiento del banco">
+                    <div class="mt-2">
+                      <label for="monto-exacto-display" class="form-label">Monto exacto</label>
+                      <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" id="monto-exacto-input" class="form-control" min="0" step="0.01" style="display:none;">
+                        <span id="monto-exacto-display" class="form-control-plaintext">0.00</span>
+                      </div>
+                      <small class="text-muted" id="monto-exacto-help" style="display:none;">Ingrese el monto del abono</small>
                     </div>
-                    <small class="text-muted" id="monto-exacto-help" style="display:none;">Ingrese el monto del abono</small>
                   </div>
                 </div>
+
+                <!-- Pago combinado (dos métodos) -->
+                <div id="seccion-pago-combinado" style="display:none;">
+                  <p class="text-muted small mb-2">Distribuye el total entre dos métodos de pago. La suma debe igualar el total.</p>
+
+                  <!-- Pago 1 -->
+                  <div class="card mb-2 border-primary">
+                    <div class="card-header py-1 bg-primary text-white">
+                      <small><strong><i class="bi bi-1-circle me-1"></i>Primer pago</strong></small>
+                    </div>
+                    <div class="card-body py-2">
+                      <div class="row g-2">
+                        <div class="col-6">
+                          <label class="form-label form-label-sm mb-1">Método</label>
+                          <select id="metodo-combinado-1" class="form-select form-select-sm">
+                            <option value="EFECTIVO">Efectivo</option>
+                            <option value="T.DÉBITO">Tarjeta Débito</option>
+                            <option value="T.CRÉDITO">Tarjeta Crédito</option>
+                            <option value="TRANSFERENCIA">Transferencia</option>
+                          </select>
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label form-label-sm mb-1">Monto</label>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="monto-combinado-1" class="form-control" min="0.01" step="0.01" placeholder="0.00">
+                          </div>
+                        </div>
+                      </div>
+                      <div id="combinado-1-seguimiento" class="mt-2" style="display:none;">
+                        <label class="form-label form-label-sm mb-1">No. seguimiento</label>
+                        <input type="text" id="seguimiento-combinado-1" class="form-control form-control-sm" placeholder="Número de seguimiento">
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Pago 2 -->
+                  <div class="card mb-2 border-secondary">
+                    <div class="card-header py-1 bg-secondary text-white">
+                      <small><strong><i class="bi bi-2-circle me-1"></i>Segundo pago</strong></small>
+                    </div>
+                    <div class="card-body py-2">
+                      <div class="row g-2">
+                        <div class="col-6">
+                          <label class="form-label form-label-sm mb-1">Método</label>
+                          <select id="metodo-combinado-2" class="form-select form-select-sm">
+                            <option value="T.DÉBITO">Tarjeta Débito</option>
+                            <option value="T.CRÉDITO">Tarjeta Crédito</option>
+                            <option value="TRANSFERENCIA">Transferencia</option>
+                            <option value="EFECTIVO">Efectivo</option>
+                          </select>
+                        </div>
+                        <div class="col-6">
+                          <label class="form-label form-label-sm mb-1">Monto</label>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="monto-combinado-2" class="form-control" min="0.01" step="0.01" placeholder="0.00" readonly>
+                          </div>
+                          <small class="text-muted">Se calcula automáticamente</small>
+                        </div>
+                      </div>
+                      <div id="combinado-2-seguimiento" class="mt-2" style="display:none;">
+                        <label class="form-label form-label-sm mb-1">No. seguimiento</label>
+                        <input type="text" id="seguimiento-combinado-2" class="form-control form-control-sm" placeholder="Número de seguimiento">
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Resumen combinado -->
+                  <div class="alert alert-secondary py-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span>Suma de pagos:</span>
+                      <strong>$<span id="suma-combinado">0.00</span></strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span>Total a cubrir:</span>
+                      <strong class="text-primary">$<span id="total-combinado-referencia">0.00</span></strong>
+                    </div>
+                    <div id="combinado-diferencia-aviso" class="text-danger small mt-1" style="display:none;">
+                      La suma de pagos no coincide con el total.
+                    </div>
+                  </div>
+                </div>
+
                 <div class="mb-3">
                   <label for="observaciones-prefactura" class="form-label">Observaciones</label>
-                  <textarea id="observaciones-prefactura" name="observaciones" class="form-control" rows="3" placeholder="Observaciones adicionales..."></textarea>
+                  <textarea id="observaciones-prefactura" name="observaciones" class="form-control" rows="2" placeholder="Observaciones adicionales..."></textarea>
                 </div>
               </div>
             </div>

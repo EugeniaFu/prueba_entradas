@@ -336,15 +336,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // Mostrar tabla de pagos
         let html = '';
         pagos.forEach(pago => {
+            let badgeClass = 'bg-primary';
+            if (pago.tipo === 'abono') badgeClass = 'bg-success';
+            else if (pago.tipo === 'combinado') badgeClass = 'bg-info text-dark';
             html += `
                 <tr>
-                    <td>${pago.id}</td>
-                    <td><span class="badge ${pago.tipo === 'inicial' ? 'bg-primary' : 'bg-success'}">${pago.tipo}</span></td>
+                    <td>#${String(pago.folio || pago.id).padStart(4, '0')}</td>
+                    <td><span class="badge ${badgeClass}">${pago.tipo}</span></td>
                     <td>${pago.metodo_pago}</td>
                     <td>$${parseFloat(pago.monto).toFixed(2)}</td>
                     <td>${pago.fecha_emision}</td>
                     <td>
-                        <a href="/prefactura/pdf/${pago.id}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <a href="${pago.pdf_url}" target="_blank" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-file-earmark-pdf"></i> PDF
                         </a>
                     </td>
