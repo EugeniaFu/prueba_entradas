@@ -25,7 +25,22 @@
       <h2 class="inventario-section-title"><i class="bi bi-grid-3x3-gap"></i> Inventario General</h2>
     </div>
   </div>
-  
+
+  <!-- Selector de vista principal -->
+  <div class="d-flex gap-2 mb-3">
+    <button class="btn btn-tab active" id="tab-vista-inventario" onclick="cambiarVistaGeneral('inventario')">
+      <i class="bi bi-grid-3x3-gap me-1"></i>Inventario
+    </button>
+    <button class="btn btn-tab" id="tab-vista-historial" onclick="cambiarVistaGeneral('historial')">
+      <i class="bi bi-clock-history me-1"></i>Historial de Movimientos
+    </button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  VISTA: INVENTARIO                          -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="vista-inventario-general">
+
   <div class="d-flex flex-wrap align-items-center mb-3 gap-2 justify-content-between">
     <input type="text" id="buscadorPiezas" class="search-inventario-box" placeholder="Buscar pieza...">
   </div>
@@ -160,6 +175,92 @@
       </tbody>
     </table>
   </div>
+  </div><!-- /vista-inventario-general -->
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--  VISTA: HISTORIAL DE MOVIMIENTOS            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="vista-historial-general" style="display:none;">
+
+    <!-- Filtros del historial -->
+    <div class="card mb-3" style="border:1px solid #d0d7e3;">
+      <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label small mb-1">Tipo de movimiento</label>
+            <select id="historial-filtro-tipo" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="alta">Altas</option>
+              <option value="baja">Bajas</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Sucursal</label>
+            <select id="historial-filtro-sucursal" class="form-select form-select-sm">
+              <option value="">Todas las sucursales</option>
+              {% for sucursal in sucursales %}
+              <option value="{{ sucursal.id }}">{{ sucursal.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">Desde</label>
+            <input type="date" id="historial-fecha-inicio" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small mb-1">Hasta</label>
+            <input type="date" id="historial-fecha-fin" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-2">
+            <button class="btn btn-sm btn-inventario-main w-100" onclick="cargarHistorialGeneral(1)">
+              <i class="bi bi-search me-1"></i>Buscar
+            </button>
+          </div>
+          <div class="col-md-1">
+            <button class="btn btn-sm btn-secondary w-100" onclick="limpiarFiltrosHistorial()" title="Limpiar filtros">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="historial-loading" class="text-center text-muted py-4" style="display:none;">
+      <span class="spinner-border spinner-border-sm me-2"></span>Cargando historial...
+    </div>
+
+    <!-- Tabla de historial -->
+    <div class="table-responsive" id="historial-table-wrapper" style="display:none;">
+      <table class="table table-inventario align-middle">
+        <thead>
+          <tr>
+            <th style="width:130px;">Fecha</th>
+            <th style="width:80px;">Tipo</th>
+            <th>Sucursal</th>
+            <th style="width:80px;">Folio</th>
+            <th>Detalle</th>
+            <th>Usuario</th>
+            <th>Observaciones</th>
+            <th style="width:60px;">PDF</th>
+          </tr>
+        </thead>
+        <tbody id="historial-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Sin resultados -->
+    <div id="historial-empty" class="text-center text-muted py-5" style="display:none;">
+      <i class="bi bi-inbox" style="font-size:2rem;"></i>
+      <p class="mt-2">No hay movimientos registrados con los filtros seleccionados.</p>
+    </div>
+
+    <!-- Paginación -->
+    <div id="historial-paginacion" class="d-flex justify-content-center gap-2 mt-3"></div>
+
+  </div><!-- /vista-historial-general -->
+
 </div>
 
 <!-- Modales por pieza (fuera de la tabla) -->

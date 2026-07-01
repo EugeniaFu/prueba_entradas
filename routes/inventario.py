@@ -1077,6 +1077,126 @@ def finalizar_reparaciones():
 
 
 
+# ─────────────────────────────────────────────────────────────
+# Historial de movimientos del inventario general (altas/bajas)
+# ─────────────────────────────────────────────────────────────
+@bp_inventario.route('/api/historial-general')
+@requiere_sesion()
+@requiere_permiso('ver_inventario_general')
+def api_historial_general():
+    tipo        = request.args.get('tipo', '')
+    sucursal_id = request.args.get('sucursal_id', '')
+    fecha_inicio = request.args.get('fecha_inicio', '')
+    fecha_fin   = request.args.get('fecha_fin', '')
+    page        = max(1, int(request.args.get('page', 1)))
+    limit       = 20
+    offset      = (page - 1) * limit
+
+    if tipo == 'alta':
+        tipos = ['alta_equipo_general']
+    elif tipo == 'baja':
+        tipos = ['baja_equipo_general']
+    else:
+        tipos = ['alta_equipo_general', 'baja_equipo_general']
+
+    placeholders = ','.join(['%s'] * len(tipos))
+    where_parts  = [f"mi.tipo_movimiento IN ({placeholders})"]
+    params       = list(tipos)
+
+    if sucursal_id:
+        where_parts.append("mi.id_sucursal = %s")
+        params.append(sucursal_id)
+    if fecha_inicio:
+        where_parts.append("DATE(mi.fecha) >= %s")
+        params.append(fecha_inicio)
+    if fecha_fin:
+        where_parts.append("DATE(mi.fecha) <= %s")
+        params.append(fecha_fin)
+
+    where_sql = " AND ".join(where_parts)
+
+    conn   = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Total de lotes distintos
+        cursor.execute(f"""
+            SELECT COUNT(*) as total FROM (
+                SELECT COALESCE(folio_nota_entrada, folio_nota_salida) as folio,
+                       id_sucursal, tipo_movimiento
+                FROM movimientos_inventario mi
+                WHERE {where_sql}
+                GROUP BY folio, id_sucursal, tipo_movimiento
+            ) sub
+        """, params)
+        total = cursor.fetchone()['total']
+
+        # Lotes agrupados por folio
+        cursor.execute(f"""
+            SELECT
+                COALESCE(mi.folio_nota_entrada, mi.folio_nota_salida) AS folio,
+                mi.id_sucursal,
+                s.nombre AS sucursal_nombre,
+                mi.tipo_movimiento,
+                MIN(mi.fecha) AS fecha,
+                u.nombre AS usuario_nombre,
+                MAX(mi.descripcion) AS descripcion,
+                SUM(mi.cantidad) AS total_piezas,
+                COUNT(DISTINCT mi.id_pieza) AS num_tipos
+            FROM movimientos_inventario mi
+            JOIN sucursales s ON mi.id_sucursal = s.id
+            LEFT JOIN usuarios u ON mi.usuario = u.id
+            WHERE {where_sql}
+            GROUP BY folio, mi.id_sucursal, mi.tipo_movimiento, u.nombre
+            ORDER BY MIN(mi.fecha) DESC
+            LIMIT %s OFFSET %s
+        """, params + [limit, offset])
+        lotes = cursor.fetchall()
+
+        resultado = []
+        for lote in lotes:
+            folio    = lote['folio']
+            id_suc   = lote['id_sucursal']
+            tipo_mov = lote['tipo_movimiento']
+            folio_col = 'folio_nota_entrada' if tipo_mov == 'alta_equipo_general' else 'folio_nota_salida'
+
+            cursor.execute(f"""
+                SELECT p.nombre_pieza, p.categoria, mi.cantidad
+                FROM movimientos_inventario mi
+                JOIN piezas p ON mi.id_pieza = p.id_pieza
+                WHERE mi.{folio_col} = %s AND mi.id_sucursal = %s AND mi.tipo_movimiento = %s
+                ORDER BY p.nombre_pieza
+            """, (folio, id_suc, tipo_mov))
+            piezas_detalle = cursor.fetchall()
+
+            pdf_url = (f'/inventario/pdf-alta-equipo/{id_suc}/{folio}'
+                       if tipo_mov == 'alta_equipo_general'
+                       else f'/inventario/pdf-baja-equipo/{folio}')
+
+            fecha_str = lote['fecha'].strftime('%d/%m/%Y %H:%M') if lote['fecha'] else ''
+            resultado.append({
+                'folio':           folio,
+                'id_sucursal':     id_suc,
+                'sucursal_nombre': lote['sucursal_nombre'],
+                'tipo_movimiento': tipo_mov,
+                'tipo_label':      'Alta' if tipo_mov == 'alta_equipo_general' else 'Baja',
+                'fecha':           fecha_str,
+                'usuario_nombre':  lote['usuario_nombre'] or 'Sistema',
+                'descripcion':     lote['descripcion'] or '',
+                'total_piezas':    int(lote['total_piezas']),
+                'num_tipos':       int(lote['num_tipos']),
+                'piezas':          piezas_detalle,
+                'pdf_url':         pdf_url,
+            })
+
+        return jsonify({'success': True, 'movimientos': resultado,
+                        'total': total, 'page': page, 'limit': limit})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # Funciones del historial de transferencias
 @bp_inventario.route('/historial-transferencias/<int:sucursal_id>')
 @requiere_sesion()

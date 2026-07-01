@@ -989,3 +989,178 @@ function ejecutarEliminacionDefinitiva(idPieza, nombrePieza) {
       Swal.fire('Error', 'Ocurrió un error al eliminar la pieza', 'error');
     });
 }
+
+
+// ═══════════════════════════════════════════════════════════
+//  HISTORIAL DE MOVIMIENTOS — INVENTARIO GENERAL
+// ═══════════════════════════════════════════════════════════
+
+let historialPaginaActual = 1;
+
+function cambiarVistaGeneral(vista) {
+    const vInv = document.getElementById('vista-inventario-general');
+    const vHis = document.getElementById('vista-historial-general');
+    const tabInv = document.getElementById('tab-vista-inventario');
+    const tabHis = document.getElementById('tab-vista-historial');
+
+    if (vista === 'historial') {
+        vInv.style.display = 'none';
+        vHis.style.display = 'block';
+        tabInv.classList.remove('active');
+        tabHis.classList.add('active');
+        if (historialPaginaActual === 1 && !document.getElementById('historial-tbody').hasChildNodes()) {
+            cargarHistorialGeneral(1);
+        }
+    } else {
+        vHis.style.display = 'none';
+        vInv.style.display = 'block';
+        tabHis.classList.remove('active');
+        tabInv.classList.add('active');
+    }
+}
+
+function limpiarFiltrosHistorial() {
+    document.getElementById('historial-filtro-tipo').value = '';
+    document.getElementById('historial-filtro-sucursal').value = '';
+    document.getElementById('historial-fecha-inicio').value = '';
+    document.getElementById('historial-fecha-fin').value = '';
+    cargarHistorialGeneral(1);
+}
+
+function cargarHistorialGeneral(page) {
+    historialPaginaActual = page;
+
+    const tipo        = document.getElementById('historial-filtro-tipo').value;
+    const sucursalId  = document.getElementById('historial-filtro-sucursal').value;
+    const fechaInicio = document.getElementById('historial-fecha-inicio').value;
+    const fechaFin    = document.getElementById('historial-fecha-fin').value;
+
+    const loading  = document.getElementById('historial-loading');
+    const wrapper  = document.getElementById('historial-table-wrapper');
+    const empty    = document.getElementById('historial-empty');
+    const pagDiv   = document.getElementById('historial-paginacion');
+
+    loading.style.display = 'block';
+    wrapper.style.display = 'none';
+    empty.style.display   = 'none';
+    pagDiv.innerHTML      = '';
+
+    const params = new URLSearchParams({ page, tipo, sucursal_id: sucursalId,
+        fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+
+    fetch(`/inventario/api/historial-general?${params}`)
+        .then(r => r.json())
+        .then(data => {
+            loading.style.display = 'none';
+            if (!data.success) {
+                Swal.fire('Error', data.error || 'No se pudo cargar el historial.', 'error');
+                return;
+            }
+            if (!data.movimientos.length) {
+                empty.style.display = 'block';
+                return;
+            }
+            renderHistorialGeneral(data.movimientos);
+            wrapper.style.display = 'block';
+            renderPaginacionHistorial(data.total, data.limit, page);
+        })
+        .catch(() => {
+            loading.style.display = 'none';
+            Swal.fire('Error', 'Error de conexión al cargar el historial.', 'error');
+        });
+}
+
+function renderHistorialGeneral(movimientos) {
+    const tbody = document.getElementById('historial-tbody');
+    tbody.innerHTML = '';
+
+    movimientos.forEach(mov => {
+        const esBaja = mov.tipo_movimiento === 'baja_equipo_general';
+
+        // Badge de tipo
+        const badge = esBaja
+            ? '<span class="badge bg-danger">Baja</span>'
+            : '<span class="badge bg-success">Alta</span>';
+
+        // Resumen de piezas
+        const resumenPiezas = `
+            <small class="text-muted d-block">
+                ${mov.num_tipos} tipo${mov.num_tipos !== 1 ? 's' : ''} · ${mov.total_piezas} pieza${mov.total_piezas !== 1 ? 's' : ''}
+            </small>`;
+
+        // Detalle expandible de piezas
+        const rowId = `historial-detail-${mov.folio}-${mov.id_sucursal}`;
+        const piezasHtml = mov.piezas.map(p =>
+            `<span class="badge bg-light text-dark border me-1 mb-1" style="font-size:0.78rem;">${p.nombre_pieza} × ${p.cantidad}</span>`
+        ).join('');
+
+        const detailRow = `
+            <tr id="${rowId}" style="display:none; background:#f8f9ff;">
+                <td colspan="8" class="py-2 ps-4">
+                    <small class="text-muted fw-bold d-block mb-1">Piezas del movimiento:</small>
+                    ${piezasHtml}
+                </td>
+            </tr>`;
+
+        // Folio con toggle
+        const folioCell = `
+            <button class="btn btn-sm btn-link p-0 fw-bold text-decoration-none"
+                style="color:#23395d;"
+                onclick="toggleDetallePieza('${rowId}', this)"
+                title="Ver/ocultar piezas">
+                #${mov.folio} <i class="bi bi-chevron-down" style="font-size:0.7rem;"></i>
+            </button>`;
+
+        // Observaciones truncadas
+        const obs = mov.descripcion
+            ? `<span title="${mov.descripcion}">${mov.descripcion.substring(0, 40)}${mov.descripcion.length > 40 ? '…' : ''}</span>`
+            : '<span class="text-muted">-</span>';
+
+        // Botón PDF
+        const btnPdf = `
+            <a href="${mov.pdf_url}" target="_blank"
+               class="btn btn-sm btn-outline-danger" title="Ver PDF">
+                <i class="bi bi-file-earmark-pdf"></i>
+            </a>`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><small>${mov.fecha}</small></td>
+            <td>${badge}</td>
+            <td><small>${mov.sucursal_nombre}</small></td>
+            <td>${folioCell}</td>
+            <td>${resumenPiezas}</td>
+            <td><small>${mov.usuario_nombre}</small></td>
+            <td><small>${obs}</small></td>
+            <td>${btnPdf}</td>
+        `;
+        tbody.appendChild(tr);
+
+        // Fila de detalle
+        const detailTr = document.createElement('template');
+        detailTr.innerHTML = detailRow;
+        tbody.appendChild(detailTr.content.firstElementChild);
+    });
+}
+
+function toggleDetallePieza(rowId, btn) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const visible = row.style.display !== 'none';
+    row.style.display = visible ? 'none' : 'table-row';
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = visible ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+}
+
+function renderPaginacionHistorial(total, limit, currentPage) {
+    const pagDiv = document.getElementById('historial-paginacion');
+    const totalPages = Math.ceil(total / limit);
+    if (totalPages <= 1) return;
+
+    let html = '';
+    for (let i = 1; i <= totalPages; i++) {
+        const active = i === currentPage ? 'btn-inventario-main' : 'btn-secondary';
+        html += `<button class="btn btn-sm ${active}" onclick="cargarHistorialGeneral(${i})">${i}</button>`;
+    }
+    pagDiv.innerHTML = html;
+}
