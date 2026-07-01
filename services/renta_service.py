@@ -884,7 +884,7 @@ class RentasService:
             conn.close()
 
     @staticmethod
-    def cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso=None):
+    def cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso=None, convertir_saldo_favor=False):
         """
         Cancela una renta original o una renovación.
 
@@ -979,9 +979,11 @@ class RentasService:
 
                         descripcion_extra = " | Nota de entrada generada automáticamente (Renta cancelada)"
 
-            # Determinar estado de pago según si hay reembolso manual
+            # Determinar estado de pago según si hay reembolso manual o saldo a favor
             estado_pago_lower = (renta['estado_pago'] or '').lower().strip()
-            if monto_reembolso and float(monto_reembolso) > 0:
+            if convertir_saldo_favor and monto_reembolso and float(monto_reembolso) > 0:
+                nuevo_estado_pago = 'Saldo a favor'
+            elif monto_reembolso and float(monto_reembolso) > 0:
                 nuevo_estado_pago = 'Reembolsado'
             elif 'pendiente' in estado_pago_lower:
                 nuevo_estado_pago = 'Cancelado sin pago'
@@ -1009,28 +1011,85 @@ class RentasService:
             # Registrar el reembolso como egreso en movimientos de caja (fuera de la
             # transacción principal: si esto falla no debe revertir la cancelación ya confirmada)
             if monto_reembolso and float(monto_reembolso) > 0:
-                try:
-                    from routes.caja import registrar_movimiento_automatico
-                    folio_display = f"SUC{renta['id_sucursal']}-{int(renta['folio']):04d}" if renta['folio'] else f"#{renta_id}"
-                    registrar_movimiento_automatico(
-                        tipo='egreso',
-                        concepto=f"Reembolso renta {folio_display} - Cancelación",
-                        monto=float(monto_reembolso),
-                        metodo_pago=(metodo_reembolso or 'EFECTIVO').upper(),
-                        usuario_id=session.get('user_id'),
-                        sucursal_id=renta['id_sucursal'],
-                        referencia_tabla='rentas',
-                        referencia_id=renta_id,
-                        observaciones=f"Motivo de cancelación: {motivo}"
-                    )
-                except Exception as e:
-                    print(f"Error al registrar movimiento de caja por reembolso: {e}")
+                if convertir_saldo_favor:
+                    try:
+                        folio_display = f"SUC{renta['id_sucursal']}-{int(renta['folio']):04d}" if renta['folio'] else f"#{renta_id}"
+                        RentasService._insertar_saldo_favor(
+                            cliente_id=None,
+                            sucursal_id=renta['id_sucursal'],
+                            monto=float(monto_reembolso),
+                            concepto=f"Cancelación renta {folio_display} - {motivo}",
+                            referencia_tabla='rentas',
+                            referencia_id=renta_id,
+                            renta_id=renta_id
+                        )
+                    except Exception as e:
+                        print(f"Error al registrar saldo a favor: {e}")
+                else:
+                    try:
+                        from routes.caja import registrar_movimiento_automatico
+                        folio_display = f"SUC{renta['id_sucursal']}-{int(renta['folio']):04d}" if renta['folio'] else f"#{renta_id}"
+                        registrar_movimiento_automatico(
+                            tipo='egreso',
+                            concepto=f"Reembolso renta {folio_display} - Cancelación",
+                            monto=float(monto_reembolso),
+                            metodo_pago=(metodo_reembolso or 'EFECTIVO').upper(),
+                            usuario_id=session.get('user_id'),
+                            sucursal_id=renta['id_sucursal'],
+                            referencia_tabla='rentas',
+                            referencia_id=renta_id,
+                            observaciones=f"Motivo de cancelación: {motivo}"
+                        )
+                    except Exception as e:
+                        print(f"Error al registrar movimiento de caja por reembolso: {e}")
 
             return True, "Renta cancelada correctamente."
 
         except Exception as e:
             conn.rollback()
             return False, str(e)
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
+    def _insertar_saldo_favor(cliente_id, sucursal_id, monto, concepto,
+                              referencia_tabla=None, referencia_id=None, renta_id=None):
+        """
+        Inserta un crédito en saldo_favor_clientes. Si cliente_id es None lo busca
+        a través de la renta_id proporcionada.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS saldo_favor_clientes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    cliente_id INT NOT NULL,
+                    sucursal_id INT NOT NULL,
+                    tipo ENUM('credito','debito') NOT NULL DEFAULT 'credito',
+                    monto DECIMAL(12,2) NOT NULL,
+                    concepto VARCHAR(255) NOT NULL,
+                    referencia_tabla VARCHAR(50),
+                    referencia_id INT,
+                    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    usuario_id INT,
+                    INDEX idx_cliente_saldo (cliente_id)
+                )
+            """)
+            if cliente_id is None and renta_id:
+                cursor.execute("SELECT cliente_id FROM rentas WHERE id = %s", (renta_id,))
+                row = cursor.fetchone()
+                cliente_id = row['cliente_id'] if row else None
+            if not cliente_id:
+                raise ValueError("No se pudo determinar el cliente para el saldo a favor.")
+            cursor.execute("""
+                INSERT INTO saldo_favor_clientes
+                    (cliente_id, sucursal_id, tipo, monto, concepto, referencia_tabla, referencia_id, usuario_id)
+                VALUES (%s, %s, 'credito', %s, %s, %s, %s, %s)
+            """, (cliente_id, sucursal_id, monto, concepto,
+                  referencia_tabla, referencia_id, session.get('user_id')))
+            conn.commit()
         finally:
             cursor.close()
             conn.close()

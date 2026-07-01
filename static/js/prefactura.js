@@ -297,16 +297,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
             document.getElementById('prefactura-detalle-pago').innerHTML = html;
 
+            // Si ya hay pagos, forzar tipo 'abono' para mostrar saldo correcto
+            if (totalPagado > 0 && tipoSelect && tipoSelect.value === 'inicial') {
+                tipoSelect.value = 'abono';
+            }
+
             // Delay más largo para asegurar renderizado completo y usar estrategia mejorada
             setTimeout(() => {
                 // Actualizar los elementos de totales en el modal usando la función centralizada
                 actualizarTotalesPrefactura(subtotalProductos, iva, totalConIva);
-                
+
+                // Aplicar tipo correcto y actualizar monto después de que el DOM esté listo
+                actualizarMontoPagar();
+
                 // Asegurar que el botón esté visible
                 const btnGenerar = document.getElementById('btn-generar-pago-pago');
                 if (btnGenerar) {
                     btnGenerar.style.display = '';
-                    console.log('✅ Botón generar pago hecho visible');
                 }
             }, 500);
 

@@ -71,8 +71,9 @@ def cancelar_renta(renta_id):
     motivo = data.get('motivo_cancelacion', '')
     monto_reembolso = data.get('monto_reembolso', None)
     metodo_reembolso = data.get('metodo_reembolso', None)
+    convertir_saldo_favor = (metodo_reembolso == 'SALDO_FAVOR')
 
-    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso)
+    success, msg = RentasService.cancelar_renta(renta_id, motivo, monto_reembolso, metodo_reembolso, convertir_saldo_favor)
     if success:
         return jsonify({"status": "ok", "mensaje": msg})
     else:

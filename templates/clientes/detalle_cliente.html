@@ -306,6 +306,44 @@
         </div>
         <!-- Archivos/documentos (Información) y Resumen (Historial) -->
         <div class="col-md-4">
+
+            <!-- Saldo a Favor -->
+            <div class="detalle-card mb-4" id="panelSaldoFavor">
+                <div class="detalle-card-title-bar d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-piggy-bank me-1"></i>Saldo a Favor</span>
+                </div>
+                <div class="detalle-card-body text-center">
+                    <div class="fs-3 fw-bold text-success mb-2" id="saldo-favor-display">
+                        $<span id="saldo-favor-monto">—</span>
+                    </div>
+                    <div class="d-flex gap-2 justify-content-center flex-wrap mt-2">
+                        <button class="btn btn-primary btn-sm btn-consolidar-pago"
+                                data-cliente-id="{{ cliente.id }}"
+                                title="Estado de cuenta y pago consolidado">
+                            <i class="bi bi-receipt-cutoff me-1"></i>Estado de Cuenta
+                        </button>
+                        <button class="btn btn-outline-success btn-sm btn-agregar-saldo-favor"
+                                data-cliente-id="{{ cliente.id }}"
+                                title="Registrar saldo a favor manualmente">
+                            <i class="bi bi-plus-circle me-1"></i>Agregar Saldo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Historial de pagos consolidados -->
+            <div class="detalle-card mb-4" id="panelHistorialConsolidados">
+                <div class="detalle-card-title-bar">
+                    <i class="bi bi-clock-history me-1"></i>Pagos Consolidados
+                </div>
+                <div class="detalle-card-body p-0" style="max-height:260px;overflow-y:auto;">
+                    <div id="historial-consolidados-loading" class="text-center text-muted py-3">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                    <div id="historial-consolidados-lista" style="display:none;"></div>
+                </div>
+            </div>
+
             <div class="detalle-card mb-4" id="panelArchivos">
                 <div class="detalle-card-title-bar">
                     Archivos
@@ -400,5 +438,57 @@
     if (window.location.hash === '#historial' && historialTabBtn) {
         new bootstrap.Tab(historialTabBtn).show();
     }
+
+    // Load historial de pagos consolidados
+    (function () {
+        fetch('/clientes/api/historial-consolidados/{{ cliente.id }}')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var loading = document.getElementById('historial-consolidados-loading');
+                var lista = document.getElementById('historial-consolidados-lista');
+                if (loading) loading.style.display = 'none';
+                if (!data.success || !data.historial.length) {
+                    if (lista) { lista.innerHTML = '<p class="text-muted text-center py-2 mb-0">Sin pagos consolidados.</p>'; lista.style.display = ''; }
+                    return;
+                }
+                var html = '';
+                data.historial.forEach(function (h) {
+                    var folioTag = h.folio ? '<span class="badge bg-secondary me-1">#' + String(h.folio).padStart(4, '0') + '</span>' : '';
+                    html += '<div class="border-bottom px-3 py-2 d-flex align-items-start justify-content-between">' +
+                        '<div>' +
+                        '<div class="fw-semibold" style="font-size:.85em;">' + folioTag + h.fecha + '</div>' +
+                        '<div class="text-muted" style="font-size:.78em;">' + h.metodo_pago + ' · ' + h.rentas.join(', ') + '</div>' +
+                        '</div>' +
+                        '<div class="text-end">' +
+                        '<div class="fw-bold text-primary">$' + h.total.toFixed(2) + '</div>' +
+                        '<a href="' + h.pdf_url + '" target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:.75em;">' +
+                        '<i class="bi bi-file-earmark-pdf"></i> PDF</a>' +
+                        '</div>' +
+                        '</div>';
+                });
+                if (lista) { lista.innerHTML = html; lista.style.display = ''; }
+            })
+            .catch(function () {
+                var loading = document.getElementById('historial-consolidados-loading');
+                if (loading) loading.innerHTML = '<p class="text-muted text-center py-2">Error al cargar.</p>';
+            });
+    })();
+
+    // Load saldo a favor balance on page load
+    (function () {
+        fetch('/clientes/api/saldo-favor/{{ cliente.id }}')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    document.getElementById('saldo-favor-monto').textContent =
+                        parseFloat(data.saldo).toFixed(2);
+                }
+            })
+            .catch(function () {});
+    })();
 </script>
+
+{% include 'clientes/_modal_consolidar_pago.html' %}
+{% include 'clientes/_modal_agregar_saldo_favor.html' %}
+<script src="{{ url_for('static', filename='js/consolidar_pago.js') }}"></script>
 {% endblock %}
