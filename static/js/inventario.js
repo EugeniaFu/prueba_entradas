@@ -246,8 +246,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Equipo enviado a reparación!',
-                            html: `Lote enviado a reparación correctamente.<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>`,
+                            title: '¡Equipo Enviado a Reparación!',
+                            html: `Equipo enviado a reparación correctamente.<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
                             confirmButtonText: 'Descargar PDF',
@@ -623,8 +623,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         const mensaje = esEnvio ?
-                            `¡Equipos enviados exitosamente!<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>` :
-                            `¡Equipos recibidos exitosamente!<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`;
+                            `¡Equipo enviado correctamente!<br>Folio de Salida: <strong>#${data.folio_nota_salida}</strong>` :
+                            `¡Equipo recibido correctamente!<br>Folio de Entrada: <strong>#${data.folio_nota_entrada}</strong>`;
 
                         Swal.fire({
                             title: esEnvio ? '¡Transferencia Enviada!' : '¡Transferencia Recibida!',
@@ -961,8 +961,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Éxito!',
-                            html: `¡Equipos marcado como dañado correctamente!`,
+                            title: '¡Piezas Dañadas!',
+                            html: `¡Equipo marcado como dañado correctamente!`,
                             text: data.message,
                             icon: 'success',
                             confirmButtonText: 'Entendido'

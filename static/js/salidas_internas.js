@@ -193,8 +193,8 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(result => {
             if (result.success) {
                 Swal.fire({
-                    title: '¡Salida interna registrada!',
-                    html: `Salida registrada correctamente.<br>Folio de nota de salida: <strong>#${result.folio_nota_salida}</strong>`,
+                    title: '¡Salida Interna Exitosa!',
+                    html: `Salida registrada correctamente.<br>Folio de Salida: <strong>#${result.folio_nota_salida}</strong>`,
                     icon: 'success',
                     showCancelButton: true,
                     confirmButtonText: 'Descargar PDF',

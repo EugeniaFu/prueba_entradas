@@ -108,8 +108,80 @@ main {
 }
 .btn-tab.active,
 .btn-tab:hover {
-    background: #23395d; /* Azul oscuro del sistema */
+    background: #23395d;
     color: #fff;
     border-color: #23395d;
+}
+
+/* ============================================================
+   SweetAlert2 — diseño global del sistema
+   Aplica automáticamente a todos los diálogos sin tocar
+   ningún Swal.fire() individual.
+   ============================================================ */
+
+.swal2-popup {
+    border: 2px solid #23395d;
+    border-radius: 14px;
+    background: #ffffff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    box-shadow: 0 8px 32px rgba(35, 57, 93, 0.18);
+    padding: 2rem;
+}
+
+.swal2-title {
+    color: #23395d;
+    font-weight: 700;
+    font-size: 1.3rem;
+}
+
+.swal2-html-container,
+.swal2-content {
+    color: #444;
+    font-size: 0.97rem;
+}
+
+.swal2-icon {
+    border-color: #23395d;
+    margin-bottom: 0.8rem;
+}
+
+.swal2-icon.swal2-success {
+    border-color: #28a745;
+}
+
+.swal2-icon.swal2-success .swal2-success-ring {
+    border-color: rgba(40, 167, 69, 0.3);
+}
+
+.swal2-icon.swal2-error {
+    border-color: #dc3545;
+}
+
+.swal2-icon.swal2-warning {
+    border-color: #ffc107;
+}
+
+.swal2-icon.swal2-info,
+.swal2-icon.swal2-question {
+    border-color: #23395d;
+}
+
+.swal2-confirm {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.5rem 1.4rem;
+    font-size: 0.95rem;
+}
+
+.swal2-cancel {
+    border-radius: 8px;
+    font-weight: 600;
+    padding: 0.5rem 1.4rem;
+    font-size: 0.95rem;
+}
+
+.swal2-actions {
+    gap: 0.75rem;
+    margin-top: 1.2rem;
 }
 

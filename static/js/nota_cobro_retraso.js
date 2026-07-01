@@ -264,7 +264,7 @@ function guardarCobroRetraso() {
         .then(data => {
             if (data.success) {
                 Swal.fire({
-                    title: '¡Cobro por retraso guardado!',
+                    title: '¡Cobro por Retraso Exitoso!',
                     html: `El cobro por retraso se guardó correctamente.<br>Folio: <strong>#${data.cobro_retraso_id}</strong>`,
                     icon: 'success',
                     showCancelButton: true,

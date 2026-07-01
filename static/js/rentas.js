@@ -441,7 +441,19 @@ document.addEventListener('DOMContentLoaded', function () {
     const formNuevaRenta = document.getElementById('form-nueva-renta');
     const btnGuardarRenta = document.getElementById('btn-guardar-renta');
     if (formNuevaRenta && btnGuardarRenta) {
-        formNuevaRenta.addEventListener('submit', function () {
+        formNuevaRenta.addEventListener('submit', function (e) {
+            const filas = document.querySelectorAll('#tabla-productos tbody tr');
+            if (filas.length === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Atención',
+                    text: 'Debes agregar al menos un producto antes de guardar la renta.',
+                    icon: 'warning',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#23395d'
+                });
+                return;
+            }
             btnGuardarRenta.disabled = true;
             btnGuardarRenta.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
         });

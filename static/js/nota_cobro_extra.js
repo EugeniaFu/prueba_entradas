@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Cobro extra guardado!',
+                            title: '¡Cobro Extra Exitoso!',
                             html: `El cobro extra se guardó correctamente.<br>Folio: <strong>#${data.cobro_id}</strong>`,
                             icon: 'success',
                             showCancelButton: true,
