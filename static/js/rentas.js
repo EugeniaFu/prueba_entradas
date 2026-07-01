@@ -102,6 +102,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 metodo_reembolso: metodoReembolso
             };
 
+            const btnCancelar = document.getElementById('btnConfirmarCancelarRenta');
+            if (btnCancelar) {
+                btnCancelar.disabled = true;
+                btnCancelar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Procesando...';
+            }
+
             fetch(`/rentas/cancelar/${rentaId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -120,10 +126,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                     } else {
                         Swal.fire('Error', data.mensaje || 'No se pudo cancelar la renta.', 'error');
+                        if (btnCancelar) { btnCancelar.disabled = false; btnCancelar.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirmar Cancelación'; }
                     }
                 })
                 .catch(() => {
                     Swal.fire('Error', 'Error inesperado al cancelar.', 'error');
+                    if (btnCancelar) { btnCancelar.disabled = false; btnCancelar.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Confirmar Cancelación'; }
                 });
         });
     }

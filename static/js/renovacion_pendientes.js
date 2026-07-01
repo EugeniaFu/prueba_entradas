@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function () {
         
         const btn = document.getElementById('btn-crear-renovacion');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creando...';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
 
         const payload = {
             fecha_salida: document.getElementById('fecha-salida-renovacion').value,
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .finally(() => {
             formularioEnviandose = false;
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-check-circle"></i> Crear renovación';
+            btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Generar Renovación';
         });
     });
 });

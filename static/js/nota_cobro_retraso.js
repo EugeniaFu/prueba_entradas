@@ -295,7 +295,7 @@ function guardarCobroRetraso() {
             // Rehabilitar botón
             if (btnGuardar) {
                 btnGuardar.disabled = false;
-                btnGuardar.innerHTML = 'Guardar Cobro';
+                btnGuardar.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Generar Cobro por Retraso';
             }
         });
 }

@@ -231,6 +231,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            const btnCobroExtra = document.getElementById('btn-generar-cobro-extra');
+            if (btnCobroExtra) {
+                btnCobroExtra.disabled = true;
+                btnCobroExtra.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando...';
+            }
+
             fetch(`/cobros_extra/crear/${rentaId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -270,10 +276,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                     } else {
                         Swal.fire('Error', data.error || 'No se pudo guardar el cobro extra.', 'error');
+                        if (btnCobroExtra) { btnCobroExtra.disabled = false; btnCobroExtra.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Generar Cobro Extra'; }
                     }
                 })
                 .catch(() => {
                     Swal.fire('Error', 'Error inesperado al guardar el cobro extra.', 'error');
+                    if (btnCobroExtra) { btnCobroExtra.disabled = false; btnCobroExtra.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Generar Cobro Extra'; }
                 });
         });
     }
