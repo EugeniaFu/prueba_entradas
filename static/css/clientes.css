@@ -937,3 +937,83 @@
         font-size: 0.9rem;
     }
 }
+
+/* ===== MODAL CONSOLIDAR PAGO ===== */
+#modalConsolidarPago .modal-content {
+    border: 2px solid #23395d !important;
+    border-radius: 16px !important;
+}
+
+#modalConsolidarPago .modal-header {
+    background: #23395d !important;
+    color: #fff !important;
+    border-bottom: none !important;
+    border-top-left-radius: 14px !important;
+    border-top-right-radius: 14px !important;
+    padding: 1.5rem 2rem;
+}
+
+#modalConsolidarPago .modal-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff !important;
+}
+
+#modalConsolidarPago .btn-close {
+    filter: invert(1) !important;
+}
+
+#modalConsolidarPago .btn-close:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+#modalConsolidarPago .card {
+    border: 2px solid #23395d;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(35, 57, 93, 0.1);
+}
+
+#modalConsolidarPago .card-header {
+    background: #23395d;
+    color: #fff !important;
+    border-bottom: 2px solid #1a2d4a;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 1rem 1.5rem;
+    border-top-left-radius: 8px !important;
+    border-top-right-radius: 8px !important;
+}
+
+#modalConsolidarPago .card-header h6 {
+    color: #fff !important;
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+#modalConsolidarPago .card-body {
+    padding: 1.5rem;
+    background: #ffffff;
+}
+
+#modalConsolidarPago .modal-footer-azul {
+    background: #f1f4fa;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-top: 2px solid #23395d;
+    padding: 1.2rem 2rem;
+}
+
+@media (max-width: 768px) {
+    #modalConsolidarPago .modal-header,
+    #modalConsolidarPago .modal-footer-azul {
+        padding: 1rem;
+    }
+
+    #modalConsolidarPago .card-body {
+        padding: 1rem;
+    }
+}

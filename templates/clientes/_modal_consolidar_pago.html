@@ -2,9 +2,9 @@
      data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-xl">
     <div class="modal-content">
-      <div class="modal-header" style="background:#23395d;">
+      <div class="modal-header">
         <h5 class="modal-title text-white">
-          <i class="bi bi-receipt-cutoff me-2"></i>Estado de Cuenta / Pago Consolidado
+          <i class="bi bi-receipt-cutoff me-2"></i>Estado de Cuenta
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
@@ -23,9 +23,11 @@
             <!-- Left: rentas table -->
             <div class="col-lg-7">
               <div class="card h-100">
-                <div class="card-header bg-light fw-semibold">
-                  <i class="bi bi-list-check me-1"></i>Rentas con saldo pendiente
-                  <span class="badge bg-secondary ms-1" id="consolidar-badge-rentas">0</span>
+                <div class="card-header text-center">
+                  <h6 class="mb-0">
+                    <i class="bi bi-list-check me-2"></i>Rentas con saldo pendiente
+                    <span class="badge bg-secondary ms-2" id="consolidar-badge-rentas">0</span>
+                  </h6>
                 </div>
                 <div class="card-body p-0">
                   <div class="table-responsive">
@@ -58,8 +60,8 @@
             <!-- Right: payment form -->
             <div class="col-lg-5">
               <div class="card h-100">
-                <div class="card-header bg-light fw-semibold">
-                  <i class="bi bi-cash-coin me-1"></i>Pago
+                <div class="card-header text-center">
+                  <h6 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Pago</h6>
                 </div>
                 <div class="card-body">
 

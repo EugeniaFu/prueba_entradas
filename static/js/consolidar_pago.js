@@ -6,7 +6,7 @@
     'use strict';
 
     let clienteId = null;
-    let estadoCuenta = null; // { rentas, saldo_favor, total_adeudo }
+    let estadoCuenta = null; // { rentas, cadenas, ordenRaiz, saldo_favor, total_adeudo }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -29,6 +29,7 @@
         let remanente = disponible;
         let totalAplicar = 0;
 
+        // Distribute per individual renta (oldest-first)
         estadoCuenta.rentas.forEach(function (r) {
             const cell = document.getElementById('consolidar-aplicar-' + r.id);
             if (!cell) return;
@@ -37,6 +38,19 @@
             remanente = Math.max(0, remanente - pago);
             totalAplicar += pago;
             cell.textContent = fmt(pago);
+        });
+
+        // Aggregate per chain header
+        estadoCuenta.ordenRaiz.forEach(function (raizId) {
+            var cadena = estadoCuenta.cadenas[raizId];
+            if (cadena.eslabones.length <= 1) return;
+            var chainCell = document.getElementById('consolidar-aplicar-cadena-' + raizId);
+            if (!chainCell) return;
+            var chainTotal = cadena.eslabones.reduce(function (s, e) {
+                var c = document.getElementById('consolidar-aplicar-' + e.id);
+                return s + (c ? parseFloat(c.textContent) : 0);
+            }, 0);
+            chainCell.textContent = fmt(chainTotal);
         });
 
         document.getElementById('consolidar-total-aplicar').textContent = fmt(totalAplicar);
@@ -70,22 +84,78 @@
                     return;
                 }
 
+                // Agrupar por cadena
+                var cadenas = {};
+                var ordenRaiz = [];
+                data.rentas.forEach(function (r) {
+                    var raizId = r.raiz_id;
+                    if (!cadenas[raizId]) {
+                        cadenas[raizId] = { folio_raiz: r.folio_raiz, eslabones: [] };
+                        ordenRaiz.push(raizId);
+                    }
+                    cadenas[raizId].eslabones.push(r);
+                });
+                estadoCuenta.cadenas = cadenas;
+                estadoCuenta.ordenRaiz = ordenRaiz;
+
                 // Build table
                 const tbody = document.getElementById('consolidar-rentas-tbody');
                 tbody.innerHTML = '';
-                data.rentas.forEach(function (r) {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML =
-                        '<td><span class="badge bg-secondary">#' + String(r.folio || r.id).padStart(4, '0') + '</span></td>' +
-                        '<td>' + (r.fecha_salida || '') + '</td>' +
-                        '<td>$' + fmt(r.total) + '</td>' +
-                        '<td>$' + fmt(r.pagado) + '</td>' +
-                        '<td class="text-danger fw-bold">$' + fmt(r.saldo_pendiente) + '</td>' +
-                        '<td class="text-primary fw-bold">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
-                    tbody.appendChild(tr);
+
+                ordenRaiz.forEach(function (raizId) {
+                    var cadena = cadenas[raizId];
+                    var eslabones = cadena.eslabones;
+                    var numReno = eslabones.length - 1;
+                    var folioStr = '#' + String(cadena.folio_raiz || raizId).padStart(4, '0');
+
+                    if (eslabones.length > 1) {
+                        // Fila encabezado de cadena
+                        var totalCadena = eslabones.reduce(function(s,e){ return s + e.total; }, 0);
+                        var pagadoCadena = eslabones.reduce(function(s,e){ return s + e.pagado; }, 0);
+                        var saldoCadena  = eslabones.reduce(function(s,e){ return s + e.saldo_pendiente; }, 0);
+                        var renoLabel = numReno + ' renovaci' + (numReno === 1 ? 'ón' : 'ones');
+                        var trH = document.createElement('tr');
+                        trH.className = 'table-primary fw-semibold';
+                        trH.innerHTML =
+                            '<td colspan="2">' +
+                              '<span class="badge bg-primary me-1">' + folioStr + '</span>' +
+                              '<span class="badge bg-secondary" style="font-size:.7em;">' + renoLabel + '</span>' +
+                            '</td>' +
+                            '<td>$' + fmt(totalCadena) + '</td>' +
+                            '<td>$' + fmt(pagadoCadena) + '</td>' +
+                            '<td class="text-danger">$' + fmt(saldoCadena) + '</td>' +
+                            '<td class="text-primary">$<span id="consolidar-aplicar-cadena-' + raizId + '">0.00</span></td>';
+                        tbody.appendChild(trH);
+
+                        // Sub-filas por eslabón
+                        eslabones.forEach(function (r) {
+                            var trE = document.createElement('tr');
+                            trE.className = 'small text-muted';
+                            trE.innerHTML =
+                                '<td class="ps-3"><span class="badge bg-secondary" style="opacity:.75;">#' + String(r.folio || r.id).padStart(4, '0') + '</span></td>' +
+                                '<td>' + (r.fecha_salida || '') + '</td>' +
+                                '<td>$' + fmt(r.total) + '</td>' +
+                                '<td>$' + fmt(r.pagado) + '</td>' +
+                                '<td class="text-danger">$' + fmt(r.saldo_pendiente) + '</td>' +
+                                '<td class="text-primary">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
+                            tbody.appendChild(trE);
+                        });
+                    } else {
+                        // Renta sin renovaciones — fila normal
+                        var r = eslabones[0];
+                        var tr = document.createElement('tr');
+                        tr.innerHTML =
+                            '<td><span class="badge bg-secondary">' + folioStr + '</span></td>' +
+                            '<td>' + (r.fecha_salida || '') + '</td>' +
+                            '<td>$' + fmt(r.total) + '</td>' +
+                            '<td>$' + fmt(r.pagado) + '</td>' +
+                            '<td class="text-danger fw-bold">$' + fmt(r.saldo_pendiente) + '</td>' +
+                            '<td class="text-primary fw-bold">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
+                        tbody.appendChild(tr);
+                    }
                 });
 
-                document.getElementById('consolidar-badge-rentas').textContent = data.rentas.length;
+                document.getElementById('consolidar-badge-rentas').textContent = ordenRaiz.length;
                 document.getElementById('consolidar-total-adeudo').textContent = fmt(data.total_adeudo);
                 document.getElementById('consolidar-saldo-favor').textContent = fmt(data.saldo_favor);
                 document.getElementById('consolidar-preview-adeudo').textContent = fmt(data.total_adeudo);

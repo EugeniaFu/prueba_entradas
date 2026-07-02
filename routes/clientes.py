@@ -443,6 +443,12 @@ def get_estado_cuenta(cliente_id):
             SELECT r.id, r.folio, r.id_sucursal,
                    r.fecha_salida, r.fecha_programada,
                    r.estado_renta, r.estado_pago,
+                   r.renta_asociada_id,
+                   COALESCE(r.renta_asociada_id, r.id) AS raiz_id,
+                   COALESCE(
+                       (SELECT folio FROM rentas WHERE id = r.renta_asociada_id),
+                       r.folio
+                   ) AS folio_raiz,
                    COALESCE(r.total_con_iva, r.total, 0) AS total,
                    COALESCE(
                        (SELECT SUM(p.monto) FROM prefacturas p WHERE p.renta_id = r.id AND p.pagada = 1),
@@ -465,6 +471,9 @@ def get_estado_cuenta(cliente_id):
             if r['saldo_pendiente'] > 0.50:
                 r['fecha_salida'] = r['fecha_salida'].strftime('%d/%m/%Y') if r['fecha_salida'] else ''
                 r['fecha_programada'] = r['fecha_programada'].strftime('%d/%m/%Y') if r['fecha_programada'] else ''
+                r['raiz_id'] = int(r['raiz_id'])
+                r['folio_raiz'] = int(r['folio_raiz']) if r['folio_raiz'] else r['folio']
+                r['renta_asociada_id'] = int(r['renta_asociada_id']) if r['renta_asociada_id'] else None
                 rentas.append(r)
 
         cursor.execute("""
@@ -694,9 +703,15 @@ def pdf_estado_cuenta(cliente_id):
         # Rentals with pending balance (including finalized-but-unpaid)
         cursor.execute("""
             SELECT r.id, r.folio, r.id_sucursal,
-                   r.fecha_salida, r.fecha_programada,
+                   r.fecha_salida, r.fecha_programada, r.fecha_entrada,
                    r.estado_renta, r.estado_pago, r.direccion_obra,
                    r.traslado, r.costo_traslado,
+                   r.renta_asociada_id,
+                   COALESCE(r.renta_asociada_id, r.id) AS raiz_id,
+                   COALESCE(
+                       (SELECT folio FROM rentas WHERE id = r.renta_asociada_id),
+                       r.folio
+                   ) AS folio_raiz,
                    COALESCE(r.total_con_iva, r.total, 0) AS total_con_iva,
                    COALESCE(r.total, 0) AS subtotal,
                    COALESCE(r.iva, 0)   AS iva_monto,
@@ -749,6 +764,16 @@ def pdf_estado_cuenta(cliente_id):
 
         if not rentas:
             return "Este cliente no tiene rentas con saldo pendiente.", 404
+
+        # Agrupar rentas por cadena (original + renovaciones)
+        cadenas = {}
+        orden_raiz = []
+        for r in rentas:
+            raiz_id = r['raiz_id']
+            if raiz_id not in cadenas:
+                cadenas[raiz_id] = {'folio_raiz': r['folio_raiz'], 'eslabones': []}
+                orden_raiz.append(raiz_id)
+            cadenas[raiz_id]['eslabones'].append(r)
 
         _ensure_saldo_favor_table(cursor)
         cursor.execute("""
@@ -809,155 +834,179 @@ def pdf_estado_cuenta(cliente_id):
     can.setFont("Carlito", 10)
     can.drawString(25, y,
         "A CONTINUACIÓN SE PRESENTAN LAS RENTAS CON SALDO PENDIENTE DE PAGO:")
-    y -= 15
+    y -= 10
 
     # ── Encabezado tabla ─────────────────────────────────────────────────────
 
     def nueva_pagina_ec():
         can.showPage()
         ny = 750
-        can.setFont("Helvetica-Bold", 12)
-        can.drawString(25, ny, f"ESTADO DE CUENTA — {nombre_completo.upper()} (CONT.)")
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(25, ny, f"ESTADO DE CUENTA — {nombre_completo.upper()} (CONTINUACIÓN)")
+        can.setFont("Carlito", 10)
         can.drawString(482, ny, fecha_str)
-        ny -= 25
-        can.setFont("Helvetica-Bold", 9)
-        can.drawString(50, ny, "RENTA / PRODUCTOS")
-        can.drawRightString(348, ny, "CANT.")
-        can.drawRightString(396, ny, "DÍAS")
-        can.drawRightString(473, ny, "PRECIO UNIT.")
-        can.drawRightString(545, ny, "SUBTOTAL")
-        ny -= 3
-        can.line(25, ny, 580, ny)
-        return ny - 15
+        can.setStrokeColorRGB(0.14, 0.22, 0.37)
+        can.setLineWidth(1)
+        can.line(25, ny - 6, 580, ny - 6)
+        can.setStrokeColorRGB(0, 0, 0)
+        return ny - 20
 
-    # ── Rentas ────────────────────────────────────────────────────────────────
-    for r in rentas:
-        n_prods = len(r.get('productos', []))
-        altura_estimada = 18 + 12 + 12 + (n_prods * 10) + 55
-        if y - altura_estimada < 180:
+    # ── Cadenas (original + renovaciones agrupadas) ───────────────────────────
+    for raiz_id in orden_raiz:
+        cadena = cadenas[raiz_id]
+        eslabones = cadena['eslabones']
+        folio_raiz = cadena['folio_raiz']
+
+        primer = eslabones[0]
+        ultimo = eslabones[-1]
+
+        fecha_inicio = primer['fecha_salida'].strftime('%d/%m/%Y') if primer.get('fecha_salida') else '—'
+        if ultimo.get('fecha_entrada'):
+            fecha_fin_cadena = ultimo['fecha_entrada'].strftime('%d/%m/%Y')
+            lbl_fin_cadena = 'ENTRADA'
+        elif ultimo.get('fecha_programada'):
+            fecha_fin_cadena = ultimo['fecha_programada'].strftime('%d/%m/%Y')
+            lbl_fin_cadena = 'PROG'
+        else:
+            fecha_fin_cadena = 'EN CURSO'
+            lbl_fin_cadena = ''
+
+        total_cadena = sum(e['total_con_iva'] for e in eslabones)
+        pagado_cadena = sum(e['pagado'] for e in eslabones)
+        saldo_cadena = round(sum(e['saldo_pendiente'] for e in eslabones), 2)
+
+        total_prods = sum(len(e.get('productos', [])) for e in eslabones)
+        altura_cadena = 22 + 12 + 14 + len(eslabones) * 13 + total_prods * 10 + 48
+        if y - altura_cadena < 180:
             y = nueva_pagina_ec()
 
-        folio_str = f"#{str(r['folio']).zfill(4)}" if r.get('folio') else f"ID {r['id']}"
-        fecha_sal = r['fecha_salida'].strftime('%d/%m/%Y') if r.get('fecha_salida') else '—'
-        fecha_reg = r['fecha_programada'].strftime('%d/%m/%Y') if r.get('fecha_programada') else '—'
-        refs = []
-        if r.get('folio_salida'):
-            refs.append(f"NS:{r['folio_salida']}")
-        if r.get('folio_entrada'):
-            refs.append(f"NE:{r['folio_entrada']}")
-        refs_txt = f"     {' | '.join(refs)}" if refs else ""
+        folio_str = f"#{str(folio_raiz).zfill(4)}" if folio_raiz else f"ID {raiz_id}"
 
-        # ── Barra de encabezado azul ───────────────────────────────────────
+        # ── Encabezado de cadena (azul oscuro) ────────────────────────────
         can.setFillColorRGB(0.14, 0.22, 0.37)
-        can.rect(25, y - 13, 555, 17, fill=1, stroke=0)
+        can.rect(25, y - 14, 555, 18, fill=1, stroke=0)
         can.setFillColorRGB(1, 1, 1)
         can.setFont("Helvetica-Bold", 9)
         can.drawString(29, y - 8, f"RENTA {folio_str}")
         can.setFont("Carlito", 9)
-        can.drawString(100, y - 8, f"SALIDA: {fecha_sal}   ENTRADA: {fecha_reg}{refs_txt}")
+        periodo_txt = (f"{fecha_inicio}  →  {lbl_fin_cadena + ': ' if lbl_fin_cadena else ''}{fecha_fin_cadena}")
+        can.drawString(106, y - 8, periodo_txt)
         can.setFillColorRGB(0, 0, 0)
-        y -= 15
+        y -= 16
 
-        # Dirección de obra (si existe)
-        if r.get('direccion_obra'):
+        # Dirección de obra (del último eslabón, o del primero)
+        obra = ultimo.get('direccion_obra') or primer.get('direccion_obra')
+        if obra:
             can.setFillColorRGB(0.94, 0.94, 0.94)
-            can.rect(25, y - 9, 555, 12, fill=1, stroke=0)
+            can.rect(25, y - 10, 555, 12, fill=1, stroke=0)
             can.setFillColorRGB(0.2, 0.2, 0.2)
             can.setFont("Carlito", 8)
-            can.drawString(29, y - 6, f"OBRA: {(r['direccion_obra'])[:90].upper()}")
+            can.drawString(29, y - 7, f"OBRA: {obra[:90].upper()}")
             can.setFillColorRGB(0, 0, 0)
             y -= 12
 
-        y -= 2
-
-        # ── Mini encabezado de columnas ────────────────────────────────────
+        # Encabezado de columnas de la cadena
         can.setFillColorRGB(0.88, 0.88, 0.88)
-        can.rect(25, y - 9, 555, 11, fill=1, stroke=0)
+        can.rect(25, y - 11, 555, 13, fill=1, stroke=0)
         can.setFillColorRGB(0, 0, 0)
         can.setFont("Helvetica-Bold", 8)
-        can.drawString(30, y - 6, "DESCRIPCIÓN")
-        can.drawRightString(340, y - 6, "CANT.")
-        can.drawRightString(390, y - 6, "DÍAS")
-        can.drawRightString(468, y - 6, "P. UNIT.")
-        can.drawRightString(540, y - 6, "SUBTOTAL")
-        y -= 18
+        can.drawString(30, y - 8, "DESCRIPCIÓN")
+        can.drawRightString(340, y - 8, "CANT.")
+        can.drawRightString(390, y - 8, "DÍAS")
+        can.drawRightString(468, y - 8, "P. UNIT.")
+        can.drawRightString(540, y - 8, "SUBTOTAL")
+        y -= 13
 
-        # ── Filas de productos ─────────────────────────────────────────────
-        can.setFont("Carlito", 8)
-        for idx, prod in enumerate(r.get('productos', [])):
-            if y < 100:
+        # ── Eslabones (cortes de la cadena) ───────────────────────────────
+        for eslabon in eslabones:
+            e_folio = f"#{str(eslabon['folio']).zfill(4)}" if eslabon.get('folio') else ''
+            e_sal = eslabon['fecha_salida'].strftime('%d/%m/%Y') if eslabon.get('fecha_salida') else '—'
+            if eslabon.get('fecha_entrada'):
+                e_fin = eslabon['fecha_entrada'].strftime('%d/%m/%Y')
+                e_lbl = 'ENTRADA'
+            elif eslabon.get('fecha_programada'):
+                e_fin = eslabon['fecha_programada'].strftime('%d/%m/%Y')
+                e_lbl = 'PROG'
+            else:
+                e_fin = '—'
+                e_lbl = 'PROG'
+
+            if y < 80:
                 y = nueva_pagina_ec()
-            if idx % 2 == 1:
-                can.setFillColorRGB(0.97, 0.97, 0.97)
-                can.rect(25, y - 3, 555, 11, fill=1, stroke=0)
-                can.setFillColorRGB(0, 0, 0)
-            can.drawString(30, y, str(prod['nombre'])[:42].upper())
-            can.drawRightString(340, y, str(prod['cantidad']))
-            can.drawRightString(390, y, str(prod.get('dias_renta') or '—'))
-            can.drawRightString(468, y, f"${float(prod.get('costo_unitario', 0)):.2f}")
-            can.drawRightString(540, y, f"${float(prod.get('subtotal', 0)):.2f}")
-            y -= 10
 
-        # ── Totales de la renta ────────────────────────────────────────────
+            # Barra de período (azul acero suave)
+            can.setFillColorRGB(0.78, 0.85, 0.93)
+            can.rect(25, y - 9, 555, 12, fill=1, stroke=0)
+            can.setFillColorRGB(0.08, 0.15, 0.30)
+            can.setFont("Helvetica-Bold", 8)
+            can.drawString(29, y - 6, e_folio)
+            can.setFont("Carlito", 8)
+            can.drawString(62, y - 6, f"SALIDA: {e_sal}   {e_lbl}: {e_fin}")
+            costo_tras_e = float(eslabon.get('costo_traslado') or 0)
+            if costo_tras_e > 0:
+                tipo_tras_e = (eslabon.get('traslado') or '').upper()
+                can.drawRightString(540, y - 6, f"TRASLADO ({tipo_tras_e}): ${costo_tras_e:.2f}")
+            can.setFillColorRGB(0, 0, 0)
+            y -= 18
+
+            # Productos del eslabón
+            can.setFont("Carlito", 8)
+            for idx, prod in enumerate(eslabon.get('productos', [])):
+                if y < 80:
+                    y = nueva_pagina_ec()
+                if idx % 2 == 1:
+                    can.setFillColorRGB(0.97, 0.97, 0.97)
+                    can.rect(25, y - 3, 555, 11, fill=1, stroke=0)
+                    can.setFillColorRGB(0, 0, 0)
+                can.drawString(30, y, str(prod['nombre'])[:42].upper())
+                can.drawRightString(340, y, str(prod['cantidad']))
+                can.drawRightString(390, y, str(prod.get('dias_renta') or '—'))
+                can.drawRightString(468, y, f"${float(prod.get('costo_unitario', 0)):.2f}")
+                can.drawRightString(540, y, f"${float(prod.get('subtotal', 0)):.2f}")
+                y -= 10
+
+        # ── Totales de la cadena ───────────────────────────────────────────
         y -= 2
         can.setStrokeColorRGB(0.65, 0.65, 0.65)
         can.line(330, y + 2, 555, y + 2)
         can.setStrokeColorRGB(0, 0, 0)
-        y -= 2
-
-        costo_traslado_r = float(r.get('costo_traslado') or 0)
-        traslado_tipo_r = (r.get('traslado') or 'ninguno').upper()
-        if costo_traslado_r > 0:
-            can.setFont("Carlito", 8)
-            can.setFillColorRGB(0.35, 0.35, 0.35)
-            can.drawRightString(468, y, f"TRASLADO ({traslado_tipo_r}):")
-            can.setFillColorRGB(0, 0, 0)
-            can.drawRightString(540, y, f"${costo_traslado_r:.2f}")
-            y -= 10
+        y -= 5
 
         can.setFont("Carlito", 8)
         can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y, "IVA (16%):")
+        can.drawRightString(468, y, "TOTAL CADENA:")
         can.setFillColorRGB(0, 0, 0)
-        can.drawRightString(540, y, f"${r['iva_monto']:.2f}")
-        y -= 10
-
-        can.setFont("Helvetica-Bold", 8)
-        can.setFillColorRGB(0.14, 0.22, 0.37)
-        can.drawRightString(468, y, "TOTAL RENTA:")
-        can.setFillColorRGB(0, 0, 0)
-        can.drawRightString(540, y, f"${r['total_con_iva']:.2f}")
+        can.drawRightString(540, y, f"${total_cadena:.2f}")
         y -= 10
 
         can.setFont("Carlito", 8)
         can.setFillColorRGB(0.35, 0.35, 0.35)
         can.drawRightString(468, y, "PAGADO:")
         can.setFillColorRGB(0, 0.45, 0)
-        can.drawRightString(540, y, f"${r['pagado']:.2f}")
+        can.drawRightString(540, y, f"${pagado_cadena:.2f}")
         can.setFillColorRGB(0, 0, 0)
         y -= 10
 
-        # Saldo pendiente con fondo rojo suave
         can.setFillColorRGB(0.96, 0.88, 0.88)
         can.rect(330, y - 4, 225, 14, fill=1, stroke=0)
         can.setFillColorRGB(0.65, 0, 0)
         can.setFont("Helvetica-Bold", 9)
         can.drawRightString(468, y, "SALDO PENDIENTE:")
-        can.drawRightString(540, y, f"${r['saldo_pendiente']:.2f}")
+        can.drawRightString(540, y, f"${saldo_cadena:.2f}")
         can.setFillColorRGB(0, 0, 0)
         y -= 14
 
-        # Separador inferior
-        can.setStrokeColorRGB(0.14, 0.22, 0.37)
-        can.setLineWidth(0.8)
-        can.line(25, y, 580, y)
-        can.setStrokeColorRGB(0, 0, 0)
-        can.setLineWidth(1)
-        y -= 12
 
     # ── Resumen general ───────────────────────────────────────────────────────
     if y < 160:
         y = nueva_pagina_ec()
+
+    can.setStrokeColorRGB(0.14, 0.22, 0.37)
+    can.setLineWidth(1.5)
+    can.line(25, y + 6, 580, y + 6)
+    can.setStrokeColorRGB(0, 0, 0)
+    can.setLineWidth(1)
+    y -= 7
 
     can.setFont("Carlito", 10)
     can.drawRightString(465, y, "TOTAL ADEUDADO:")
