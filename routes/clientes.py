@@ -340,6 +340,7 @@ def nuevo_cliente():
     sucursales = cursor.fetchall()
     cursor.close()
     conn.close()
+    return render_template('clientes/nuevo_cliente.html', sucursales=sucursales)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
