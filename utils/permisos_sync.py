@@ -106,7 +106,12 @@ PERMISOS_SISTEMA = [
     ('crear_salida_interna', 'Registrar una salida interna para uso de la tienda'),
 
     # Dashboard
-    ('ver_dashboard', 'Acceder a las gráficas y métricas principales del dashboard')
+    ('ver_dashboard', 'Acceder a las gráficas y métricas principales del dashboard'),
+
+    # Estado de Cuenta y Pagos Consolidados
+    ('ver_estado_cuenta', 'Ver el estado de cuenta de un cliente y descargar el PDF'),
+    ('consolidar_pago', 'Aplicar un pago consolidado distribuyendo entre rentas pendientes'),
+    ('agregar_saldo_favor', 'Registrar saldo a favor manualmente a un cliente'),
 ]
 
 def inicializar_permisos():

@@ -366,6 +366,7 @@ def _ensure_saldo_favor_table(cursor):
 
 @clientes_bp.route('/api/saldo-favor/<int:cliente_id>', methods=['GET'])
 @requiere_sesion()
+@requiere_permiso('ver_estado_cuenta')
 def get_saldo_favor(cliente_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -400,6 +401,7 @@ def get_saldo_favor(cliente_id):
 
 @clientes_bp.route('/api/saldo-favor/<int:cliente_id>', methods=['POST'])
 @requiere_sesion()
+@requiere_permiso('agregar_saldo_favor')
 def agregar_saldo_favor(cliente_id):
     data = request.get_json()
     monto = float(data.get('monto', 0))
@@ -433,6 +435,7 @@ def agregar_saldo_favor(cliente_id):
 
 @clientes_bp.route('/api/estado-cuenta/<int:cliente_id>', methods=['GET'])
 @requiere_sesion()
+@requiere_permiso('ver_estado_cuenta')
 def get_estado_cuenta(cliente_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -500,6 +503,7 @@ def get_estado_cuenta(cliente_id):
 
 @clientes_bp.route('/api/pago-consolidado/<int:cliente_id>', methods=['POST'])
 @requiere_sesion()
+@requiere_permiso('consolidar_pago')
 def pago_consolidado(cliente_id):
     """
     Distribuye un pago lump-sum entre las rentas activas con saldo pendiente,
@@ -684,6 +688,7 @@ def pago_consolidado(cliente_id):
 
 @clientes_bp.route('/pdf-estado-cuenta/<int:cliente_id>', methods=['GET'])
 @requiere_sesion()
+@requiere_permiso('ver_estado_cuenta')
 def pdf_estado_cuenta(cliente_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1182,6 +1187,7 @@ def historial_consolidados(cliente_id):
 
 @clientes_bp.route('/pdf-comprobante-consolidado/<int:cliente_id>', methods=['GET'])
 @requiere_sesion()
+@requiere_permiso('consolidar_pago')
 def pdf_comprobante_consolidado(cliente_id):
     """
     Genera un comprobante de pago consolidado.
