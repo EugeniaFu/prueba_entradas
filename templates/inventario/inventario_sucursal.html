@@ -201,13 +201,14 @@
                                 <!-- Selector de pieza con búsqueda -->
                                 <div class="row mb-3">
                                     <div class="col-md-9">
-                                        <label class="form-label">Seleccionar Equipo Dañado:</label>
+                                        <label class="form-label" for="selectorPiezaReparacion">Seleccionar Equipo Dañado:</label>
                                         <select id="selectorPiezaReparacion" class="form-select">
                                             <option value="">-- Seleccionar equipo --</option>
                                             {% for pieza in piezas %}
                                                 {% if pieza.daniadas > 0 %}
-                                                <option value="{{ pieza.id_pieza }}" 
+                                                <option value="{{ pieza.id_pieza }}"
                                                         data-nombre="{{ pieza.nombre_pieza }}"
+                                                        data-disponibles="{{ pieza.disponibles }}"
                                                         data-daniadas="{{ pieza.daniadas }}">
                                                     {{ pieza.nombre_pieza }} ({{ pieza.daniadas }} dañadas)
                                                 </option>
@@ -318,7 +319,7 @@
                                 <!-- Selector de pieza -->
                                 <div class="row mb-3">
                                     <div class="col-md-9">
-                                        <label class="form-label">Seleccionar Equipo en Reparación:</label>
+                                        <label class="form-label" for="selectorPiezaFinalizar">Seleccionar Equipo en Reparación:</label>
                                         <select id="selectorPiezaFinalizar" class="form-select">
                                             <option value="">-- Seleccionar equipo --</option>
                                             {% for pieza in piezas %}
@@ -418,7 +419,7 @@
                     <div class="col-xl-7 d-flex flex-column" style="min-height: 400px;">
                         <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
                             <div class="card-header card-header-azul">
-                                <h6 class="mb-0"><i class="bi bi-arrow-left-right"></i> Tipo de Operación y Selección</h6>
+                                <h6 class="mb-0"><i class="bi bi-arrow-left-right"></i> <span id="tituloAgregarPiezas">Tipo de Operación y Selección</span></h6>
                             </div>
                             <div class="card-body d-flex flex-column" style="flex:1;">
                                 <!-- Selector de tipo de operación -->
@@ -492,7 +493,7 @@
                                 <!-- Selector de pieza con búsqueda -->
                                 <div class="row mb-3">
                                     <div class="col-md-9">
-                                        <label class="form-label" id="labelSelectorPieza">Seleccionar Pieza:</label>
+                                        <label class="form-label" id="labelSelectorPieza" for="selectorPieza">Seleccionar Pieza:</label>
                                         <select id="selectorPieza" class="form-select">
                                             <option value="">Buscar y seleccionar pieza...</option>
                                             {% for pieza in piezas %}
@@ -533,7 +534,7 @@
                     <div class="col-xl-5 d-flex flex-column">
                         <div class="card card-borde-azul mb-3 flex-grow-1 d-flex flex-column" style="min-height: 300px;">
                             <div class="card-header card-header-azul">
-                                <h6 class="mb-0"><i class="bi bi-list-check"></i> Piezas a Transferir</h6>
+                                <h6 class="mb-0"><i class="bi bi-list-check"></i> <span id="tituloListaPiezas">Piezas a Transferir</span></h6>
                             </div>
                             <div class="card-body d-flex flex-column" style="flex:1;">
                                 <div id="listaPiezasAgregadas" style="display: none; flex:1;">
@@ -604,7 +605,7 @@
                                 <h6 class="mb-0"><i class="bi bi-plus-circle"></i> Selección y Detalle</h6>
                             </div>
                             <div class="card-body d-flex flex-column" style="flex:1;">
-                                <label class="form-label">Seleccionar tipo de equipo</label>
+                                <label class="form-label" for="selectorPiezaAlta">Seleccionar tipo de equipo</label>
                                 <div class="d-flex gap-2 mb-2">
                                     <select id="selectorPiezaAlta" class="form-select">
                                         <option value="">Selecciona un tipo de equipo...</option>

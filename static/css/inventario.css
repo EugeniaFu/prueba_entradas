@@ -27,6 +27,55 @@
     padding: 0.12rem 0.38rem;
     font-size: 0.85rem;
 }
+
+/* ==============================================
+   BUSCADOR EN SELECTS DE PIEZAS (Choices.js)
+   ============================================== */
+
+/* Que el selector con buscador ocupe todo el ancho, igual que el form-select original */
+.choices {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+/* Imitar el estilo del .form-select del modal (borde, radio, sombra) */
+.modal-body .choices__inner {
+    border-radius: 12px !important;
+    border: 2px solid rgba(176, 176, 176, 0.3) !important;
+    font-size: 1.05rem !important;
+    padding: 0.6rem 1.2rem !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 2px 8px rgba(35, 57, 93, 0.04) !important;
+    min-height: calc(1.5em + 1.5rem + 4px);
+}
+
+.modal-body .choices.is-focused .choices__inner,
+.modal-body .choices.is-open .choices__inner {
+    border-color: #23395d !important;
+    box-shadow: 0 0 0 3px rgba(35, 57, 93, 0.1) !important;
+    background: #ffffff !important;
+}
+
+/* Input de búsqueda dentro del dropdown */
+.choices__input {
+    background: #fff;
+    border-radius: 8px;
+    margin-bottom: 6px;
+}
+
+/* Evitar que el dropdown se corte por el tamaño reducido de las tarjetas del modal:
+   se ancla al propio select y flota por encima con un z-index alto. */
+.choices__list--dropdown,
+.choices__list[aria-expanded] {
+    z-index: 3000 !important;
+    border-radius: 10px !important;
+    border-color: #23395d !important;
+    box-shadow: 0 8px 24px rgba(35, 57, 93, 0.25) !important;
+}
+
+.choices__list--dropdown .choices__item--selectable.is-highlighted {
+    background-color: rgba(35, 57, 93, 0.1) !important;
+}
 #tablaPiezasAgregadasAlta td, #tablaPiezasAgregadasAlta th {
     padding-top: 0.3rem;
     padding-bottom: 0.3rem;

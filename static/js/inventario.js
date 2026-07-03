@@ -24,6 +24,106 @@ let piezasFinalizarReparacion = [];
 let piezasAltaEquipo = [];
 let piezasMarcarDaniadas = [];
 let piezasAgregadas = [];
+let piezasParaTransferenciaData = []; // Datos originales del selector de transferencia (id, nombre, categoria, disponibles, todasDisponibles)
+
+// ========================================
+// BUSCADOR EN SELECTS DE PIEZAS (Choices.js)
+// ========================================
+
+const choicesInstancias = {};
+
+// Envuelve un <select> con Choices.js para agregar buscador, manteniendo
+// el select nativo sincronizado (value/change) para no romper el resto del código.
+function initChoicesPieza(id) {
+    const el = document.getElementById(id);
+    if (!el || typeof Choices === 'undefined') return null;
+
+    const instancia = new Choices(el, {
+        searchEnabled: true,
+        searchPlaceholderValue: 'Buscar pieza...',
+        noResultsText: 'No se encontraron piezas',
+        noChoicesText: 'No hay piezas disponibles',
+        itemSelectText: '',
+        shouldSort: false,
+        allowHTML: false,
+        position: 'bottom'
+    });
+
+    choicesInstancias[id] = instancia;
+    liberarOverflowAlAbrirDropdown(el, instancia);
+
+    // Choices genera un <input> de búsqueda sin id/name propio; se le asigna
+    // uno para evitar advertencias de accesibilidad/autofill del navegador.
+    if (instancia.input && instancia.input.element) {
+        instancia.input.element.id = id + '_buscador';
+        instancia.input.element.name = id + '_buscador';
+    }
+
+    return instancia;
+}
+
+// Las tarjetas del modal usan "overflow: hidden" para redondear sus esquinas,
+// lo que recorta el dropdown de piezas aunque tenga z-index alto. Además,
+// las tarjetas tienen un efecto ":hover { transform: translateY(-2px) }" que,
+// al pasar el cursor sobre las piezas (siguen siendo descendientes de la
+// tarjeta aunque se pinten "afuera"), crea un nuevo contexto de apilamiento y
+// atrapa el z-index del dropdown por debajo de la tarjeta de Observaciones.
+// Mientras el dropdown está abierto, se libera el overflow y se anula
+// cualquier transform de los contenedores ancestros; al cerrarse se restaura.
+function liberarOverflowAlAbrirDropdown(el, instancia) {
+    const wrapper = instancia.containerOuter.element;
+    let ancestrosModificados = [];
+
+    el.addEventListener('showDropdown', function () {
+        let nodo = wrapper.parentElement;
+        while (nodo && nodo !== document.body) {
+            const estilo = getComputedStyle(nodo);
+            if (['hidden', 'auto', 'scroll', 'clip'].includes(estilo.overflowX) ||
+                ['hidden', 'auto', 'scroll', 'clip'].includes(estilo.overflowY)) {
+                nodo.style.setProperty('overflow', 'visible', 'important');
+            }
+            // Anular transform (propio o disparado por :hover) para que el
+            // contenedor no genere un nuevo stacking context.
+            nodo.style.setProperty('transform', 'none', 'important');
+            ancestrosModificados.push(nodo);
+            nodo = nodo.parentElement;
+        }
+    });
+
+    el.addEventListener('hideDropdown', function () {
+        ancestrosModificados.forEach(nodo => {
+            nodo.style.removeProperty('overflow');
+            nodo.style.removeProperty('transform');
+        });
+        ancestrosModificados = [];
+    });
+}
+
+// Limpia la selección de un selector envuelto por Choices (equivalente a selector.value = '')
+function resetChoicesPieza(id) {
+    const instancia = choicesInstancias[id];
+    if (instancia) {
+        instancia.removeActiveItems();
+    } else {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    }
+}
+
+// Choices.js reconstruye internamente los <option> del select y no conserva
+// los atributos data-* originales (solo value y texto). Por eso, antes de
+// envolver un select con Choices, se capturan sus datasets en un mapa
+// {valor: {...dataset}} para poder seguir leyéndolos después del selector.
+function capturarDatosOpciones(id) {
+    const selectEl = document.getElementById(id);
+    const datos = {};
+    if (!selectEl) return datos;
+    selectEl.querySelectorAll('option').forEach(opt => {
+        if (opt.value === '') return;
+        datos[opt.value] = Object.assign({}, opt.dataset);
+    });
+    return datos;
+}
 
 // ========================================
 // MODAL DE REPARACIÓN POR LOTES - FUNCIONALIDAD
@@ -36,18 +136,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAgregarReparacion = document.getElementById('btnAgregarPiezaReparacion');
     const infoDivReparacion = document.getElementById('infoPiezaSeleccionadaReparacion');
 
+    const datosPiezaReparacion = capturarDatosOpciones('selectorPiezaReparacion');
+    initChoicesPieza('selectorPiezaReparacion');
+
     if (selectorPiezaReparacion) {
         selectorPiezaReparacion.addEventListener('change', function () {
-            const option = this.options[this.selectedIndex];
+            const datos = datosPiezaReparacion[this.value];
 
-            if (this.value) {
-                const disponibles = parseInt(option.dataset.disponibles);
-                const daniadas = parseInt(option.dataset.daniadas);
+            if (this.value && datos) {
+                const disponibles = parseInt(datos.disponibles);
+                const daniadas = parseInt(datos.daniadas);
                 const maxCantidad = disponibles + daniadas;
 
                 infoDivReparacion.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>${option.dataset.nombre}</strong><br>
+                        <strong>${datos.nombre}</strong><br>
                         Disponibles: ${disponibles} | Dañadas: ${daniadas} | <strong>Total para reparar: ${maxCantidad}</strong>
                     </div>
                 `;
@@ -63,17 +166,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnAgregarReparacion) {
         btnAgregarReparacion.addEventListener('click', function () {
             const selector = document.getElementById('selectorPiezaReparacion');
-            const option = selector.options[selector.selectedIndex];
+            const datos = datosPiezaReparacion[selector.value];
 
-            if (!selector.value) {
+            if (!selector.value || !datos) {
                 Swal.fire('Error', 'Selecciona una pieza', 'error');
                 return;
             }
 
             const idPieza = selector.value;
-            const nombrePieza = option.dataset.nombre;
-            const disponibles = parseInt(option.dataset.disponibles);
-            const daniadas = parseInt(option.dataset.daniadas);
+            const nombrePieza = datos.nombre;
+            const disponibles = parseInt(datos.disponibles);
+            const daniadas = parseInt(datos.daniadas);
             const maxCantidad = disponibles + daniadas;
 
             // Verificar si ya está agregada
@@ -101,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actualizarResumenReparacion();
 
             // Limpiar selector
-            selector.value = '';
+            resetChoicesPieza('selectorPiezaReparacion');
             btnAgregarReparacion.disabled = true;
             infoDivReparacion.style.display = 'none';
         });
@@ -112,15 +215,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAgregarFinalizar = document.getElementById('btnAgregarPiezaFinalizar');
     const infoDivFinalizar = document.getElementById('infoPiezaSeleccionadaFinalizar');
 
+    const datosPiezaFinalizar = capturarDatosOpciones('selectorPiezaFinalizar');
+    initChoicesPieza('selectorPiezaFinalizar');
+
     if (selectorPiezaFinalizar) {
         selectorPiezaFinalizar.addEventListener('change', function () {
-            const option = this.options[this.selectedIndex];
+            const datos = datosPiezaFinalizar[this.value];
 
-            if (this.value) {
-                const enReparacion = parseInt(option.dataset.en_reparacion);
+            if (this.value && datos) {
+                const enReparacion = parseInt(datos.en_reparacion);
                 infoDivFinalizar.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>${option.dataset.nombre}</strong><br>
+                        <strong>${datos.nombre}</strong><br>
                         En reparación: <strong>${enReparacion}</strong>
                     </div>
                 `;
@@ -136,16 +242,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnAgregarFinalizar) {
         btnAgregarFinalizar.addEventListener('click', function () {
             const selector = document.getElementById('selectorPiezaFinalizar');
-            const option = selector.options[selector.selectedIndex];
+            const datos = datosPiezaFinalizar[selector.value];
 
-            if (!selector.value) {
+            if (!selector.value || !datos) {
                 Swal.fire('Error', 'Selecciona una pieza', 'error');
                 return;
             }
 
             const idPieza = selector.value;
-            const nombrePieza = option.dataset.nombre;
-            const enReparacion = parseInt(option.dataset.en_reparacion);
+            const nombrePieza = datos.nombre;
+            const enReparacion = parseInt(datos.en_reparacion);
 
             // Verificar si ya está agregada
             const yaExiste = piezasFinalizarReparacion.find(p => p.id === idPieza);
@@ -172,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actualizarResumenFinalizar();
 
             // Limpiar selector
-            selector.value = '';
+            resetChoicesPieza('selectorPiezaFinalizar');
             btnAgregarFinalizar.disabled = true;
             infoDivFinalizar.style.display = 'none';
         });
@@ -183,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (modalReparacion) {
         modalReparacion.addEventListener('hidden.bs.modal', function () {
             piezasReparacion = [];
-            document.getElementById('selectorPiezaReparacion').value = '';
+            resetChoicesPieza('selectorPiezaReparacion');
             document.getElementById('btnAgregarPiezaReparacion').disabled = true;
             document.getElementById('infoPiezaSeleccionadaReparacion').style.display = 'none';
             document.getElementById('listaPiezasAgregadasReparacion').style.display = 'none';
@@ -361,79 +467,86 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnConfirmar = document.getElementById('btnConfirmarTransferencia');
     const textoBoton = document.getElementById('textoBotonConfirmar');
 
+    // Capturar los datos originales del select ANTES de que Choices.js lo envuelva,
+    // ya que luego se reconstruye su lista de opciones dinámicamente (modo Mandar/Recibir).
+    const selectorPiezaTransferenciaEl = document.getElementById('selectorPieza');
+    if (selectorPiezaTransferenciaEl) {
+        selectorPiezaTransferenciaEl.querySelectorAll('option').forEach(opt => {
+            if (opt.value === '') return;
+            piezasParaTransferenciaData.push({
+                value: opt.value,
+                nombre: opt.dataset.nombre || '',
+                categoria: opt.dataset.categoria || '',
+                disponibles: parseInt(opt.dataset.disponibles || '0'),
+                todasDisponibles: parseInt(opt.dataset.todasDisponibles || '999')
+            });
+        });
+    }
+    initChoicesPieza('selectorPieza');
+
     function cambiarTipoOperacion() {
         const tituloAgregarPiezas = document.getElementById('tituloAgregarPiezas');
         const labelSelectorPieza = document.getElementById('labelSelectorPieza');
         const tituloListaPiezas = document.getElementById('tituloListaPiezas');
-        const selectorPieza = document.getElementById('selectorPieza');
-        
+        const instanciaSelectorPieza = choicesInstancias['selectorPieza'];
+
+        const nuevasOpciones = [{ value: '', label: 'Buscar y seleccionar pieza...', selected: true }];
+
         if (radioMandar.checked) {
             contenidoMandar.style.display = 'block';
             contenidoRecibir.style.display = 'none';
             textoBoton.textContent = 'Enviar Equipos';
-            
+
             tituloAgregarPiezas.textContent = 'Equipos a Enviar';
             labelSelectorPieza.textContent = 'Seleccionar equipo disponible:';
             tituloListaPiezas.textContent = 'Equipos que se enviarán:';
-            
-            // Para MANDAR: filtrar solo piezas con disponibles > 0
-            const todasLasOpciones = selectorPieza.querySelectorAll('option');
-            todasLasOpciones.forEach(opt => {
-                if (opt.value === '') {
-                    opt.style.display = 'block'; // Mantener la opción vacía
-                    return;
-                }
-                
-                const disponibles = parseInt(opt.dataset.disponibles || '0');
-                if (disponibles > 0) {
-                    opt.style.display = 'block';
-                    // Actualizar texto para mostrar disponibles
-                    const textoSpan = opt.querySelector('.texto-disponibles');
-                    if (textoSpan) {
-                        textoSpan.textContent = `${disponibles} disponibles`;
-                    }
-                } else {
-                    opt.style.display = 'none';
-                }
+
+            // Para MANDAR: solo piezas con disponibles > 0
+            piezasParaTransferenciaData.filter(p => p.disponibles > 0).forEach(p => {
+                nuevasOpciones.push({
+                    value: p.value,
+                    label: `${p.nombre}${p.categoria ? ' (' + p.categoria + ')' : ''} - ${p.disponibles} disponibles`
+                });
             });
-            
+
         } else {
             contenidoMandar.style.display = 'none';
             contenidoRecibir.style.display = 'block';
             textoBoton.textContent = 'Recibir Equipos';
-            
+
             tituloAgregarPiezas.textContent = 'Equipos a Recibir';
             labelSelectorPieza.textContent = 'Seleccionar equipo a recibir:';
             tituloListaPiezas.textContent = 'Equipos que se recibirán:';
-            
+
             // Para RECIBIR: mostrar todas las piezas
-            const todasLasOpciones = selectorPieza.querySelectorAll('option');
-            todasLasOpciones.forEach(opt => {
-                if (opt.value === '') {
-                    opt.style.display = 'block'; // Mantener la opción vacía
-                    return;
-                }
-                
-                opt.style.display = 'block';
-                // Actualizar texto para recibir
-                const textoSpan = opt.querySelector('.texto-disponibles');
-                if (textoSpan) {
-                    textoSpan.textContent = 'Recibir equipos';
-                }
+            piezasParaTransferenciaData.forEach(p => {
+                nuevasOpciones.push({
+                    value: p.value,
+                    label: `${p.nombre}${p.categoria ? ' (' + p.categoria + ')' : ''} - Recibir equipos`
+                });
             });
         }
-        
+
+        if (instanciaSelectorPieza) {
+            instanciaSelectorPieza.clearStore();
+            instanciaSelectorPieza.setChoices(nuevasOpciones, 'value', 'label', true);
+        }
+
         // Resetear formulario
         piezasAgregadas = [];
         actualizarListaPiezas();
         actualizarResumenTransferencia();
-        selectorPieza.value = '';
+        resetChoicesPieza('selectorPieza');
         document.getElementById('btnAgregarPieza').disabled = true;
         document.getElementById('infoPiezaSeleccionada').style.display = 'none';
     }
 
     if (radioMandar) radioMandar.addEventListener('change', cambiarTipoOperacion);
     if (radioRecibir) radioRecibir.addEventListener('change', cambiarTipoOperacion);
+
+    // Aplicar el filtrado de piezas y los títulos correctos desde la primera
+    // apertura del modal (antes solo se aplicaban al cambiar el radio o cerrar el modal).
+    if (selectorPiezaTransferenciaEl) cambiarTipoOperacion();
 
     // Manejar selección de pieza
     const selectorPieza = document.getElementById('selectorPieza');
@@ -443,22 +556,22 @@ document.addEventListener('DOMContentLoaded', function () {
     // Event listener para el selector
     if (selectorPieza) {
         selectorPieza.addEventListener('change', function () {
-            const option = this.options[this.selectedIndex];
+            const piezaInfo = piezasParaTransferenciaData.find(p => p.value === this.value);
 
-            if (this.value) {
+            if (this.value && piezaInfo) {
                 // Determinar disponibles según el modo actual
                 let disponibles;
                 if (radioRecibir && radioRecibir.checked) {
                     // Modo RECIBIR: permitir cualquier cantidad
-                    disponibles = parseInt(option.dataset.todasDisponibles || '999');
+                    disponibles = piezaInfo.todasDisponibles;
                 } else {
                     // Modo MANDAR: usar disponibles reales
-                    disponibles = parseInt(option.dataset.disponibles || '0');
+                    disponibles = piezaInfo.disponibles;
                 }
-                
+
                 infoDiv.innerHTML = `
                 <div class="alert alert-info">
-                    <strong>${option.dataset.nombre}</strong><br>
+                    <strong>${piezaInfo.nombre}</strong><br>
                     Disponibles: <strong>${disponibles}</strong>
                 </div>
             `;
@@ -475,24 +588,24 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnAgregar) {
         btnAgregar.addEventListener('click', function () {
             const selector = document.getElementById('selectorPieza');
-            const option = selector.options[selector.selectedIndex];
+            const piezaInfo = piezasParaTransferenciaData.find(p => p.value === selector.value);
 
-            if (!selector.value) {
+            if (!selector.value || !piezaInfo) {
                 Swal.fire('Error', 'Selecciona una pieza', 'error');
                 return;
             }
 
             const idPieza = selector.value;
-            const nombrePieza = option.dataset.nombre;
-            
+            const nombrePieza = piezaInfo.nombre;
+
             // Determinar disponibles según el modo actual
             let disponibles;
             if (radioRecibir && radioRecibir.checked) {
                 // Modo RECIBIR: permitir cualquier cantidad
-                disponibles = parseInt(option.dataset.todasDisponibles || '999');
+                disponibles = piezaInfo.todasDisponibles;
             } else {
                 // Modo MANDAR: usar disponibles reales
-                disponibles = parseInt(option.dataset.disponibles || '0');
+                disponibles = piezaInfo.disponibles;
             }
 
             // Verificar si ya está agregada
@@ -515,7 +628,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actualizarResumenTransferencia();
 
             // Limpiar selector
-            selector.value = '';
+            resetChoicesPieza('selectorPieza');
             btnAgregar.disabled = true;
             infoDiv.style.display = 'none';
         });
@@ -527,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modalTransferencia.addEventListener('hidden.bs.modal', function () {
             piezasAgregadas = [];
             if (document.getElementById('selectorPieza')) {
-                document.getElementById('selectorPieza').value = '';
+                resetChoicesPieza('selectorPieza');
                 document.getElementById('btnAgregarPieza').disabled = true;
                 document.getElementById('infoPiezaSeleccionada').style.display = 'none';
                 document.getElementById('listaPiezasAgregadas').style.display = 'none';
@@ -677,15 +790,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAgregarAlta = document.getElementById('btnAgregarPiezaAlta');
     const infoDivAlta = document.getElementById('infoPiezaSeleccionadaAlta');
 
+    const datosPiezaAlta = capturarDatosOpciones('selectorPiezaAlta');
+    initChoicesPieza('selectorPiezaAlta');
+
     if (selectorPiezaAlta) {
         selectorPiezaAlta.addEventListener('change', function () {
-            const option = this.options[this.selectedIndex];
+            const datos = datosPiezaAlta[this.value];
 
-            if (this.value) {
+            if (this.value && datos) {
                 infoDivAlta.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>${option.dataset.nombre}</strong><br>
-                        Categoría: <span class="badge bg-secondary">${option.dataset.categoria}</span>
+                        <strong>${datos.nombre}</strong><br>
+                        Categoría: <span class="badge bg-secondary">${datos.categoria}</span>
                     </div>
                 `;
                 infoDivAlta.style.display = 'block';
@@ -700,16 +816,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnAgregarAlta) {
         btnAgregarAlta.addEventListener('click', function () {
             const selector = document.getElementById('selectorPiezaAlta');
-            const option = selector.options[selector.selectedIndex];
+            const datos = datosPiezaAlta[selector.value];
 
-            if (!selector.value) {
+            if (!selector.value || !datos) {
                 Swal.fire('Error', 'Selecciona una pieza', 'error');
                 return;
             }
 
             const idPieza = selector.value;
-            const nombrePieza = option.dataset.nombre;
-            const categoria = option.dataset.categoria;
+            const nombrePieza = datos.nombre;
+            const categoria = datos.categoria;
 
             // Verificar si ya está agregada
             const yaExiste = piezasAltaEquipo.find(p => p.id === idPieza);
@@ -731,7 +847,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actualizarResumenAltaEquipo();
 
             // Limpiar selector
-            selector.value = '';
+            resetChoicesPieza('selectorPiezaAlta');
             btnAgregarAlta.disabled = true;
             infoDivAlta.style.display = 'none';
         });
@@ -837,15 +953,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnAgregarDaniada = document.getElementById('btnAgregarPiezaDaniada');
     const infoDivDaniada = document.getElementById('infoPiezaSeleccionadaDaniada');
 
+    const datosPiezaDaniada = capturarDatosOpciones('selectorPiezaDaniada');
+    initChoicesPieza('selectorPiezaDaniada');
+
     if (selectorPiezaDaniada) {
         selectorPiezaDaniada.addEventListener('change', function () {
-            const option = this.options[this.selectedIndex];
+            const datos = datosPiezaDaniada[this.value];
 
-            if (this.value) {
-                const disponibles = parseInt(option.dataset.disponibles);
+            if (this.value && datos) {
+                const disponibles = parseInt(datos.disponibles);
                 infoDivDaniada.innerHTML = `
                     <div class="alert alert-info">
-                        <strong>${option.dataset.nombre}</strong><br>
+                        <strong>${datos.nombre}</strong><br>
                         Disponibles: <strong>${disponibles}</strong>
                     </div>
                 `;
@@ -861,16 +980,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (btnAgregarDaniada) {
         btnAgregarDaniada.addEventListener('click', function () {
             const selector = document.getElementById('selectorPiezaDaniada');
-            const option = selector.options[selector.selectedIndex];
+            const datos = datosPiezaDaniada[selector.value];
 
-            if (!selector.value) {
+            if (!selector.value || !datos) {
                 Swal.fire('Error', 'Selecciona una pieza', 'error');
                 return;
             }
 
             const idPieza = selector.value;
-            const nombrePieza = option.dataset.nombre;
-            const disponibles = parseInt(option.dataset.disponibles);
+            const nombrePieza = datos.nombre;
+            const disponibles = parseInt(datos.disponibles);
 
             // Verificar si ya está agregada
             const yaExiste = piezasMarcarDaniadas.find(p => p.id === idPieza);
@@ -897,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actualizarResumenMarcarDaniadas();
 
             // Limpiar selector
-            selector.value = '';
+            resetChoicesPieza('selectorPiezaDaniada');
             btnAgregarDaniada.disabled = true;
             infoDivDaniada.style.display = 'none';
         });
