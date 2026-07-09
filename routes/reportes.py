@@ -218,11 +218,34 @@ def reporte_diario():
             ORDER BY mi.fecha DESC
         """, (sucursal_id, fecha_consulta))
         entradas_extras.extend(cursor.fetchall())
-        
+
+        # 4.3 Entradas (retornos) de salidas internas
+        cursor.execute("""
+            SELECT
+                'entrada_salida_interna' as tipo,
+                sie.folio as folio,
+                sie.fecha as fecha,
+                CONCAT('Entrada de salida interna - ', si.responsable_entrega) as descripcion,
+                GROUP_CONCAT(
+                    CONCAT(p.nombre_pieza, ' (', sied.cantidad_recibida, ')')
+                    ORDER BY p.nombre_pieza SEPARATOR ', '
+                ) as piezas_detalle
+            FROM salidas_internas_entradas sie
+            JOIN salidas_internas si ON sie.salida_interna_id = si.id
+            JOIN salidas_internas_entradas_detalle sied ON sied.entrada_id = sie.id
+            JOIN piezas p ON sied.id_pieza = p.id_pieza
+            WHERE si.id_sucursal = %s
+            AND DATE(sie.fecha) = %s
+            AND sied.cantidad_recibida > 0
+            GROUP BY sie.id, sie.folio, sie.fecha, si.responsable_entrega
+            ORDER BY sie.fecha DESC
+        """, (sucursal_id, fecha_consulta))
+        entradas_extras.extend(cursor.fetchall())
+
         # Ordenar entradas y salidas extras por fecha
         salidas_extras = sorted(salidas_extras, key=lambda x: x['fecha'], reverse=True)
         entradas_extras = sorted(entradas_extras, key=lambda x: x['fecha'], reverse=True)
-        
+
         print(f"DEBUG: Total salidas extras: {len(salidas_extras)}")
         print(f"DEBUG: Total entradas extras: {len(entradas_extras)}")
         
@@ -463,14 +486,37 @@ def generar_pdf_reporte_diario():
             ORDER BY mi.fecha DESC
         """, (sucursal_id, fecha_consulta))
         entradas_extras.extend(cursor.fetchall())
-        
+
+        # Entradas (retornos) de salidas internas
+        cursor.execute("""
+            SELECT
+                'entrada_salida_interna' as tipo,
+                sie.folio as folio,
+                sie.fecha as fecha,
+                CONCAT('Entrada de salida interna - ', si.responsable_entrega) as descripcion,
+                GROUP_CONCAT(
+                    CONCAT(p.nombre_pieza, ' (', sied.cantidad_recibida, ')')
+                    ORDER BY p.nombre_pieza SEPARATOR ', '
+                ) as piezas_detalle
+            FROM salidas_internas_entradas sie
+            JOIN salidas_internas si ON sie.salida_interna_id = si.id
+            JOIN salidas_internas_entradas_detalle sied ON sied.entrada_id = sie.id
+            JOIN piezas p ON sied.id_pieza = p.id_pieza
+            WHERE si.id_sucursal = %s
+            AND DATE(sie.fecha) = %s
+            AND sied.cantidad_recibida > 0
+            GROUP BY sie.id, sie.folio, sie.fecha, si.responsable_entrega
+            ORDER BY sie.fecha DESC
+        """, (sucursal_id, fecha_consulta))
+        entradas_extras.extend(cursor.fetchall())
+
         # Ordenar por fecha
         salidas_extras = sorted(salidas_extras, key=lambda x: x['fecha'], reverse=True)
         entradas_extras = sorted(entradas_extras, key=lambda x: x['fecha'], reverse=True)
-        
+
         cursor.close()
         conn.close()
-        
+
         # === GENERAR PDF ===
         packet = BytesIO()
         can = canvas.Canvas(packet, pagesize=letter)

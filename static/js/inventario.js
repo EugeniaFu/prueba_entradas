@@ -62,21 +62,14 @@ function initChoicesPieza(id) {
     return instancia;
 }
 
-// Las tarjetas del modal usan "overflow: hidden" para redondear sus esquinas,
-// lo que recorta el dropdown de piezas aunque tenga z-index alto. Además,
-// las tarjetas tienen un efecto ":hover { transform: translateY(-2px) }" que,
-// al pasar el cursor sobre las piezas (siguen siendo descendientes de la
-// tarjeta aunque se pinten "afuera"), crea un nuevo contexto de apilamiento y
-// atrapa el z-index del dropdown por debajo de la tarjeta de Observaciones.
-// Mientras el dropdown está abierto, se libera el overflow y se anula
-// cualquier transform de los contenedores ancestros; al cerrarse se restaura.
 function liberarOverflowAlAbrirDropdown(el, instancia) {
     const wrapper = instancia.containerOuter.element;
+    const modalElement = wrapper.closest('.modal');
     let ancestrosModificados = [];
 
     el.addEventListener('showDropdown', function () {
         let nodo = wrapper.parentElement;
-        while (nodo && nodo !== document.body) {
+        while (nodo && nodo !== document.body && nodo !== modalElement) {
             const estilo = getComputedStyle(nodo);
             if (['hidden', 'auto', 'scroll', 'clip'].includes(estilo.overflowX) ||
                 ['hidden', 'auto', 'scroll', 'clip'].includes(estilo.overflowY)) {
@@ -495,7 +488,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (radioMandar.checked) {
             contenidoMandar.style.display = 'block';
             contenidoRecibir.style.display = 'none';
-            textoBoton.textContent = 'Enviar Equipos';
+            textoBoton.textContent = 'Tranferir Equipo';
 
             tituloAgregarPiezas.textContent = 'Equipos a Enviar';
             labelSelectorPieza.textContent = 'Seleccionar equipo disponible:';
@@ -512,7 +505,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             contenidoMandar.style.display = 'none';
             contenidoRecibir.style.display = 'block';
-            textoBoton.textContent = 'Recibir Equipos';
+            textoBoton.textContent = 'Recibir Equipo';
 
             tituloAgregarPiezas.textContent = 'Equipos a Recibir';
             labelSelectorPieza.textContent = 'Seleccionar equipo a recibir:';
