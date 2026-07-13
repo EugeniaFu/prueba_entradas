@@ -1196,31 +1196,18 @@ class RentasService:
                 else:
                     dias_renta = 1
 
-                cursor.execute("SELECT id, id_producto, cantidad FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+                cursor.execute("SELECT id, id_producto, cantidad, costo_unitario FROM renta_detalle WHERE renta_id = %s", (renta_id,))
                 detalles = cursor.fetchall()
                 total = 0
                 for detalle in detalles:
-                    cursor.execute("SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias FROM producto_precios WHERE id_producto = %s", (detalle['id_producto'],))
-                    precios = cursor.fetchone()
-                    cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (detalle['id_producto'],))
-                    precio_unico_row = cursor.fetchone()
-                    precio_unico = precio_unico_row['precio_unico'] if precio_unico_row else 0
-
-                    if precio_unico == 1:
-                        costo_unitario = float(precios['precio_dia'])
-                    elif dias_renta <= 2:
-                        costo_unitario = float(precios['precio_dia'])
-                    elif dias_renta <= 14:
-                        costo_unitario = float(precios['precio_14_dias'])
-                    elif dias_renta <= 29:
-                        costo_unitario = float(precios['precio_29_dias'])
-                    else:
-                        costo_unitario = float(precios['precio_30_dias'])
+                    # El precio unitario de una renovación nunca se recalcula: siempre
+                    # se cobra al precio original con el que salió la renta.
+                    costo_unitario = float(detalle['costo_unitario'])
 
                     subtotal = detalle['cantidad'] * dias_renta * costo_unitario
                     cursor.execute("""
-                        UPDATE renta_detalle SET dias_renta=%s, costo_unitario=%s, subtotal=%s WHERE id=%s
-                    """, (dias_renta, costo_unitario, subtotal, detalle['id']))
+                        UPDATE renta_detalle SET dias_renta=%s, subtotal=%s WHERE id=%s
+                    """, (dias_renta, subtotal, detalle['id']))
                     total += subtotal
 
                 iva = total * 0.16
