@@ -670,13 +670,15 @@ def generar_pdf_cobro_extra(cobro_extra_id):
         output = PdfWriter()
         output.add_page(overlay_pdf.pages[0])
 
+    filename = f"Extra_{str(cobro['folio']).zfill(4)}.pdf"
+
+    # El título interno del PDF es lo que Chrome/Edge muestran en la pestaña
+    # (no el nombre de descarga); si no se fija, hereda el título de la plantilla.
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
-    
-    # Agregar timestamp para evitar caché del navegador
-    timestamp = get_local_now().strftime("%Y%m%d_%H%M%S")
-    filename = f"cobro_extra_{str(cobro_extra_id).zfill(5)}_{timestamp}.pdf"
     
     # Agregar headers para evitar caché del navegador
     response = send_file(

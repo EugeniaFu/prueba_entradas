@@ -593,11 +593,15 @@ def generar_pdf_cotizacion_buffer(cotizacion_id):
         for page in new_pdf.pages:
             output.add_page(page)
     
+    # El título interno del PDF es lo que Chrome/Edge muestran en la pestaña
+    # (no el nombre de descarga); si no se fija, hereda el título de la plantilla.
+    output.add_metadata({'/Title': f"Cotizacion_{cotizacion['numero_cotizacion']}.pdf"})
+
     # Retornar buffer
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
-    
+
     return output_stream
 
 
@@ -626,7 +630,7 @@ def generar_pdf_cotizacion(cotizacion_id):
         
         return send_file(
             buffer,
-            download_name=f"cotizacion_{numero_cotizacion}.pdf",
+            download_name=f"Cotizacion_{numero_cotizacion}.pdf",
             mimetype='application/pdf'
         )
         

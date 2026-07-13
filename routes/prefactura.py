@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, redirect, request, jsonify, send_file, current_app, url_for, session
 from utils.db import get_db_connection
 from utils.decorators import requiere_sesion, requiere_permiso
+from utils.datetime_utils import get_local_now
 
 # Importar función para registrar movimientos automáticos de caja
 from routes.caja import registrar_movimiento_automatico
@@ -372,9 +373,9 @@ def registrar_pago_prefactura(renta_id):
             INSERT INTO prefacturas (
             renta_id, fecha_emision, tipo, pagada, metodo_pago, monto,
             monto_recibido, cambio, numero_seguimiento, generada, facturable, folio, id_sucursal
-        ) VALUES (%s, NOW(), %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
+        ) VALUES (%s, %s, %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
         """, (
-            renta_id, tipo, metodo.upper(), monto, monto_recibido, cambio,
+            renta_id, get_local_now(), tipo, metodo.upper(), monto, monto_recibido, cambio,
             numero_seguimiento, facturable_int, folio, sucursal_id
         ))
         prefactura_id = cursor.lastrowid
@@ -623,7 +624,7 @@ def generar_pdf_estado_cuenta(renta_id):
     y_cliente -= 20
 
     can.setFont("Carlito", 12)
-    fecha_emision = datetime.now()
+    fecha_emision = get_local_now()
     can.drawRightString(575, 715, f"{fecha_emision.strftime('%d/%m/%Y - %H:%M:%S')}")
 
     # === TABLA DE PRODUCTOS ===
@@ -1388,8 +1389,8 @@ def registrar_pago_combinado(renta_id):
                 INSERT INTO prefacturas (
                     renta_id, fecha_emision, tipo, pagada, metodo_pago, monto,
                     monto_recibido, cambio, numero_seguimiento, generada, facturable, folio, id_sucursal
-                ) VALUES (%s, NOW(), %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
-            """, (renta_id, tipo, metodo, monto, monto_recibido, cambio,
+                ) VALUES (%s, %s, %s, 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
+            """, (renta_id, get_local_now(), tipo, metodo, monto, monto_recibido, cambio,
                   numero_seguimiento, facturable_int, folio, sucursal_id))
             prefactura_id = cursor.lastrowid
             prefactura_ids.append(prefactura_id)

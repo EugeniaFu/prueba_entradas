@@ -9,7 +9,6 @@ from num2words import num2words
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import simpleSplit
-from utils.datetime_utils import get_local_now
 from utils.decorators import requiere_sesion, requiere_permiso
 
 # Importar función para registrar movimientos automáticos de caja
@@ -689,13 +688,15 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Retraso_{str(cobro['folio']).zfill(4)}.pdf"
+
+    # El título interno del PDF es lo que Chrome/Edge muestran en la pestaña
+    # (no el nombre de descarga); si no se fija, hereda el título de la plantilla.
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
-    
-    # Agregar timestamp para evitar caché del navegador
-    timestamp = get_local_now().strftime("%Y%m%d_%H%M%S")
-    filename = f"cobro_retraso_{str(cobro_retraso_id).zfill(5)}_{timestamp}.pdf"
     
     # Agregar headers para evitar caché del navegador
     response = send_file(
