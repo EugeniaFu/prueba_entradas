@@ -1091,20 +1091,21 @@ def generar_pdf_movimientos():
         y_pos -= 20
         can.setFont("Carlito", 9)
         can.drawString(40, y_pos, f"REPORTE GENERADO POR: {usuario_nombre}")
-        
+
+        # Preparar nombre del archivo: Caja_Sucursal_FechaDeEmisión
+        sucursal_codigo = (sucursal['nombre'] if sucursal else 'Sucursal').replace(' ', '_')
+        fecha_emision_archivo = get_local_now().strftime('%d-%m-%Y')
+        nombre_archivo = f"Caja_{sucursal_codigo}_{fecha_emision_archivo}.pdf"
+
+        # El título interno del PDF es lo que Chrome/Edge muestran en la pestaña
+        # (no el nombre de descarga)
+        can.setTitle(nombre_archivo)
+
         can.save()
         packet.seek(0)
-        
-        # Preparar nombre del archivo
-        fecha_archivo = fecha_inicio_fmt.replace('/', '-')
-        if fecha_inicio != fecha_fin:
-            fecha_fin_archivo = fecha_fin_fmt.replace('/', '-')
-            nombre_archivo = f"movimientos_caja_{fecha_archivo}_al_{fecha_fin_archivo}.pdf"
-        else:
-            nombre_archivo = f"movimientos_caja_{fecha_archivo}.pdf"
-        
+
         return send_file(
-            packet, 
+            packet,
             download_name=nombre_archivo,
             mimetype='application/pdf'
         )

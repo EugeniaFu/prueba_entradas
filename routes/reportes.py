@@ -646,17 +646,21 @@ def generar_pdf_reporte_diario():
         
         can.setFont("Carlito", 9)
         can.drawString(40, y_pos, f"REPORTE GENERADO POR: {usuario_nombre}")
-        
+
+        # Preparar nombre del archivo: Reporte_Sucursal_FechaDeEmisión
+        sucursal_codigo = sucursal['nombre'].replace(' ', '_')
+        fecha_emision_archivo = get_local_now().strftime('%d-%m-%Y')
+        nombre_archivo = f"Reporte_{sucursal_codigo}_{fecha_emision_archivo}.pdf"
+
+        # El título interno del PDF es lo que Chrome/Edge muestran en la pestaña
+        # (no el nombre de descarga)
+        can.setTitle(nombre_archivo)
+
         can.save()
         packet.seek(0)
-        
-        # Preparar nombre del archivo
-        fecha_archivo = fecha_fmt.replace('/', '-')
-        sucursal_codigo = sucursal['nombre'].replace(' ', '_').lower()
-        nombre_archivo = f"reporte_diario_{sucursal_codigo}_{fecha_archivo}.pdf"
-        
+
         return send_file(
-            packet, 
+            packet,
             download_name=nombre_archivo,
             mimetype='application/pdf'
         )

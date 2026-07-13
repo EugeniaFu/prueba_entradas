@@ -1621,13 +1621,16 @@ def generar_pdf_transferencia_salida(sucursal_id, folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Transf_Salida_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
-            download_name=f"nota_salida_transferencia_{folio}.pdf",
+            download_name=filename,
             mimetype='application/pdf'
         )
     
@@ -1655,9 +1658,6 @@ def generar_pdf_transferencia_entrada(sucursal_id, folio):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Obtener datos de la transferencia de entrada desde movimientos_inventario, incluyendo plantilla de sucursal destino
-        # El folio es consecutivo POR SUCURSAL, así que sin filtrar por id_sucursal aquí
-        # se mezclan movimientos de otras sucursales que coincidan en el mismo número de folio.
         cursor.execute("""
             SELECT mi.*, p.nombre_pieza, p.categoria,
                    so.nombre AS sucursal_origen, sd.nombre AS sucursal_destino, sd.plantilla_renta
@@ -1812,13 +1812,16 @@ def generar_pdf_transferencia_entrada(sucursal_id, folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Transf_Entrada_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
-            download_name=f"nota_entrada_transferencia_{folio}.pdf",
+            download_name=filename,
             mimetype='application/pdf'
         )
     
@@ -2010,16 +2013,19 @@ def generar_pdf_alta_equipo(sucursal_id, folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Alta_Entrada_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
-            output_stream, 
-            download_name=f"nota_alta_equipo_{folio}.pdf", 
+            output_stream,
+            download_name=filename,
             mimetype='application/pdf'
         )
-        
+
     except Exception as e:
         if cursor:
             cursor.close()
@@ -2201,16 +2207,19 @@ def generar_pdf_baja_equipo(folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Baja_Salida_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
-            output_stream, 
-            download_name=f"nota_baja_equipo_{folio}.pdf", 
+            output_stream,
+            download_name=filename,
             mimetype='application/pdf'
         )
-        
+
     except Exception as e:
         if cursor:
             cursor.close()
@@ -2398,13 +2407,16 @@ def generar_pdf_reparacion_lote(sucursal_id, folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Rep_Salida_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
-            download_name=f"nota_envio_reparacion_{folio}.pdf",
+            download_name=filename,
             mimetype='application/pdf'
         )
     
@@ -2591,13 +2603,16 @@ def generar_pdf_finalizacion_reparacion(sucursal_id, folio):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Rep_Entrada_{str(folio).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
-        
+
         return send_file(
             output_stream,
-            download_name=f"nota_finalizacion_reparacion_{folio}.pdf",
+            download_name=filename,
             mimetype='application/pdf'
         )
     
