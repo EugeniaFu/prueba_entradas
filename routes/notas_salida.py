@@ -318,6 +318,13 @@ def crear_nota_salida(renta_id):
 
 
 
+
+
+
+
+
+
+
 #############################################
 #############################################
 #############################################
@@ -597,13 +604,16 @@ def generar_pdf_nota_salida(nota_salida_id):
             for page in overlay_pdf.pages:
                 output.add_page(page)
 
+        filename = f"Salida_{str(nota['folio']).zfill(5)}.pdf"
+        output.add_metadata({'/Title': filename})
+
         output_stream = BytesIO()
         output.write(output_stream)
         output_stream.seek(0)
 
         return send_file(
-            output_stream, 
-            download_name=f"nota_salida_{str(nota['folio']).zfill(5)}.pdf", 
+            output_stream,
+            download_name=filename,
             mimetype='application/pdf'
         )
     

@@ -521,7 +521,7 @@ def generar_pdf_estado_cuenta(renta_id):
     cursor = conn.cursor(dictionary=True)
 
     cursor.execute("""
-        SELECT r.id, r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
+        SELECT r.id, r.folio, r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
                r.traslado, r.costo_traslado, r.id_sucursal, r.total_con_iva,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.correo,
@@ -817,13 +817,16 @@ def generar_pdf_estado_cuenta(renta_id):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Estado_Cuenta_Renta_{str(renta['folio']).zfill(4)}.pdf"
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
 
     return send_file(
         output_stream,
-        download_name=f"estado_cuenta_renta_{renta_id}.pdf",
+        download_name=filename,
         mimetype='application/pdf'
     )
 
@@ -1338,13 +1341,16 @@ def generar_pdf_prefactura(prefactura_id):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Prefactura_{str(prefactura['folio']).zfill(4)}.pdf"
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
-    
+
     return send_file(
-        output_stream, 
-        download_name=f"prefactura_{prefactura_id}.pdf", 
+        output_stream,
+        download_name=filename,
         mimetype='application/pdf'
     )
 
@@ -1750,10 +1756,13 @@ def generar_pdf_combinado(sucursal_id, folio):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Prefactura_{str(folio).zfill(4)}.pdf"
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
-    return send_file(output_stream, download_name=f"prefactura_combinada_{folio}.pdf", mimetype='application/pdf')
+    return send_file(output_stream, download_name=filename, mimetype='application/pdf')
 
 
 @prefactura_bp.route('/pdf_renta/<int:renta_id>')

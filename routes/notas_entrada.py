@@ -1033,13 +1033,16 @@ def generar_pdf_nota_entrada(nota_entrada_id):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Entrada_{str(nota['folio']).zfill(5)}.pdf"
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
 
     return send_file(
         output_stream,
-        download_name=f"nota_entrada_{str(nota['folio']).zfill(5)}.pdf",
+        download_name=filename,
         mimetype='application/pdf'
     )
 
@@ -1356,12 +1359,15 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         for page in overlay_pdf.pages:
             output.add_page(page)
 
+    filename = f"Entrada_{str(nota['folio']).zfill(4)}.pdf"
+    output.add_metadata({'/Title': filename})
+
     output_stream = BytesIO()
     output.write(output_stream)
     output_stream.seek(0)
 
     return send_file(
         output_stream,
-        download_name=f"nota_entrada_{str(nota['folio']).zfill(5)}.pdf",
+        download_name=filename,
         mimetype='application/pdf'
     )
