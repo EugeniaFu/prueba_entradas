@@ -153,6 +153,12 @@ document.addEventListener('DOMContentLoaded', function () {
         form.reset();
         form.dataset.rentaId = rentaId;
 
+        // Botón "Ver PDF" del estado de cuenta (disponible antes de generar cualquier pago)
+        const btnPdfEstadoCuenta = document.getElementById('prefactura-btn-pdf');
+        if (btnPdfEstadoCuenta) {
+            btnPdfEstadoCuenta.href = `/prefactura/pdf_estado_cuenta/${rentaId}`;
+        }
+
         // Selecciona el tipo de prefactura y permite elegir
         const tipoSelect = document.getElementById('tipo_prefactura_pago');
         if (tipoSelect) {

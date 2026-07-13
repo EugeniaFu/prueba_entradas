@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         tr.innerHTML = `
                             <td><input type="hidden" name="producto_id[]" value="${p.id_producto}">${p.nombre}</td>
                             <td><input type="number" name="cantidad[]" class="form-control cantidad" min="1" value="${cantidad}" ${cantidadAttrs}></td>
-                            <td><input type="number" name="dias_renta[]" class="form-control dias" min="1" value="${dias}" readonly style="width:50px;"></td>
+                            <td><input type="number" name="dias_renta[]" class="form-control dias" min="1" value="${dias}" readonly></td>
                             <td><input type="number" name="costo_unitario[]" class="form-control costo" step="0.01" min="0" value="${precio.toFixed(2)}" readonly data-fijo="1"></td>
                             <td><input type="number" class="form-control subtotal" step="0.01" min="0" value="${(cantidad*dias*precio).toFixed(2)}" readonly></td>
                             <td><button type="button" class="btn btn-danger btn-sm btn-quitar" ${ocultarQuitar}><i class="bi bi-trash"></i></button></td>

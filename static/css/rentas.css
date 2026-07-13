@@ -414,6 +414,37 @@ border: 2px solid #0d6efd;
     border-color: #23395d !important;
 }
 
+#tabla-productos-renovacion td {
+    padding: 0.4rem;
+}
+
+#tabla-productos-renovacion .cantidad,
+#tabla-productos-renovacion .dias,
+#tabla-productos-renovacion .costo,
+#tabla-productos-renovacion .subtotal {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ancho suficiente para mostrar N dígitos completos sin recortar,
+   contando separador decimal + flechas del input number */
+#tabla-productos-renovacion .cantidad,
+#tabla-productos-renovacion .dias {
+    min-width: calc(3ch + 30px);
+}
+
+#tabla-productos-renovacion .costo {
+    min-width: calc(4ch + 34px);
+}
+
+#tabla-productos-renovacion .subtotal {
+    min-width: calc(4ch + 34px);
+}
+
+#totales_container td:last-child {
+    min-width: calc(6ch + 20px);
+}
+
 /* Estilos para el modal de nueva renta con diseño del inventario */
 #modalNuevaRenta .modal-header {
     background: #23395d;

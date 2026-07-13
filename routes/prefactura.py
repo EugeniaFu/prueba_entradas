@@ -507,6 +507,326 @@ def registrar_pago_prefactura(renta_id):
 ##################################################
 ##################################################  PDF
 
+# === Endpoint: Estado de cuenta en PDF (antes de generar cualquier pago) ===
+@prefactura_bp.route('/pdf_estado_cuenta/<int:renta_id>')
+@requiere_sesion()
+@requiere_permiso('ver_prefactura')
+def generar_pdf_estado_cuenta(renta_id):
+    """
+    PDF informativo con el total a pagar de la renta, pensado para enviarle
+    al cliente su cuenta (ej. por WhatsApp) antes de registrar cualquier pago.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT r.id, r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
+               r.traslado, r.costo_traslado, r.id_sucursal, r.total_con_iva,
+               CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
+               c.codigo_cliente, c.telefono, c.correo,
+               c.calle, c.numero_exterior, c.numero_interior, c.entre_calles,
+               c.colonia, c.codigo_postal, c.municipio, c.estado, c.rfc,
+               s.plantilla_renta
+        FROM rentas r
+        JOIN clientes c ON r.cliente_id = c.id
+        JOIN sucursales s ON r.id_sucursal = s.id
+        WHERE r.id = %s
+    """, (renta_id,))
+    renta = cursor.fetchone()
+
+    if not renta:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Renta no encontrada'}), 404
+
+    cursor.execute("""
+        SELECT prod.nombre, rd.cantidad, rd.dias_renta, rd.costo_unitario, rd.subtotal
+        FROM renta_detalle rd
+        JOIN productos prod ON rd.id_producto = prod.id_producto
+        WHERE rd.renta_id = %s
+    """, (renta_id,))
+    detalles = cursor.fetchall()
+
+    # Si ya hay abonos previos, se muestran para que el saldo pendiente sea real
+    cursor.execute("""
+        SELECT COALESCE(SUM(monto), 0) as total_pagado
+        FROM prefacturas WHERE renta_id = %s AND pagada = 1
+    """, (renta_id,))
+    total_pagado = float(cursor.fetchone()['total_pagado'] or 0)
+
+    total_renta = float(renta['total_con_iva'] or 0)
+    saldo_pendiente = max(0.0, round(total_renta - total_pagado, 2))
+
+    usuario_id = session.get('user_id')
+    usuario_nombre = "USUARIO NO IDENTIFICADO"
+    if usuario_id:
+        cursor.execute("""
+            SELECT CONCAT(nombre, ' ', apellido1, ' ', apellido2) as nombre_completo
+            FROM usuarios WHERE id = %s
+        """, (usuario_id,))
+        u = cursor.fetchone()
+        if u:
+            usuario_nombre = u['nombre_completo'].upper()
+
+    cursor.close()
+    conn.close()
+
+    # --- GENERAR OVERLAY CON DATOS ---
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+
+    try:
+        font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+        if os.path.exists(font_path):
+            pdfmetrics.registerFont(TTFont('Carlito', font_path))
+    except:
+        pass
+
+    can.setFont("Courier-Bold", 12)
+    can.drawString(465, 732, "ESTADO DE CUENTA")
+
+    y_cliente = 715
+    can.setFont("Carlito", 10)
+    cliente_codigo_nombre = f"{renta['codigo_cliente']} - {renta['cliente_nombre'].upper()}"
+    can.drawString(36, y_cliente, f"CLIENTE: {cliente_codigo_nombre}")
+    y_cliente -= 13
+
+    can.drawString(36, y_cliente, f"TELÉFONO: {renta['telefono'] or 'NO REGISTRADO'}")
+    y_cliente -= 13
+
+    can.drawString(36, y_cliente, f"CORREO: {renta['correo'] or 'NO REGISTRADO'}")
+    y_cliente -= 13
+
+    direccion_completa = renta['calle'] or ''
+    if renta['numero_exterior']:
+        direccion_completa += f" #{renta['numero_exterior']}"
+    if renta['numero_interior']:
+        direccion_completa += f", INT. {renta['numero_interior']}"
+    if renta['entre_calles']:
+        direccion_completa += f" (ENTRE {renta['entre_calles']})"
+    if renta['colonia']:
+        direccion_completa += f", COL. {renta['colonia']}"
+    if renta['codigo_postal']:
+        direccion_completa += f" - C.P. {renta['codigo_postal']}"
+
+    direccion_texto = f"DIRECCIÓN: {direccion_completa.upper()}"
+    direccion_lines = simpleSplit(direccion_texto, "Carlito", 10, 530)
+    for line in direccion_lines:
+        can.drawString(36, y_cliente, line)
+        y_cliente -= 13
+
+    can.drawString(36, y_cliente, f"ESTADO: {(renta['estado'] or 'NO REGISTRADO').upper()}")
+    can.drawString(290, y_cliente, f"MUNICIPIO: {(renta['municipio'] or 'NO REGISTRADO').upper()}")
+    y_cliente -= 13
+
+    can.drawString(36, y_cliente, f"RFC: {(renta['rfc'] or 'NO REGISTRADO').upper()}")
+    y_cliente -= 20
+
+    can.setFont("Carlito", 12)
+    fecha_emision = datetime.now()
+    can.drawRightString(575, 715, f"{fecha_emision.strftime('%d/%m/%Y - %H:%M:%S')}")
+
+    # === TABLA DE PRODUCTOS ===
+    y_tabla = y_cliente - 5
+    can.line(28, y_tabla + 20, 585, y_tabla + 20)
+
+    can.setFont("Helvetica-Bold", 9)
+    can.drawString(36, y_tabla + 10, "DESCRIPCIÓN")
+    can.drawRightString(350, y_tabla + 10, "CANT.")
+    can.drawRightString(400, y_tabla + 10, "DÍAS")
+    can.drawRightString(490, y_tabla + 10, "PRECIO UNIT.")
+    can.drawRightString(570, y_tabla + 10, "SUBTOTAL")
+
+    can.line(28, y_tabla + 5, 585, y_tabla + 5)
+    y_tabla -= 15
+
+    can.setFont("Carlito", 10)
+    subtotal_general = 0
+    for item in detalles:
+        can.drawString(36, y_tabla + 5, item['nombre'][:35].upper())
+        can.drawRightString(350, y_tabla + 5, str(item['cantidad']))
+        can.drawRightString(400, y_tabla + 5, str(item['dias_renta'] or 'N/A'))
+        can.drawRightString(490, y_tabla + 5, f"${item['costo_unitario']:.2f}")
+        can.drawRightString(570, y_tabla + 5, f"${item['subtotal']:.2f}")
+
+        subtotal_general += float(item['subtotal'])
+        y_tabla -= 13
+
+        if y_tabla < 300:
+            break
+
+    y_tabla -= 5
+
+    # === LÍNEA DIVISORA Y TOTALES ===
+    can.line(28, y_tabla + 15, 585, y_tabla + 15)
+
+    espacio_3mm = 10
+    can.setFont("Carlito", 11)
+    y_totales = y_tabla + 10 - espacio_3mm
+
+    periodo_renta = f"{renta['fecha_salida'].strftime('%d/%m/%Y')}"
+    if renta['fecha_entrada']:
+        periodo_renta += f" - {renta['fecha_entrada'].strftime('%d/%m/%Y')}"
+    else:
+        periodo_renta += " - Indefinido"
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(36, y_totales, f"PERIODO DE RENTA: {periodo_renta}")
+
+    can.setFont("Carlito", 10)
+    can.drawString(400, y_totales, "SUBTOTAL:")
+    can.drawRightString(570, y_totales, f"${subtotal_general:.2f}")
+    y_totales -= 12
+
+    traslado_tipo = renta.get('traslado') or 'ninguno'
+    costo_traslado = float(renta.get('costo_traslado') or 0)
+    can.drawString(400, y_totales, f"TRASLADO ({traslado_tipo}):")
+    can.drawRightString(570, y_totales, f"${costo_traslado:.2f}")
+    y_totales -= 12
+
+    can.drawString(400, y_totales, "IVA (16%):")
+    can.drawRightString(570, y_totales, f"${float(renta['iva'] or 0):.2f}")
+    y_totales -= 12
+
+    can.setFont("Helvetica-Bold", 9)
+    can.drawString(400, y_totales, "TOTAL A PAGAR:")
+    can.drawRightString(570, y_totales, f"${total_renta:.2f}")
+
+    # === TOTAL EN LETRAS ===
+    monto_entero = int(total_renta)
+    monto_centavos = int(round((total_renta - monto_entero) * 100))
+    monto_letras = num2words(monto_entero, lang='es').upper()
+    if monto_centavos > 0:
+        monto_letras = f"SON: {monto_letras} PESOS CON {monto_centavos:02d}/100 M.N."
+    else:
+        monto_letras = f"SON: {monto_letras} PESOS 00/100 M.N."
+
+    can.setFont("Carlito", 9)
+    monto_letras_lines = simpleSplit(monto_letras, "Carlito", 9, 350)
+    y_letras = y_totales
+    for line in monto_letras_lines:
+        can.drawString(36, y_letras, line)
+        y_letras -= 10
+
+    lines_used = len(monto_letras_lines)
+    y_totales -= max(12, lines_used * 10)
+
+    # === SALDO (si ya hay abonos previos) O AVISO INFORMATIVO ===
+    if total_pagado > 0:
+        can.line(28, y_totales + 5, 585, y_totales + 5)
+        y_totales -= 10
+
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(400, y_totales, "TOTAL PAGADO:")
+        can.drawRightString(570, y_totales, f"${total_pagado:.2f}")
+        y_totales -= 12
+
+        can.drawString(400, y_totales, "SALDO PENDIENTE:")
+        can.drawRightString(570, y_totales, f"${saldo_pendiente:.2f}")
+        y_totales -= 20
+    else:
+        can.setFont("Helvetica-Oblique", 8)
+        can.drawString(36, y_totales, "ESTE DOCUMENTO ES INFORMATIVO Y NO CONSTITUYE UN COMPROBANTE DE PAGO.")
+        y_totales -= 20
+
+    # === AVISOS IMPORTANTES PARA EL CLIENTE ===
+    y_avisos = y_totales - 6
+
+    can.line(28, y_avisos + 16, 585, y_avisos + 16)
+    y_avisos -= 5
+
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "REQUISITOS DEL CLIENTE:")
+    y_avisos -= 12
+
+    can.setFont("Carlito", 8)
+    can.drawString(60, y_avisos, "LOS SIGUIENTES DOCUMENTOS PUEDEN SER EN IMAGEN O EN COPIA IMPRESA:")
+    y_avisos -= 12
+
+    can.drawString(70, y_avisos, "• IDENTIFICACIÓN OFICIAL.")
+    y_avisos -= 10
+
+    can.drawString(70, y_avisos, "• LICENCIA DE CONDUCIR.")
+    y_avisos -= 10
+
+    can.drawString(70, y_avisos, "• CONSTANCIA DE SITUACIÓN FISCAL.")
+    y_avisos -= 10
+
+    can.drawString(70, y_avisos, "• COMPROBANTE DE DOMICILIO.")
+    y_avisos -= 15
+
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "REQUISITOS DE RENTA:")
+    y_avisos -= 11
+
+    can.setFont("Carlito", 8)
+    can.drawString(70, y_avisos, "• SE REQUIERE EL PAGO COMPLETO POR ADELANTADO DE LA RENTA.")
+    y_avisos -= 10
+
+    can.drawString(70, y_avisos, "• UBICACIÓN EXACTA DE LA OBRA (POR GOOGLE MAPS)")
+    y_avisos -= 15
+
+    can.setFont("Helvetica-Bold", 10)
+    can.drawString(60, y_avisos, "¡IMPORTANTE!")
+    y_avisos -= 11
+
+    can.setFont("Carlito", 8)
+    can.drawString(70, y_avisos, "• EL PERIODO DE RENTA INCLUYE DOMINGOS, DÍAS INHÁBILES Y FESTIVOS.")
+    y_avisos -= 10
+
+    can.drawString(70, y_avisos, "• NO SE ARMA, NI SE DESARMA EL EQUIPO.")
+    y_avisos -= 10
+
+    can.setFont("Carlito", 10)
+    can.line(60, y_avisos, 250, y_avisos)
+    y_avisos -= 15
+
+    can.drawString(60, y_avisos, f"ATENDIDO POR: {usuario_nombre}")
+
+    can.save()
+    packet.seek(0)
+
+    # --- COMBINAR CON LA PLANTILLA DE LA SUCURSAL ---
+    try:
+        plantilla_path = None
+        if renta.get('plantilla_renta'):
+            plantilla_path = os.path.join(current_app.root_path, renta['plantilla_renta'])
+            if not os.path.exists(plantilla_path):
+                plantilla_path = None
+        if not plantilla_path:
+            plantilla_path = os.path.join(current_app.root_path, 'static/notas/base.pdf')
+
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+
+        if os.path.exists(plantilla_path):
+            plantilla_pdf = PdfReader(plantilla_path)
+            page = plantilla_pdf.pages[0]
+            page.merge_page(overlay_pdf.pages[0])
+            output.add_page(page)
+            for i in range(1, len(overlay_pdf.pages)):
+                output.add_page(overlay_pdf.pages[i])
+        else:
+            for page in overlay_pdf.pages:
+                output.add_page(page)
+
+    except Exception as e:
+        print(f"Error con plantilla, usando solo overlay: {e}")
+        overlay_pdf = PdfReader(packet)
+        output = PdfWriter()
+        for page in overlay_pdf.pages:
+            output.add_page(page)
+
+    output_stream = BytesIO()
+    output.write(output_stream)
+    output_stream.seek(0)
+
+    return send_file(
+        output_stream,
+        download_name=f"estado_cuenta_renta_{renta_id}.pdf",
+        mimetype='application/pdf'
+    )
+
+
 @prefactura_bp.route('/pdf/<int:prefactura_id>')
 @requiere_sesion()
 @requiere_permiso('ver_prefactura')

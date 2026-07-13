@@ -41,21 +41,23 @@
                         <!-- Columna Derecha -->
                         <div class="col-md-8">
                             <label class="form-label">Productos de la renta original</label>
-                            <table class="table table-bordered" id="tabla-productos-renovacion">
-                                <thead>
-                                    <tr>
-                                        <th>Producto</th>
-                                        <th>Cantidad</th>
-                                        <th>Días</th>
-                                        <th>Costo unitario</th>
-                                        <th>Subtotal</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Las filas se cargan dinámicamente desde JS -->
-                                </tbody>
-                            </table>
+                            <div class="table-responsive">
+                                <table class="table table-bordered" id="tabla-productos-renovacion">
+                                    <thead>
+                                        <tr>
+                                            <th>Producto</th>
+                                            <th style="min-width:80px;">Cantidad</th>
+                                            <th style="min-width:70px;">Días</th>
+                                            <th style="min-width:110px;">Costo unitario</th>
+                                            <th style="min-width:110px;">Subtotal</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Las filas se cargan dinámicamente desde JS -->
+                                    </tbody>
+                                </table>
+                            </div>
 
                             <div class="mt-3" id="totales_container">
                                 <table class="table table-sm" >
