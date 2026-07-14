@@ -51,61 +51,56 @@ class RentasService:
                 filtro_estado = ""
                 
             query = f"""
-            SELECT 
+            WITH renta_map AS (
+                SELECT id AS anchor_id, id AS contrib_id FROM rentas
+                UNION ALL
+                SELECT renta_asociada_id AS anchor_id, id AS contrib_id FROM rentas WHERE renta_asociada_id IS NOT NULL
+            ),
+            salida_por_pieza AS (
+                SELECT ns.renta_id, nsd.id_pieza, SUM(nsd.cantidad) AS cantidad_salida
+                FROM notas_salida ns
+                JOIN notas_salida_detalle nsd ON nsd.nota_salida_id = ns.id
+                GROUP BY ns.renta_id, nsd.id_pieza
+            ),
+            entrada_por_anchor_pieza AS (
+                SELECT rm.anchor_id, ned.id_pieza, SUM(ned.cantidad_recibida) AS cantidad_recibida
+                FROM renta_map rm
+                JOIN notas_entrada ne2 ON ne2.renta_id = rm.contrib_id
+                JOIN notas_entrada_detalle ned ON ned.nota_entrada_id = ne2.id
+                GROUP BY rm.anchor_id, ned.id_pieza
+            ),
+            anchors_con_entrada AS (
+                SELECT DISTINCT rm.anchor_id
+                FROM renta_map rm
+                JOIN notas_entrada ne3 ON ne3.renta_id = rm.contrib_id
+            ),
+            piezas_pendientes_calc AS (
+                SELECT
+                    sal.renta_id,
+                    SUM(GREATEST(sal.cantidad_salida - IFNULL(ent.cantidad_recibida, 0), 0)) AS total_pendiente
+                FROM salida_por_pieza sal
+                INNER JOIN anchors_con_entrada gate ON gate.anchor_id = sal.renta_id
+                LEFT JOIN entrada_por_anchor_pieza ent
+                    ON ent.anchor_id = sal.renta_id AND ent.id_pieza = sal.id_pieza
+                GROUP BY sal.renta_id
+            )
+            SELECT
                 r.id, r.fecha_registro, r.fecha_salida, r.fecha_entrada,
                 r.estado_renta, r.estado_pago, r.metodo_pago,
                 r.total_con_iva, r.total, r.iva, r.observaciones,
                 r.direccion_obra,
                 c.nombre, c.apellido1, c.apellido2,
                 (SELECT COUNT(*) FROM notas_entrada ne WHERE ne.renta_id = r.id) as tiene_nota_entrada,
-                CASE 
-                    WHEN r.fecha_entrada IS NOT NULL THEN 
+                CASE
+                    WHEN r.fecha_entrada IS NOT NULL THEN
                         DATE_ADD(r.fecha_entrada, INTERVAL 1 DAY)
-                    ELSE NULL 
+                    ELSE NULL
                 END as fecha_limite_entrega,
                 r.estado_cobro_extra,
                 nce.estado_pago AS estado_pago_extra,
                 nce.id AS cobro_extra_id,
                 ne.estado_retraso,
-                (
-                    CASE
-                        WHEN (
-                            SELECT COUNT(*) FROM notas_entrada ne
-                            WHERE ne.renta_id = r.id OR ne.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
-                        ) > 0
-                        THEN (
-                            SELECT COUNT(*) FROM (
-                                SELECT nsd.id_pieza,
-                                    nsd.cantidad AS cantidad_salida,
-                                    (
-                                        SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
-                                        FROM notas_entrada ne2
-                                        JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
-                                        WHERE (
-                                            ne2.renta_id = r.id
-                                            OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
-                                        )
-                                        AND ned2.id_pieza = nsd.id_pieza
-                                    ) AS cantidad_recibida_total
-                                FROM notas_salida ns
-                                JOIN notas_salida_detalle nsd ON nsd.nota_salida_id = ns.id
-                                WHERE ns.renta_id = r.id
-                                GROUP BY nsd.id_pieza, nsd.cantidad
-                                HAVING nsd.cantidad > (
-                                    SELECT COALESCE(SUM(ned2.cantidad_recibida), 0)
-                                    FROM notas_entrada ne2
-                                    JOIN notas_entrada_detalle ned2 ON ned2.nota_entrada_id = ne2.id
-                                    WHERE (
-                                        ne2.renta_id = r.id
-                                        OR ne2.renta_id IN (SELECT id FROM rentas WHERE renta_asociada_id = r.id)
-                                    )
-                                    AND ned2.id_pieza = nsd.id_pieza
-                                )
-                            ) AS pendientes
-                        )
-                        ELSE 0
-                    END
-                ) AS piezas_pendientes,
+                IFNULL(pend.total_pendiente, 0) AS piezas_pendientes,
                 (
                     SELECT COUNT(*)
                     FROM rentas r_hija
@@ -133,13 +128,14 @@ class RentasService:
                 AND ne.id = (SELECT MAX(id) FROM notas_entrada WHERE renta_id = r.id)
             LEFT JOIN notas_cobro_extra nce ON nce.nota_entrada_id = ne.id
             LEFT JOIN notas_cobro_retraso ncr ON ncr.nota_entrada_id = ne.id
+            LEFT JOIN piezas_pendientes_calc pend ON pend.renta_id = r.id
 
             {where_sucursal}
             {filtro_estado}
 
             ORDER BY r.id DESC
             """
-            
+
             cursor.execute(query, params_sucursal)
             return cursor.fetchall()
             
