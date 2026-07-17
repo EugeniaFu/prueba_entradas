@@ -44,8 +44,13 @@ def obtener_siguiente_folio_nota_sucursal(cursor, sucursal_id):
             SELECT si.folio_sucursal as folio
             FROM salidas_internas si
             WHERE si.id_sucursal = %s
+            UNION ALL
+            SELECT sie.folio as folio
+            FROM salidas_internas_entradas sie
+            JOIN salidas_internas si2 ON sie.salida_interna_id = si2.id
+            WHERE si2.id_sucursal = %s
         ) AS todos_folios_sucursal
-    """, (sucursal_id, sucursal_id, sucursal_id, sucursal_id, sucursal_id))
+    """, (sucursal_id, sucursal_id, sucursal_id, sucursal_id, sucursal_id, sucursal_id))
 
     resultado = cursor.fetchone()
     return resultado['siguiente_folio'] if resultado and resultado.get('siguiente_folio') else 1
