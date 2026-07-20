@@ -30,9 +30,9 @@ class Config:
     MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
     MAIL_USE_SSL = False
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME') or 'alejandralopeez2003@gmail.com'
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') or 'qamz lgmm lsby bcko'
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'alejandralopeez2003@gmail.com'
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or MAIL_USERNAME
     
     # Configuración de desarrollo/producción
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() in ['true', 'on', '1']
