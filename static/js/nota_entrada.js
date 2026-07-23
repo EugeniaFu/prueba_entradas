@@ -222,6 +222,15 @@ document.addEventListener('DOMContentLoaded', function () {
                         window.notaEntradaEnRecoleccion = false;
                         divChofer.classList.add('d-none');
                         selectChofer.value = '';
+                    } else if ((data.traslado_original || '').toLowerCase() === 'ninguno') {
+                        // Sin traslado: el cliente entrega/recoge el equipo por su cuenta,
+                        // no aplica que un chofer nuestro vaya a recolectarlo.
+                        divCheckboxRecoleccion.classList.add('d-none');
+                        checkboxRecoleccion.checked = false;
+                        checkboxRecoleccion.disabled = false;
+                        window.notaEntradaEnRecoleccion = false;
+                        divChofer.classList.add('d-none');
+                        selectChofer.value = '';
                     } else {
                         // No requiere recolección forzada: comportamiento normal/opcional
                         divCheckboxRecoleccion.classList.remove('d-none');
@@ -282,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         piezasHtml += `
                             <tr>
                                 <td>${pieza.nombre_pieza}</td>
-                                <td>${pieza.cantidad_esperada}</td>
+                                <td class="text-center"><strong style="font-size: 1.05rem;">${pieza.cantidad_esperada}</strong></td>
                                 <td>
                                     <input type="number" class="form-control form-control-sm cantidad-recibida" min="0" max="${pieza.cantidad_esperada}" value="${pieza.cantidad_esperada}" data-idx="${idx}">
                                 </td>
