@@ -144,9 +144,7 @@
 
             <tbody>
               {% for renta in rentas %}
-              {% set tiene_nota_salida = renta[29] %}
-              {% set estado_bloqueado_nota_salida = renta[4]|lower in ['cancelada', 'activa renovacion'] %}
-              {% set bloquear_nota_salida = tiene_nota_salida or estado_bloqueado_nota_salida %}
+              {% set bloquear_nota_salida = renta[4]|lower not in ['en curso', 'entrega parcial'] %}
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
@@ -393,10 +391,10 @@
                         <li>
                           <a class="dropdown-item btn-nota-salida{% if bloquear_nota_salida %} disabled{% endif %}" href="#"
                             data-renta-id="{{ renta[0] }}" {% if bloquear_nota_salida %}tabindex="-1" aria-disabled="true"
-                            title="{% if tiene_nota_salida %}Nota de Salida Generada{% else %}No disponible para esta renta{% endif %}" {% endif %}>
+                            title="Nota de Salida Generada" {% endif %}>
                             <i
                               class="bi bi-arrow-right-circle me-2 {% if bloquear_nota_salida %}text-muted{% else %}text-danger{% endif %}"></i>
-                            {% if tiene_nota_salida %}Nota de Salida Generada{% elif estado_bloqueado_nota_salida %}Salida No Disponible{% else %}Generar Nota de Salida{% endif %}
+                            {% if bloquear_nota_salida %}Nota de Salida Generada{% else %}Generar Nota de Salida{% endif %}
                           </a>
                         </li>
                         <li>
@@ -512,9 +510,6 @@
 
             <tbody>
               {% for renta in rentas_pagadas %}
-              {% set tiene_nota_salida = renta[29] %}
-              {% set estado_bloqueado_nota_salida = renta[4]|lower in ['cancelada', 'activa renovacion'] %}
-              {% set bloquear_nota_salida = tiene_nota_salida or estado_bloqueado_nota_salida %}
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
