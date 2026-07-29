@@ -197,9 +197,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     const divChofer = document.getElementById('div-chofer-recoleccion');
                     const selectChofer = document.getElementById('select-chofer-recoleccion');
 
-                    window.notaEntradaRequiereRecoleccion = !!data.requiere_recoleccion;
-                    window.notaEntradaYaPasoRecoleccion = !!data.ya_paso_recoleccion;
-
                     if (data.requiere_recoleccion && !data.ya_paso_recoleccion) {
                         // Traslado redondo/medio_regreso y aún no se recolectó: se fuerza la
                         // recolección, no se puede desmarcar ni capturar cantidades a mano.
@@ -368,8 +365,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // Actualiza valores según inputs
         if (e.target.classList.contains('cantidad-recibida')) {
             pieza.cantidad_recibida = parseInt(e.target.value) || 0;
-            // Siempre permitir marcar piezas como perdidas, dañadas o sucias
-            document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`).disabled = false;
+            const inputPerdida = document.querySelector(`.cantidad-perdida[data-idx="${idx}"]`);
+            if (pieza.cantidad_recibida < pieza.cantidad_esperada) {
+                // Faltan piezas por regresar: todavía no sabemos si se perdieron
+                // definitivamente o solo están pendientes (eso se resuelve con
+                // "Renovar Equipo Pendiente" / "Registrar como Pendiente"), así
+                // que aquí solo se evalúan dañadas y sucias de lo que sí llegó.
+                inputPerdida.disabled = true;
+                inputPerdida.value = 0;
+                pieza.cantidad_perdida = 0;
+            } else {
+                inputPerdida.disabled = false;
+            }
         }
         if (e.target.classList.contains('cantidad-danada')) {
             pieza.cantidad_danada = parseInt(e.target.value) || 0;
@@ -381,23 +388,19 @@ document.addEventListener('DOMContentLoaded', function () {
             pieza.cantidad_sucia = parseInt(e.target.value) || 0;
         }
 
-        // Recalcula buenas
-        pieza.cantidad_buena = pieza.cantidad_recibida - pieza.cantidad_danada - pieza.cantidad_perdida;
+        // Recalcula buenas (una pieza recibida es buena solo si no quedó
+        // marcada como sucia, dañada o perdida, para no contarla dos veces)
+        pieza.cantidad_buena = pieza.cantidad_recibida - pieza.cantidad_danada - pieza.cantidad_perdida - pieza.cantidad_sucia;
         if (pieza.cantidad_buena < 0) pieza.cantidad_buena = 0;
         document.querySelector(`.cantidad-buena[data-idx="${idx}"]`).value = pieza.cantidad_buena;
 
-        // Validación de suma de estados
-        pieza.cantidad_buena = pieza.cantidad_recibida - pieza.cantidad_danada - pieza.cantidad_perdida;
-        if (pieza.cantidad_buena < 0) pieza.cantidad_buena = 0;
-        document.querySelector(`.cantidad-buena[data-idx="${idx}"]`).value = pieza.cantidad_buena;
-
-        // Validación
+        // Validación: la suma de todos los estados no puede superar lo recibido
         const sumaEstados = pieza.cantidad_buena + pieza.cantidad_danada + pieza.cantidad_perdida + pieza.cantidad_sucia;
-        if (pieza.cantidad_danada + pieza.cantidad_perdida + pieza.cantidad_sucia > pieza.cantidad_recibida) {
+        if (sumaEstados > pieza.cantidad_recibida) {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: `La suma de dañadas, sucias y perdidas no puede ser mayor que las recibidas (${pieza.cantidad_recibida}).`
+                text: `La suma de buenas, dañadas, sucias y perdidas no puede ser mayor que las recibidas (${pieza.cantidad_recibida}).`
             });
             // Resetear valores
             pieza.cantidad_danada = 0;

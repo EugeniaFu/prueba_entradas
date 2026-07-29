@@ -332,7 +332,7 @@ def generar_pdf_cobro_retraso(cobro_retraso_id):
     # Obtener datos completos del cobro de retraso
     cursor.execute("""
         SELECT ncr.*, ne.folio as folio_entrada, ne.renta_id,
-               r.fecha_entrada, r.fecha_salida, r.direccion_obra, r.iva,
+               r.fecha_entrada, r.fecha_salida, r.direccion_obra,
                r.traslado, r.costo_traslado, r.id_sucursal,
                CONCAT(c.nombre, ' ', c.apellido1, ' ', c.apellido2) AS cliente_nombre,
                c.codigo_cliente, c.telefono, c.correo, c.calle, c.numero_exterior, 
