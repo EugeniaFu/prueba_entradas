@@ -1546,17 +1546,20 @@ class RentasService:
             conn.start_transaction()
 
             cursor.execute(
-                "SELECT cliente_id, direccion_obra, id_sucursal, costo_traslado, traslado, renta_asociada_id "
+                "SELECT cliente_id, direccion_obra, id_sucursal, renta_asociada_id "
                 "FROM rentas WHERE id = %s", (renta_id,)
             )
             renta_original = cursor.fetchone()
             if not renta_original:
                 raise ValueError("La renta original no existe.")
 
-            cliente_id, direccion_obra, sucursal_id, costo_traslado, traslado, renta_asociada_id_db = renta_original
-            costo_traslado = costo_traslado or 0
-            traslado = traslado or 'ninguno'
-            
+            cliente_id, direccion_obra, sucursal_id, renta_asociada_id_db = renta_original
+            # Una renovación es una renta nueva que no implica un viaje del camión
+            # (el equipo se queda en la obra): nunca hereda el traslado de la renta
+            # original ni admite traslado extra propio.
+            costo_traslado = 0
+            traslado = 'ninguno'
+
             # Heredar el padre raíz (Logica 1)
             padre_real_id = renta_asociada_id_db if renta_asociada_id_db else renta_id
 
