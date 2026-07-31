@@ -144,7 +144,7 @@
 
             <tbody>
               {% for renta in rentas %}
-              {% set bloquear_nota_salida = renta[4]|lower not in ['en curso', 'entrega parcial'] %}
+              {% set bloquear_nota_salida = renta[4]|lower not in ['en curso', 'entrega parcial', 'programada'] %}
               <tr>
 
                 <!-- COLUMNA DE FOLIO -->
