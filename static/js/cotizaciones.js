@@ -198,41 +198,47 @@ document.addEventListener('DOMContentLoaded', function () {
     diasRentaInput.addEventListener('change', function () {
         const diasRenta = parseInt(this.value) || 1;
 
-        // Actualizar precios de productos existentes
-        productosAgregados.forEach(producto => {
-            if (producto.tipo === 'producto') {
+        // Actualizar precios de productos existentes, esperando a que todas
+        // las peticiones terminen antes de recalcular el resumen de totales
+        // (si no, calcularTotales() podía correr con subtotales todavía viejos).
+        const fetches = productosAgregados
+            .filter(producto => producto.tipo === 'producto')
+            .map(producto =>
                 fetch(`/cotizaciones/precios/${producto.producto_id}/${diasRenta}`)
                     .then(response => response.json())
                     .then(data => {
-                        if (data.precio) {
-                            producto.precio_unitario = data.precio;
-                            producto.dias = diasRenta;
-                            // Recalcular subtotal con la nueva fórmula
-                            producto.subtotal = producto.cantidad * producto.precio_unitario * diasRenta;
+                        if (!data.precio) return;
 
-                            // Actualizar en la tabla
-                            const fila = document.querySelector(`tr[data-producto-id="${producto.producto_id}"]`);
-                            if (fila) {
-                                fila.querySelector('.dias').textContent = diasRenta;
-                                fila.querySelector('.precio-unitario').textContent = `$${producto.precio_unitario.toFixed(2)}`;
-                                fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
-                            }
+                        producto.precio_base = data.precio;
+                        producto.dias = diasRenta;
+
+                        // Recalcular precio final respetando el ajuste (%/$) ya configurado
+                        let precioFinal = producto.precio_base;
+                        if (producto.ajuste_tipo === 'porcentaje') {
+                            precioFinal = producto.precio_base * (1 + producto.ajuste_valor / 100);
+                        } else if (producto.ajuste_tipo === 'fijo') {
+                            precioFinal = producto.precio_base + producto.ajuste_valor;
+                        }
+                        if (precioFinal < 0) precioFinal = 0;
+                        producto.precio_final = precioFinal;
+                        producto.subtotal = producto.cantidad * producto.dias * precioFinal;
+
+                        // Actualizar en la tabla (las clases reales son .precio-base y .precio-final)
+                        const fila = document.querySelector(`tr[data-producto-id="${producto.producto_id}"]`);
+                        if (fila) {
+                            fila.querySelector('.dias').textContent = diasRenta;
+                            fila.querySelector('.precio-base').textContent = `$${producto.precio_base.toFixed(2)}`;
+                            fila.querySelector('.precio-final').textContent = `$${producto.precio_final.toFixed(2)}`;
+                            fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
                         }
                     })
-                    .catch(error => console.error('Error:', error));
-            }
-        });
+                    .catch(error => console.error('Error:', error))
+            );
 
-        // Recalcular precio del producto seleccionado si hay uno seleccionado
-        if (productoSelect.value) {
-            // Se validará al agregar el producto
-        }
-
-        // Recalcular totales después de un pequeño delay
-        setTimeout(() => {
+        Promise.all(fetches).then(() => {
             calcularTotales();
             actualizarHiddenInputs();
-        }, 100);
+        });
     });
 
     // Cuando cambie la cantidad
