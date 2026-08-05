@@ -800,7 +800,6 @@
 {% include 'rentas/_modal_nueva_renta.html' %}
 
 {% include 'rentas/_modal_renovar_renta.html' %}
-{% include 'rentas/_modal_renovaciones_pendientes.html' %}
 
 
 {% endblock %}
@@ -1036,6 +1035,5 @@
 {# Legacy paginacion.js removed — using paginado_componente.js loaded in base.html #}
 <script src="{{ url_for('static', filename='js/detalle_renta.js') }}"></script>
 <script src="{{ url_for('static', filename='js/renovacion_renta.js') }}"></script>
-<script src="{{ url_for('static', filename='js/renovacion_pendientes.js') }}"></script>
 </body>
 {% endblock %}

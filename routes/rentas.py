@@ -504,24 +504,3 @@ def api_rentas_pendientes(renta_id):
             'pendientes': pendientes
         })
     return jsonify({'success': False, 'error': msg})
-
-###########################################################
-# ======================= CREAR RENOVACIÓN DE PENDIENTES =======================
-@rentas_bp.route('/renovacion_pendientes/<int:renta_id>', methods=['POST'])
-@requiere_sesion()
-@requiere_permiso('crear_renovacion_pendiente')
-def crear_renovacion_pendientes(renta_id):
-    """Endpoint para crear renovación de productos pendientes"""
-    data = request.get_json()
-    if not data or not data.get('fecha_salida') or not data.get('fecha_entrada'):
-        return jsonify({'success': False, 'error': 'Fechas son requeridas'})
-
-    success, nueva_renta_id, msg = RentasService.crear_renovacion_pendientes(renta_id, data)
-    
-    if success:
-        return jsonify({
-            'success': True,
-            'nueva_renta_id': nueva_renta_id,
-            'message': msg
-        })
-    return jsonify({'success': False, 'error': msg})
