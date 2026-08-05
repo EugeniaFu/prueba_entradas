@@ -343,6 +343,13 @@ def nuevo_cliente():
     return render_template('clientes/nuevo_cliente.html', sucursales=sucursales)
 
 
+
+
+
+
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SALDO A FAVOR Y CONSOLIDACIÓN DE PAGOS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,6 +509,18 @@ def get_estado_cuenta(cliente_id):
         conn.close()
 
 
+def _redondear_efectivo(monto):
+    """Redondeo de caja a la moneda de $0.50 más cercana (mismas reglas que el resto del sistema)."""
+    entero = int(monto)
+    centavos = round((monto - entero) * 100)
+    if centavos <= 49:
+        return float(entero)
+    elif centavos >= 60:
+        return float(entero + 1)
+    else:
+        return entero + 0.5
+
+
 @clientes_bp.route('/api/pago-consolidado/<int:cliente_id>', methods=['POST'])
 @requiere_sesion()
 @requiere_permiso('consolidar_pago')
@@ -510,6 +529,15 @@ def pago_consolidado(cliente_id):
     Distribuye un pago lump-sum entre las rentas activas con saldo pendiente,
     de más antigua a más reciente (oldest-first). Genera una prefactura por cada
     renta que reciba pago.
+
+    Si el pago es en EFECTIVO y cubre el adeudo completo, el total a cobrar se
+    redondea a la moneda de $0.50 (igual que el resto del sistema); ese ajuste
+    de centavos se absorbe (no se cobra ni se acredita). Lo que sobre por
+    encima del total redondeado (porque el cliente no trae cambio exacto) se
+    reparte entre "cambio entregado" (lo que la secretaria sí puede dar en
+    efectivo) y "saldo a favor" (lo que no se pudo entregar como cambio) —
+    nunca ambos duplicados, y nunca se genera saldo a favor por el simple
+    redondeo de caja.
     """
     from routes.prefactura import obtener_folio_consecutivo_prefactura
     from routes.caja import registrar_movimiento_automatico
@@ -520,6 +548,8 @@ def pago_consolidado(cliente_id):
     numero_seguimiento = data.get('numero_seguimiento', '') or ''
     usar_saldo_favor = bool(data.get('usar_saldo_favor', False))
     facturable = int(data.get('facturable', 0))
+    cambio_entregado_solicitado = data.get('cambio_entregado', None)
+    cambio_entregado_solicitado = float(cambio_entregado_solicitado) if cambio_entregado_solicitado is not None else None
 
     if monto_efectivo <= 0 and not usar_saldo_favor:
         return jsonify({'success': False, 'message': 'El monto debe ser mayor a cero.'})
@@ -562,6 +592,28 @@ def pago_consolidado(cliente_id):
             conn.rollback()
             return jsonify({'success': False, 'message': 'No hay rentas con saldo pendiente.'})
 
+        # Saldos pendientes reales (exactos, sin redondear) de las rentas elegibles
+        pendientes = []
+        for r in rentas:
+            saldo_pendiente = round(float(r['total']) - float(r['pagado']), 2)
+            if saldo_pendiente <= 0.50:  # umbral de redondeo en efectivo
+                continue
+            pendientes.append((r, saldo_pendiente))
+
+        if not pendientes:
+            conn.rollback()
+            return jsonify({'success': False, 'message': 'No hay rentas con saldo pendiente.'})
+
+        total_adeudo_exacto = round(sum(s for _, s in pendientes), 2)
+        cubre_todo = disponible >= total_adeudo_exacto
+
+        # Redondeo de caja: solo tiene sentido si se va a liquidar el adeudo
+        # completo en efectivo. En pagos parciales o con tarjeta/transferencia
+        # no se redondea nada.
+        total_a_cobrar = total_adeudo_exacto
+        if metodo_pago == 'EFECTIVO' and cubre_todo:
+            total_a_cobrar = _redondear_efectivo(total_adeudo_exacto)
+
         # Un solo folio compartido para toda la consolidación (misma secuencia que
         # prefacturas, cobros extra y cobros por retraso de la sucursal).
         cursor.execute("SELECT sucursal_id FROM clientes WHERE id = %s", (cliente_id,))
@@ -569,20 +621,52 @@ def pago_consolidado(cliente_id):
         sucursal_id_cliente = cli_suc['sucursal_id'] if cli_suc else rentas[0]['id_sucursal']
         folio_compartido = obtener_folio_consecutivo_prefactura(sucursal_id_cliente)
 
-        pagos_generados = []
-        remanente = disponible
+        # Excedente y cambio se calculan ANTES de insertar nada, contra
+        # total_a_cobrar (ya redondeado) — no contra lo aplicado a deudas,
+        # porque ninguna renta puede "sobrepagarse" más allá de su saldo real.
+        excedente = round(max(0.0, disponible - total_a_cobrar), 2)
 
-        for r in rentas:
-            if remanente <= 0:
+        # Cambio entregado: solo aplica a efectivo. Por default se entrega el
+        # excedente completo; si la secretaria no tiene cambio suficiente,
+        # puede indicar cuánto sí entrega y el resto se guarda a favor.
+        cambio_entregado = 0.0
+        if metodo_pago == 'EFECTIVO' and excedente > 0.01:
+            if cambio_entregado_solicitado is None:
+                cambio_entregado = excedente
+            else:
+                cambio_entregado = min(max(cambio_entregado_solicitado, 0), excedente)
+
+        saldo_favor_generado = round(excedente - cambio_entregado, 2)
+
+        # Bolsa para pagar deudas: si se cubre todo, se limita al total ya
+        # redondeado (así lo que sobre por el redondeo hacia arriba queda
+        # disponible como excedente, no se le "regala" a una renta).
+        pool_deudas = min(disponible, total_a_cobrar) if cubre_todo else disponible
+
+        # Primero se calculan las aplicaciones en memoria (sin insertar aún),
+        # para poder ajustar la ÚLTIMA renta pagada con el redondeo hacia
+        # arriba antes de escribir en la base de datos.
+        aplicaciones = []
+        for r, saldo_pendiente in pendientes:
+            if pool_deudas <= 0:
                 break
-            total = float(r['total'])
-            pagado = float(r['pagado'])
-            saldo_pendiente = round(total - pagado, 2)
-            if saldo_pendiente <= 0.50:  # umbral de redondeo en efectivo
-                continue
+            pago_renta = min(pool_deudas, saldo_pendiente)
+            pool_deudas = round(pool_deudas - pago_renta, 2)
+            aplicaciones.append([r, saldo_pendiente, pago_renta])
 
-            pago_renta = min(remanente, saldo_pendiente)
-            remanente = round(remanente - pago_renta, 2)
+        # Si se redondeó hacia arriba, esos centavos extra sí se cobraron en
+        # efectivo realmente — se le suman al pago de la última renta para
+        # que la suma total ya refleje el redondeo (y no quede "flotando"
+        # como si fuera cambio).
+        ajuste_redondeo = round(total_a_cobrar - total_adeudo_exacto, 2) if cubre_todo else 0.0
+        if ajuste_redondeo > 0 and aplicaciones:
+            aplicaciones[-1][2] = round(aplicaciones[-1][2] + ajuste_redondeo, 2)
+
+        usado_en_deudas = round(sum(a[2] for a in aplicaciones), 2)
+
+        pagos_generados = []
+        for idx, (r, saldo_pendiente, pago_renta) in enumerate(aplicaciones):
+            es_ultima = (idx == len(aplicaciones) - 1)
 
             if pago_renta >= saldo_pendiente or abs(saldo_pendiente - pago_renta) < 1.00:
                 nuevo_estado_pago = 'Pago realizado'
@@ -591,15 +675,21 @@ def pago_consolidado(cliente_id):
             # pagada=1 siempre: el dinero fue recibido.
             # La renta usa estado_pago para saber si quedó saldo pendiente.
 
+            # monto_recibido/cambio son a nivel de TODA la operación, no por
+            # renta — se guardan solo en la última fila del folio compartido
+            # (que es de donde los vuelve a leer el comprobante de pago).
+            monto_recibido_fila = monto_efectivo if es_ultima else pago_renta
+            cambio_fila = cambio_entregado if es_ultima else 0
+
             cursor.execute("""
                 INSERT INTO prefacturas
                     (renta_id, fecha_emision, tipo, pagada, metodo_pago, monto,
                      monto_recibido, cambio, numero_seguimiento, generada,
                      facturable, folio, id_sucursal)
-                VALUES (%s, NOW(), 'abono', 1, %s, %s, %s, 0, %s, 1, %s, %s, %s)
+                VALUES (%s, NOW(), 'abono', 1, %s, %s, %s, %s, %s, 1, %s, %s, %s)
             """, (
                 r['id'], metodo_pago, pago_renta,
-                pago_renta, numero_seguimiento, facturable,
+                monto_recibido_fila, cambio_fila, numero_seguimiento, facturable,
                 folio_compartido, r['id_sucursal']
             ))
             prefactura_id = cursor.lastrowid
@@ -623,7 +713,7 @@ def pago_consolidado(cliente_id):
 
         # Descontar saldo a favor utilizado
         if usar_saldo_favor and saldo_favor_a_usar > 0:
-            usado_real = min(saldo_favor_a_usar, disponible - remanente)
+            usado_real = min(saldo_favor_a_usar, usado_en_deudas + cambio_entregado)
             if usado_real > 0:
                 cursor.execute("SELECT sucursal_id FROM clientes WHERE id = %s", (cliente_id,))
                 cli = cursor.fetchone()
@@ -634,29 +724,33 @@ def pago_consolidado(cliente_id):
                     VALUES (%s, %s, 'debito', %s, 'Aplicado en pago consolidado', 'consolidado', %s)
                 """, (cliente_id, sucursal_id, usado_real, session.get('user_id')))
 
-        # Remanente → saldo a favor
-        if remanente > 0.01:
+        # Excedente no entregado como cambio → saldo a favor
+        if saldo_favor_generado > 0.01:
             cursor.execute("SELECT sucursal_id FROM clientes WHERE id = %s", (cliente_id,))
             cli = cursor.fetchone()
             sucursal_id = cli['sucursal_id'] if cli else (rentas[0]['id_sucursal'] if rentas else 1)
+            concepto = ('Cambio no entregado en pago consolidado'
+                        if cambio_entregado > 0 else 'Remanente de pago consolidado')
             cursor.execute("""
                 INSERT INTO saldo_favor_clientes
                     (cliente_id, sucursal_id, tipo, monto, concepto, referencia_tabla, usuario_id)
-                VALUES (%s, %s, 'credito', %s, 'Remanente de pago consolidado', 'consolidado', %s)
-            """, (cliente_id, sucursal_id, remanente, session.get('user_id')))
+                VALUES (%s, %s, 'credito', %s, %s, 'consolidado', %s)
+            """, (cliente_id, sucursal_id, saldo_favor_generado, concepto, session.get('user_id')))
 
         conn.commit()
 
-        # Registrar ingreso en caja (solo efectivo, fuera de transacción)
+        # Registrar ingreso en caja (solo efectivo, fuera de transacción):
+        # lo que realmente se queda en caja es lo recibido menos el cambio
+        # físico que se entregó.
         if metodo_pago == 'EFECTIVO' and monto_efectivo > 0:
-            monto_caja = monto_efectivo - max(remanente - saldo_favor_a_usar, 0)
+            monto_caja = round(monto_efectivo - cambio_entregado, 2)
             if monto_caja > 0.01:
                 try:
                     sucursal_id = rentas[0]['id_sucursal'] if rentas else 1
                     registrar_movimiento_automatico(
                         tipo='ingreso',
                         concepto=f"Pago consolidado cliente #{cliente_id}",
-                        monto=round(monto_caja, 2),
+                        monto=monto_caja,
                         metodo_pago='EFECTIVO',
                         usuario_id=session.get('user_id'),
                         sucursal_id=sucursal_id,
@@ -670,7 +764,9 @@ def pago_consolidado(cliente_id):
             'success': True,
             'message': f'Pago consolidado aplicado. {len(pagos_generados)} renta(s) procesada(s).',
             'pagos': pagos_generados,
-            'saldo_favor_nuevo': round(remanente if remanente > 0.01 else 0, 2),
+            'total_a_cobrar': round(total_a_cobrar, 2),
+            'cambio_entregado': round(cambio_entregado, 2),
+            'saldo_favor_nuevo': round(saldo_favor_generado if saldo_favor_generado > 0.01 else 0, 2),
             'folio': folio_compartido,
             'pdf_url': f'/clientes/pdf-comprobante-consolidado/{cliente_id}?folio={folio_compartido}'
         })
@@ -681,6 +777,14 @@ def pago_consolidado(cliente_id):
     finally:
         cursor.close()
         conn.close()
+
+
+
+
+
+
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -980,7 +1084,7 @@ def pdf_estado_cuenta(cliente_id):
 
         can.setFont("Carlito", 8)
         can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y, "TOTAL CADENA:")
+        can.drawRightString(468, y, "TOTAL + IVA(16%):")
         can.setFillColorRGB(0, 0, 0)
         can.drawRightString(540, y, f"${total_cadena:.2f}")
         y -= 10
@@ -1014,10 +1118,6 @@ def pdf_estado_cuenta(cliente_id):
     can.setLineWidth(1)
     y -= 7
 
-    can.setFont("Carlito", 10)
-    can.drawRightString(465, y, "TOTAL ADEUDADO:")
-    can.drawRightString(545, y, f"${total_adeudo:.2f}")
-    y -= 15
     if saldo_favor > 0:
         can.setFillColorRGB(0, 0.5, 0)
         can.drawRightString(465, y, "SALDO A FAVOR:")
@@ -1025,7 +1125,7 @@ def pdf_estado_cuenta(cliente_id):
         can.setFillColorRGB(0, 0, 0)
         y -= 15
     can.setFont("Helvetica-Bold", 11)
-    can.drawRightString(465, y, "NETO A PAGAR:")
+    can.drawRightString(465, y, "TOTAL ADEUDADO:")
     can.drawRightString(545, y, f"${neto_a_pagar:.2f}")
     y -= 10
 
@@ -1125,6 +1225,14 @@ def pdf_estado_cuenta(cliente_id):
     return send_file(out_stream, download_name=nombre_archivo, mimetype='application/pdf')
 
 
+
+
+
+
+
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PDF COMPROBANTE DE PAGO CONSOLIDADO (post-pago)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1215,11 +1323,16 @@ def pdf_comprobante_consolidado(cliente_id):
         if folio_param.isdigit():
             folio_num = int(folio_param)
             cursor.execute("""
-                SELECT p.id, p.folio, p.monto, p.metodo_pago, p.numero_seguimiento,
+                SELECT p.id, p.folio, p.monto, p.monto_recibido, p.cambio, p.metodo_pago, p.numero_seguimiento,
                        p.fecha_emision, p.tipo,
                        r.id AS renta_id, r.folio AS folio_renta,
                        r.fecha_salida, r.fecha_programada, r.fecha_entrada,
-                       r.direccion_obra,
+                       r.direccion_obra, r.renta_asociada_id,
+                       COALESCE(r.renta_asociada_id, r.id) AS raiz_id,
+                       COALESCE(
+                           (SELECT folio FROM rentas WHERE id = r.renta_asociada_id),
+                           r.folio
+                       ) AS folio_raiz,
                        COALESCE(r.total_con_iva, r.total, 0) AS total_renta,
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
@@ -1239,11 +1352,16 @@ def pdf_comprobante_consolidado(cliente_id):
                 return "No se especificaron prefacturas", 400
             fmt_ids = ','.join(['%s'] * len(prefactura_ids))
             cursor.execute(f"""
-                SELECT p.id, p.folio, p.monto, p.metodo_pago, p.numero_seguimiento,
+                SELECT p.id, p.folio, p.monto, p.monto_recibido, p.cambio, p.metodo_pago, p.numero_seguimiento,
                        p.fecha_emision, p.tipo,
                        r.id AS renta_id, r.folio AS folio_renta,
                        r.fecha_salida, r.fecha_programada, r.fecha_entrada,
-                       r.direccion_obra,
+                       r.direccion_obra, r.renta_asociada_id,
+                       COALESCE(r.renta_asociada_id, r.id) AS raiz_id,
+                       COALESCE(
+                           (SELECT folio FROM rentas WHERE id = r.renta_asociada_id),
+                           r.folio
+                       ) AS folio_raiz,
                        COALESCE(r.total_con_iva, r.total, 0) AS total_renta,
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
@@ -1263,10 +1381,26 @@ def pdf_comprobante_consolidado(cliente_id):
             return "No se encontraron prefacturas", 404
         folio_num = filas[0]['folio'] if filas[0].get('folio') else folio_num
 
+        # Detalle de productos por renta (mismo bloque visual que pdf_estado_cuenta)
+        for f in filas:
+            cursor.execute("""
+                SELECT prod.nombre, rd.cantidad, rd.dias_renta, rd.costo_unitario, rd.subtotal
+                FROM renta_detalle rd
+                JOIN productos prod ON rd.id_producto = prod.id_producto
+                WHERE rd.renta_id = %s
+            """, (f['renta_id'],))
+            f['productos'] = cursor.fetchall()
+
         plantilla_renta = cliente.get('plantilla_renta')
         monto_total = sum(float(f['monto']) for f in filas)
         fecha_pago = filas[0]['fecha_emision']
         metodo_pago = filas[0]['metodo_pago']
+
+        # monto_recibido/cambio de TODA la operación se guardaron solo en la
+        # última fila insertada (ver pago_consolidado) — las demás filas
+        # traen su propio pago aplicado, no el total de la operación.
+        monto_entregado_operacion = float(filas[-1]['monto_recibido'] or 0)
+        cambio_operacion = float(filas[-1]['cambio'] or 0)
 
         # Nombre del usuario para firma
         usuario_nombre = "USUARIO NO IDENTIFICADO"
@@ -1343,43 +1477,187 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawString(290, y_cliente, f"SUCURSAL: {(cliente.get('sucursal_nombre') or '').upper()}")
     y_cliente -= 20
 
-    # ── Tabla de rentas ───────────────────────────────────────────────────────
+    # ── Rentas pagadas en este comprobante (mismo diseño que Estado de Cuenta) ──
     y_tabla = y_cliente - 5
 
-    can.line(28, y_tabla + 20, 585, y_tabla + 20)
-    can.setFont("Helvetica-Bold", 9)
-    can.drawString(36, y_tabla + 10, "FOLIO RENTA")
-    can.drawString(110, y_tabla + 10, "SALIDA")
-    can.drawString(178, y_tabla + 10, "ENTRADA")
-    can.drawString(246, y_tabla + 10, "DIRECCIÓN OBRA")
-    can.drawRightString(460, y_tabla + 10, "TOTAL RENTA")
-    can.drawRightString(570, y_tabla + 10, "ABONO")
-    can.line(28, y_tabla + 5, 585, y_tabla + 5)
-    y_tabla -= 15
+    def nueva_pagina_comp():
+        can.showPage()
+        ny = 750
+        can.setFont("Helvetica-Bold", 10)
+        can.drawString(25, ny, f"COMPROBANTE DE PAGO — {nombre_completo.upper()} (CONTINUACIÓN)")
+        can.setFont("Carlito", 10)
+        can.drawString(482, ny, fecha_str)
+        can.setStrokeColorRGB(0.14, 0.22, 0.37)
+        can.setLineWidth(1)
+        can.line(25, ny - 6, 580, ny - 6)
+        can.setStrokeColorRGB(0, 0, 0)
+        return ny - 20
 
-    can.setFont("Carlito", 9)
+    # Agrupar filas por cadena (renta original + sus renovaciones), igual que
+    # en Estado de Cuenta — así una renta con varias renovaciones ocupa un
+    # solo bloque en vez de uno por cada eslabón.
+    cadenas = {}
+    orden_raiz = []
     for f in filas:
-        if y_tabla < 300:
-            break
-        folio_r = f"#{str(f['folio_renta']).zfill(4)}" if f['folio_renta'] else f"ID {f['renta_id']}"
-        fecha_sal = f['fecha_salida'].strftime('%d/%m/%Y') if f.get('fecha_salida') else '—'
-        # Usar fecha_entrada real; si no tiene, mostrar fecha_programada
-        fecha_fin = (f['fecha_entrada'].strftime('%d/%m/%Y') if f.get('fecha_entrada')
-                     else (f['fecha_programada'].strftime('%d/%m/%Y') if f.get('fecha_programada') else '—'))
-        obra = (f.get('direccion_obra') or '—')[:22]
-        total_r = float(f['total_renta'])
-        total_pg = float(f['total_pagado_renta'])
+        raiz_id = f['raiz_id']
+        if raiz_id not in cadenas:
+            cadenas[raiz_id] = {'folio_raiz': f['folio_raiz'], 'eslabones': []}
+            orden_raiz.append(raiz_id)
+        cadenas[raiz_id]['eslabones'].append(f)
 
-        can.drawString(36, y_tabla + 5, folio_r)
-        can.drawString(110, y_tabla + 5, fecha_sal)
-        can.drawString(178, y_tabla + 5, fecha_fin)
-        can.drawString(246, y_tabla + 5, obra)
-        can.drawRightString(460, y_tabla + 5, f"${total_r:.2f}")
-        can.drawRightString(570, y_tabla + 5, f"${float(f['monto']):.2f}")
+    saldo_restante_total = 0.0
+    for raiz_id in orden_raiz:
+        cadena = cadenas[raiz_id]
+        eslabones = cadena['eslabones']
+        folio_raiz = cadena['folio_raiz']
+
+        primer = eslabones[0]
+        ultimo = eslabones[-1]
+        fecha_inicio = primer['fecha_salida'].strftime('%d/%m/%Y') if primer.get('fecha_salida') else '—'
+        if ultimo.get('fecha_entrada'):
+            fecha_fin_cadena = ultimo['fecha_entrada'].strftime('%d/%m/%Y')
+            lbl_fin_cadena = 'ENTRADA'
+        elif ultimo.get('fecha_programada'):
+            fecha_fin_cadena = ultimo['fecha_programada'].strftime('%d/%m/%Y')
+            lbl_fin_cadena = 'PROG'
+        else:
+            fecha_fin_cadena = 'EN CURSO'
+            lbl_fin_cadena = ''
+
+        # Totales agregados de toda la cadena (no por eslabón individual)
+        total_cadena = sum(float(e['total_renta']) for e in eslabones)
+        pagado_operacion_cadena = sum(float(e['monto']) for e in eslabones)
+        total_pagado_cadena = sum(float(e['total_pagado_renta']) for e in eslabones)
+        abonos_anteriores_cadena = max(0.0, round(total_pagado_cadena - pagado_operacion_cadena, 2))
+        saldo_cadena = max(0.0, round(total_cadena - total_pagado_cadena, 2))
+        saldo_restante_total = round(saldo_restante_total + saldo_cadena, 2)
+
+        folio_str = f"#{str(folio_raiz).zfill(4)}" if folio_raiz else f"ID {raiz_id}"
+
+        total_prods_cadena = sum(len(e.get('productos', [])) for e in eslabones)
+        altura_cadena = 22 + 12 + 14 + len(eslabones) * 13 + total_prods_cadena * 10 + 48
+        if y_tabla - altura_cadena < 180:
+            y_tabla = nueva_pagina_comp()
+
+        # Encabezado de cadena (azul oscuro)
+        can.setFillColorRGB(0.14, 0.22, 0.37)
+        can.rect(25, y_tabla - 14, 555, 18, fill=1, stroke=0)
+        can.setFillColorRGB(1, 1, 1)
+        can.setFont("Helvetica-Bold", 9)
+        can.drawString(29, y_tabla - 8, f"RENTA {folio_str}")
+        can.setFont("Carlito", 9)
+        periodo_txt = f"{fecha_inicio}  →  {lbl_fin_cadena + ': ' if lbl_fin_cadena else ''}{fecha_fin_cadena}"
+        can.drawString(106, y_tabla - 8, periodo_txt)
+        can.setFillColorRGB(0, 0, 0)
+        y_tabla -= 16
+
+        # Dirección de obra (del último eslabón, o del primero)
+        obra = ultimo.get('direccion_obra') or primer.get('direccion_obra')
+        if obra:
+            can.setFillColorRGB(0.94, 0.94, 0.94)
+            can.rect(25, y_tabla - 10, 555, 12, fill=1, stroke=0)
+            can.setFillColorRGB(0.2, 0.2, 0.2)
+            can.setFont("Carlito", 8)
+            can.drawString(29, y_tabla - 7, f"OBRA: {obra[:90].upper()}")
+            can.setFillColorRGB(0, 0, 0)
+            y_tabla -= 12
+
+        # Encabezado de columnas de productos
+        can.setFillColorRGB(0.88, 0.88, 0.88)
+        can.rect(25, y_tabla - 11, 555, 13, fill=1, stroke=0)
+        can.setFillColorRGB(0, 0, 0)
+        can.setFont("Helvetica-Bold", 8)
+        can.drawString(30, y_tabla - 8, "DESCRIPCIÓN")
+        can.drawRightString(340, y_tabla - 8, "CANT.")
+        can.drawRightString(390, y_tabla - 8, "DÍAS")
+        can.drawRightString(468, y_tabla - 8, "P. UNIT.")
+        can.drawRightString(540, y_tabla - 8, "SUBTOTAL")
         y_tabla -= 13
-    y_tabla -= 5
+
+        # ── Eslabones (cortes de la cadena): barra de período + sus productos ──
+        for eslabon in eslabones:
+            e_folio = f"#{str(eslabon['folio_renta']).zfill(4)}" if eslabon.get('folio_renta') else ''
+            e_sal = eslabon['fecha_salida'].strftime('%d/%m/%Y') if eslabon.get('fecha_salida') else '—'
+            if eslabon.get('fecha_entrada'):
+                e_fin = eslabon['fecha_entrada'].strftime('%d/%m/%Y')
+                e_lbl = 'ENTRADA'
+            elif eslabon.get('fecha_programada'):
+                e_fin = eslabon['fecha_programada'].strftime('%d/%m/%Y')
+                e_lbl = 'PROG'
+            else:
+                e_fin = '—'
+                e_lbl = 'PROG'
+
+            if y_tabla < 100:
+                y_tabla = nueva_pagina_comp()
+
+            can.setFillColorRGB(0.78, 0.85, 0.93)
+            can.rect(25, y_tabla - 9, 555, 12, fill=1, stroke=0)
+            can.setFillColorRGB(0.08, 0.15, 0.30)
+            can.setFont("Helvetica-Bold", 8)
+            can.drawString(29, y_tabla - 6, e_folio)
+            can.setFont("Carlito", 8)
+            can.drawString(62, y_tabla - 6, f"SALIDA: {e_sal}   {e_lbl}: {e_fin}")
+            can.setFillColorRGB(0, 0, 0)
+            y_tabla -= 18
+
+            can.setFont("Carlito", 8)
+            for idx, prod in enumerate(eslabon.get('productos', [])):
+                if y_tabla < 80:
+                    y_tabla = nueva_pagina_comp()
+                if idx % 2 == 1:
+                    can.setFillColorRGB(0.97, 0.97, 0.97)
+                    can.rect(25, y_tabla - 3, 555, 11, fill=1, stroke=0)
+                    can.setFillColorRGB(0, 0, 0)
+                can.drawString(30, y_tabla, str(prod['nombre'])[:42].upper())
+                can.drawRightString(340, y_tabla, str(prod['cantidad']))
+                can.drawRightString(390, y_tabla, str(prod.get('dias_renta') or '—'))
+                can.drawRightString(468, y_tabla, f"${float(prod.get('costo_unitario', 0)):.2f}")
+                can.drawRightString(540, y_tabla, f"${float(prod.get('subtotal', 0)):.2f}")
+                y_tabla -= 10
+
+        # Totales de la cadena (una sola vez, sumando todos sus eslabones)
+        y_tabla -= 2
+        can.setStrokeColorRGB(0.65, 0.65, 0.65)
+        can.line(330, y_tabla + 2, 555, y_tabla + 2)
+        can.setStrokeColorRGB(0, 0, 0)
+        y_tabla -= 5
+
+        can.setFont("Carlito", 8)
+        can.setFillColorRGB(0.35, 0.35, 0.35)
+        can.drawRightString(468, y_tabla, "TOTAL + IVA(16%):")
+        can.setFillColorRGB(0, 0, 0)
+        can.drawRightString(540, y_tabla, f"${total_cadena:.2f}")
+        y_tabla -= 10
+
+        if abonos_anteriores_cadena > 0.01:
+            can.setFont("Carlito", 8)
+            can.setFillColorRGB(0.35, 0.35, 0.35)
+            can.drawRightString(468, y_tabla, "ABONOS ANTERIORES:")
+            can.setFillColorRGB(0, 0, 0)
+            can.drawRightString(540, y_tabla, f"${abonos_anteriores_cadena:.2f}")
+            y_tabla -= 10
+
+        can.setFont("Carlito", 8)
+        can.setFillColorRGB(0.35, 0.35, 0.35)
+        can.drawRightString(468, y_tabla, "PAGO GENERADO:")
+        can.setFillColorRGB(0, 0.45, 0)
+        can.drawRightString(540, y_tabla, f"${pagado_operacion_cadena:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y_tabla -= 10
+
+        can.setFillColorRGB(0.96, 0.88, 0.88)
+        can.rect(330, y_tabla - 4, 225, 14, fill=1, stroke=0)
+        can.setFillColorRGB(0.65, 0, 0)
+        can.setFont("Helvetica-Bold", 9)
+        can.drawRightString(468, y_tabla, "SALDO PENDIENTE:")
+        can.drawRightString(540, y_tabla, f"${saldo_cadena:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y_tabla -= 20
 
     # ── Totales ───────────────────────────────────────────────────────────────
+    if y_tabla < 160:
+        y_tabla = nueva_pagina_comp()
     can.line(28, y_tabla + 15, 585, y_tabla + 15)
     y_totales = y_tabla + 10 - 10
 
@@ -1388,6 +1666,19 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawRightString(570, y_totales, f"${monto_total:.2f}")
     y_totales -= 12
 
+    # Monto entregado y cambio (solo si el cliente entregó de más en
+    # efectivo; en pagos exactos o con tarjeta/transferencia no aplica)
+    if cambio_operacion > 0.01:
+        can.setFont("Carlito", 10)
+        can.drawString(400, y_totales, "MONTO ENTREGADO:")
+        can.drawRightString(570, y_totales, f"${monto_entregado_operacion:.2f}")
+        y_totales -= 12
+
+        can.setFont("Carlito", 10)
+        can.drawString(400, y_totales, "CAMBIO:")
+        can.drawRightString(570, y_totales, f"${cambio_operacion:.2f}")
+        y_totales -= 12
+
     # Método(s) de pago
     metodos_unicos = list(dict.fromkeys(f['metodo_pago'] for f in filas))
     can.setFont("Carlito", 10)
@@ -1395,11 +1686,13 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawRightString(570, y_totales, ' / '.join(metodos_unicos))
     y_totales -= 12
 
-    seguimientos = list({f['numero_seguimiento'] for f in filas if f.get('numero_seguimiento')})
-    if seguimientos:
-        can.drawString(400, y_totales, "SEGUIMIENTO:")
-        can.drawRightString(570, y_totales, seguimientos[0][:20])
-        y_totales -= 12
+    can.setFont("Helvetica-Bold", 9)
+    can.setFillColorRGB(0.65, 0, 0)
+    can.drawString(400, y_totales, "SALDO RESTANTE:")
+    can.drawRightString(570, y_totales, f"${saldo_restante_total:.2f}")
+    can.setFillColorRGB(0, 0, 0)
+    y_totales -= 12
+
 
     # ── Avisos (igual que prefactura) ────────────────────────────────────────
     y_avisos = y_totales - 6

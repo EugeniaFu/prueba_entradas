@@ -79,22 +79,23 @@
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label">Monto a pagar ($)</label>
-                    <div class="input-group">
-                      <span class="input-group-text">$</span>
-                      <input type="number" id="consolidar-monto" class="form-control" min="0" step="0.01" value="0" placeholder="0.00">
-                    </div>
-                    <small class="text-muted">Ingresa el monto que el cliente entrega ahora. El saldo a favor se suma automáticamente.</small>
+                    <label class="form-label">¿Requiere facturación?</label>
+                    <select id="consolidar-facturable" class="form-select">
+                      <option value="0">No</option>
+                      <option value="1">Sí</option>
+                    </select>
                   </div>
 
                   <div class="mb-3">
                     <label class="form-label">Método de pago</label>
                     <select id="consolidar-metodo" class="form-select">
+                      <option value="" selected disabled>Selecciona un método...</option>
                       <option value="EFECTIVO">Efectivo</option>
                       <option value="T.DÉBITO">Tarjeta Débito</option>
                       <option value="T.CRÉDITO">Tarjeta Crédito</option>
                       <option value="TRANSFERENCIA">Transferencia</option>
                     </select>
+                    <small class="text-muted">En efectivo el total se redondea a la moneda de $0.50. Con tarjeta o transferencia se mantiene exacto, con centavos.</small>
                   </div>
 
                   <div id="consolidar-seguimiento-div" class="mb-3" style="display:none;">
@@ -103,11 +104,21 @@
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label">¿Requiere facturación?</label>
-                    <select id="consolidar-facturable" class="form-select">
-                      <option value="0">No</option>
-                      <option value="1">Sí</option>
-                    </select>
+                    <label class="form-label">Monto a pagar ($)</label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      <input type="number" id="consolidar-monto" class="form-control" min="0" step="0.01" value="0" placeholder="0.00">
+                    </div>
+                    <small class="text-muted">Ingresa el monto que el cliente entrega ahora — puede ser menor al total (pago parcial). El saldo a favor se suma automáticamente.</small>
+                  </div>
+
+                  <div id="consolidar-cambio-div" class="mb-3" style="display:none;">
+                    <label class="form-label">Cambio a entregar ($)</label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      <input type="number" id="consolidar-cambio-entregado" class="form-control" min="0" step="0.01" value="0">
+                    </div>
+                    <small class="text-muted">Por default se entrega el excedente completo. Si no traes cambio exacto, indica cuánto sí puedes dar — la diferencia se guarda como saldo a favor del cliente.</small>
                   </div>
 
                   <!-- Preview -->
@@ -120,7 +131,15 @@
                       <span>Total adeudo:</span>
                       <strong class="text-danger">$<span id="consolidar-preview-adeudo">0.00</span></strong>
                     </div>
+                    <div class="d-flex justify-content-between" id="consolidar-preview-redondeo-row" style="display:none;">
+                      <span>Total a cobrar (redondeado):</span>
+                      <strong>$<span id="consolidar-preview-total-cobrar">0.00</span></strong>
+                    </div>
                     <hr class="my-1">
+                    <div class="d-flex justify-content-between" id="consolidar-preview-cambio-row" style="display:none;">
+                      <span>Cambio a entregar:</span>
+                      <strong class="text-primary">$<span id="consolidar-preview-cambio">0.00</span></strong>
+                    </div>
                     <div class="d-flex justify-content-between">
                       <span>Saldo a favor resultante:</span>
                       <strong class="text-success">$<span id="consolidar-preview-remanente">0.00</span></strong>

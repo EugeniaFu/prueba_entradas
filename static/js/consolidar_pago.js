@@ -14,6 +14,14 @@
         return parseFloat(n || 0).toFixed(2);
     }
 
+    function redondearEfectivo(monto) {
+        const entero = Math.floor(monto);
+        const centavos = Math.round((monto - entero) * 100);
+        if (centavos <= 49) return entero;
+        if (centavos >= 60) return entero + 1;
+        return entero + 0.5;
+    }
+
     function getDisponible() {
         const monto = parseFloat(document.getElementById('consolidar-monto').value) || 0;
         const usarSaldo = document.getElementById('consolidar-usar-saldo-favor').checked;
@@ -21,12 +29,31 @@
         return monto + (usarSaldo ? saldoFavor : 0);
     }
 
+    // Si el usuario edita "Cambio a entregar" a mano, ya no lo pisamos con el
+    // default automático hasta que cambien monto/método (se resetea ahí).
+    let cambioEditadoManualmente = false;
+
     // ── Preview: distribute greedy and fill the "A pagar" column ─────────────
 
     function actualizarPreview() {
         if (!estadoCuenta) return;
         const disponible = getDisponible();
-        let remanente = disponible;
+        const metodo = document.getElementById('consolidar-metodo').value;
+        const totalAdeudo = estadoCuenta.total_adeudo;
+        const cubreTodo = disponible >= totalAdeudo;
+        const esEfectivo = metodo === 'EFECTIVO';
+
+        // El total redondeado se muestra en cuanto se elige "Efectivo", sin
+        // depender de si ya se escribió el monto (es informativo: así se va
+        // a cobrar en cuanto paguen el total).
+        const totalRedondeadoInfo = esEfectivo ? redondearEfectivo(totalAdeudo) : totalAdeudo;
+
+        // Para la distribución real entre rentas, el redondeo solo se aplica
+        // si el monto disponible efectivamente cubre todo el adeudo.
+        const totalACobrar = (esEfectivo && cubreTodo) ? totalRedondeadoInfo : totalAdeudo;
+
+        // Bolsa para pagar deudas (limitada al total ya redondeado)
+        let poolDeudas = cubreTodo ? Math.min(disponible, totalACobrar) : disponible;
         let totalAplicar = 0;
 
         // Distribute per individual renta (oldest-first)
@@ -34,8 +61,8 @@
             const cell = document.getElementById('consolidar-aplicar-' + r.id);
             if (!cell) return;
             const pendiente = r.saldo_pendiente;
-            const pago = Math.min(remanente, pendiente);
-            remanente = Math.max(0, remanente - pago);
+            const pago = Math.min(poolDeudas, pendiente);
+            poolDeudas = Math.max(0, poolDeudas - pago);
             totalAplicar += pago;
             cell.textContent = fmt(pago);
         });
@@ -53,11 +80,59 @@
             chainCell.textContent = fmt(chainTotal);
         });
 
+        // Excedente real: se calcula contra totalACobrar (ya redondeado), NO
+        // contra totalAplicar. Una renta nunca se puede sobrepagar más allá
+        // de su saldo real, así que el ajuste de redondeo (ej. $0.24 si el
+        // total subió de $11,530.76 a $11,531.00) nunca llega a aplicarse a
+        // ninguna deuda; si se comparara contra totalAplicar esos centavos
+        // se colarían como si fueran cambio real que hay que entregar.
+        const excedente = Math.max(0, round2(disponible - totalACobrar));
+
+        // Campo de "Cambio a entregar" — solo aplica en efectivo con excedente
+        const cambioDiv = document.getElementById('consolidar-cambio-div');
+        const cambioInput = document.getElementById('consolidar-cambio-entregado');
+        let cambioEntregado = 0;
+        if (esEfectivo && excedente > 0.01) {
+            cambioDiv.style.display = '';
+            if (!cambioEditadoManualmente) {
+                cambioInput.value = excedente.toFixed(2);
+            }
+            cambioInput.max = excedente.toFixed(2);
+            cambioEntregado = Math.min(Math.max(parseFloat(cambioInput.value) || 0, 0), excedente);
+        } else {
+            cambioDiv.style.display = 'none';
+            cambioInput.value = '0';
+        }
+
+        const saldoFavorGenerado = round2(excedente - cambioEntregado);
+
         document.getElementById('consolidar-total-aplicar').textContent = fmt(totalAplicar);
         document.getElementById('consolidar-preview-disponible').textContent = fmt(disponible);
-        document.getElementById('consolidar-preview-adeudo').textContent = fmt(estadoCuenta.total_adeudo);
-        const remanenteFinal = Math.max(0, remanente);
-        document.getElementById('consolidar-preview-remanente').textContent = fmt(remanenteFinal);
+        document.getElementById('consolidar-preview-adeudo').textContent = fmt(totalAdeudo);
+
+        // Fila de redondeo: visible en cuanto se elige Efectivo, sin importar
+        // si ya se escribió el monto — es informativa (así se va a cobrar).
+        const redondeoRow = document.getElementById('consolidar-preview-redondeo-row');
+        if (esEfectivo && Math.abs(totalRedondeadoInfo - totalAdeudo) > 0.001) {
+            redondeoRow.style.display = '';
+            document.getElementById('consolidar-preview-total-cobrar').textContent = fmt(totalRedondeadoInfo);
+        } else {
+            redondeoRow.style.display = 'none';
+        }
+
+        const cambioRow = document.getElementById('consolidar-preview-cambio-row');
+        if (esEfectivo && excedente > 0.01) {
+            cambioRow.style.display = '';
+            document.getElementById('consolidar-preview-cambio').textContent = fmt(cambioEntregado);
+        } else {
+            cambioRow.style.display = 'none';
+        }
+
+        document.getElementById('consolidar-preview-remanente').textContent = fmt(saldoFavorGenerado);
+    }
+
+    function round2(n) {
+        return Math.round(n * 100) / 100;
     }
 
     // ── Load estado de cuenta ────────────────────────────────────────────────
@@ -163,10 +238,13 @@
                 // Reset form
                 document.getElementById('consolidar-monto').value = '';
                 document.getElementById('consolidar-usar-saldo-favor').checked = data.saldo_favor > 0;
-                document.getElementById('consolidar-metodo').value = 'EFECTIVO';
+                document.getElementById('consolidar-metodo').value = '';
                 document.getElementById('consolidar-seguimiento-div').style.display = 'none';
                 document.getElementById('consolidar-seguimiento').value = '';
                 document.getElementById('consolidar-facturable').value = '0';
+                document.getElementById('consolidar-cambio-div').style.display = 'none';
+                document.getElementById('consolidar-cambio-entregado').value = '0';
+                cambioEditadoManualmente = false;
 
                 actualizarPreview();
 
@@ -207,14 +285,23 @@
         if (!modalEl) return;
 
         modalEl.addEventListener('input', function (e) {
-            if (e.target.id === 'consolidar-monto') actualizarPreview();
+            if (e.target.id === 'consolidar-monto') {
+                cambioEditadoManualmente = false; // el monto cambió, vuelve a proponer el cambio completo
+                actualizarPreview();
+            }
+            if (e.target.id === 'consolidar-cambio-entregado') {
+                cambioEditadoManualmente = true;
+                actualizarPreview();
+            }
         });
         modalEl.addEventListener('change', function (e) {
             if (e.target.id === 'consolidar-usar-saldo-favor') actualizarPreview();
             if (e.target.id === 'consolidar-metodo') {
+                cambioEditadoManualmente = false;
                 const metodo = e.target.value;
                 const sigDiv = document.getElementById('consolidar-seguimiento-div');
-                sigDiv.style.display = (metodo !== 'EFECTIVO') ? '' : 'none';
+                sigDiv.style.display = (metodo && metodo !== 'EFECTIVO') ? '' : 'none';
+                actualizarPreview();
             }
         });
 
@@ -225,7 +312,15 @@
             const metodo = document.getElementById('consolidar-metodo').value;
             const seguimiento = document.getElementById('consolidar-seguimiento').value.trim();
             const facturable = document.getElementById('consolidar-facturable').value;
+            const cambioDivVisible = document.getElementById('consolidar-cambio-div').style.display !== 'none';
+            const cambioEntregado = cambioDivVisible
+                ? (parseFloat(document.getElementById('consolidar-cambio-entregado').value) || 0)
+                : null;
 
+            if (!metodo) {
+                Swal.fire('Atención', 'Selecciona un método de pago.', 'warning');
+                return;
+            }
             if (monto <= 0 && !usarSaldo) {
                 Swal.fire('Atención', 'Ingresa el monto a pagar o activa el saldo a favor.', 'warning');
                 return;
@@ -260,7 +355,8 @@
                         metodo_pago: metodo,
                         numero_seguimiento: seguimiento,
                         usar_saldo_favor: usarSaldo,
-                        facturable: parseInt(facturable)
+                        facturable: parseInt(facturable),
+                        cambio_entregado: cambioEntregado
                     })
                 })
                 .then(function (r) { return r.json(); })

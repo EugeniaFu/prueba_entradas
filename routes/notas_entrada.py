@@ -896,15 +896,25 @@ def generar_pdf_nota_entrada(nota_entrada_id):
     can.setFont("Helvetica-Bold", 9)
     can.drawString(36, y_position + 5, "CANT. (PIEZAS)")
     can.drawString(150, y_position + 5, "DESCRIPCIÓN")
-    can.drawString(350, y_position + 5, "RECIBIDAS")
-    
+    can.drawString(310, y_position + 5, "RECIBIDAS")
+
+    def centro_columna(x, texto, fuente="Helvetica-Bold", tamano=9):
+        return x + can.stringWidth(texto, fuente, tamano) / 2
+
+    recibidas_center = centro_columna(310, "RECIBIDAS")
+
     if hay_piezas_problematicas:
-        can.drawString(420, y_position + 5, "BUENAS")
+        buena_center = centro_columna(380, "BUENAS")
+        sucia_center = centro_columna(425, "SUCIAS")
+        danada_center = centro_columna(470, "DAÑADAS")
+        perdida_center = centro_columna(525, "PERDIDAS")
+        can.drawString(380, y_position + 5, "BUENAS")
+        can.drawString(425, y_position + 5, "SUCIAS")
         can.drawString(470, y_position + 5, "DAÑADAS")
-        can.drawString(520, y_position + 5, "PERDIDAS")
-    
+        can.drawString(525, y_position + 5, "PERDIDAS")
+
     y_position -= 15
-    
+
     can.setFont("Carlito", 10)
     es_recoleccion = (nota.get('estado_renta') or '').lower() == 'en recolección'
 
@@ -914,23 +924,24 @@ def generar_pdf_nota_entrada(nota_entrada_id):
             can.showPage()
             can.setFont("Carlito", 10)
             y_position = page_height - 60
-        
+
         def mostrar_vacio_si_cero(val):
             return "" if val == 0 else str(val)
-            
+
         can.drawString(70, y_position + 5, str(pieza['cantidad_esperada']))
         can.drawString(150, y_position + 5, pieza['nombre_pieza'].upper())
         recibidas_texto = mostrar_vacio_si_cero(pieza['cantidad_recibida'])
         if es_recoleccion and recibidas_texto == "":
             recibidas_texto = "(               )"
-        can.drawString(355, y_position + 5, recibidas_texto)
-        
+        can.drawCentredString(recibidas_center, y_position + 5, recibidas_texto)
+
         # Solo mostrar columnas de estado si hay piezas problemáticas
         if hay_piezas_problematicas:
-            can.drawString(435, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
-            can.drawString(485, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
-            can.drawString(535, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_perdida']))
-        
+            can.drawCentredString(buena_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
+            can.drawCentredString(sucia_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_sucia']))
+            can.drawCentredString(danada_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
+            can.drawCentredString(perdida_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_perdida']))
+
         y_position -= 13
 
     y_position -= 10
@@ -1257,10 +1268,21 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
         can.drawString(36, y_position + 5, "CANT. (PIEZAS)")
         can.drawString(150, y_position + 5, "DESCRIPCIÓN")
         can.drawString(350, y_position + 5, "RECIBIDAS")
+
+        def centro_columna(x, texto, fuente="Helvetica-Bold", tamano=9):
+            return x + can.stringWidth(texto, fuente, tamano) / 2
+
+        recibidas_center = centro_columna(350, "RECIBIDAS")
+
         if hay_piezas_problematicas:
-            can.drawString(420, y_position + 5, "BUENAS")
+            buena_center = centro_columna(380, "BUENAS")
+            sucia_center = centro_columna(425, "SUCIAS")
+            danada_center = centro_columna(470, "DAÑADAS")
+            perdida_center = centro_columna(525, "PERDIDAS")
+            can.drawString(380, y_position + 5, "BUENAS")
+            can.drawString(425, y_position + 5, "SUCIAS")
             can.drawString(470, y_position + 5, "DAÑADAS")
-            can.drawString(520, y_position + 5, "PERDIDAS")
+            can.drawString(525, y_position + 5, "PERDIDAS")
         y_position -= 15
 
         can.setFont("Carlito", 10)
@@ -1278,11 +1300,12 @@ def _generar_pdf_nota_entrada_multiple(rentas_consolidadas):
             recibidas_texto = mostrar_vacio_si_cero(pieza['cantidad_recibida'])
             if es_recoleccion and recibidas_texto == "":
                 recibidas_texto = "(               )"
-            can.drawString(355, y_position + 5, recibidas_texto)
+            can.drawCentredString(recibidas_center, y_position + 5, recibidas_texto)
             if hay_piezas_problematicas:
-                can.drawString(435, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
-                can.drawString(485, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
-                can.drawString(535, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_perdida']))
+                can.drawCentredString(buena_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_buena']))
+                can.drawCentredString(sucia_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_sucia']))
+                can.drawCentredString(danada_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_danada']))
+                can.drawCentredString(perdida_center, y_position + 5, mostrar_vacio_si_cero(pieza['cantidad_perdida']))
             y_position -= 13
 
         y_position -= 18
