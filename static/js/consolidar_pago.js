@@ -29,6 +29,45 @@
         return monto + (usarSaldo ? saldoFavor : 0);
     }
 
+    // IDs de las rentas marcadas con su checkbox (las que sí se incluyen en
+    // el PDF y en el pago). Por default vienen todas marcadas.
+    function getRentaIdsSeleccionados() {
+        return Array.from(document.querySelectorAll('.consolidar-check-renta:checked'))
+            .map(function (cb) { return parseInt(cb.getAttribute('data-renta-id'), 10); });
+    }
+
+    // Actualiza el checkbox "Seleccionar todas" y el de cada cadena según el
+    // estado (marcado/parcial/vacío) de sus eslabones.
+    function sincronizarCheckboxesPadre() {
+        document.querySelectorAll('.consolidar-check-cadena').forEach(function (cbCadena) {
+            const raizId = cbCadena.getAttribute('data-raiz-id');
+            const hijos = Array.from(document.querySelectorAll('.consolidar-check-renta[data-raiz-id="' + raizId + '"]'));
+            const marcados = hijos.filter(function (h) { return h.checked; }).length;
+            cbCadena.checked = marcados === hijos.length;
+            cbCadena.indeterminate = marcados > 0 && marcados < hijos.length;
+        });
+
+        const todas = document.querySelectorAll('.consolidar-check-renta');
+        const todasMarcadas = document.querySelectorAll('.consolidar-check-renta:checked');
+        const checkTodas = document.getElementById('consolidar-check-todas');
+        if (checkTodas) {
+            checkTodas.checked = todas.length > 0 && todasMarcadas.length === todas.length;
+            checkTodas.indeterminate = todasMarcadas.length > 0 && todasMarcadas.length < todas.length;
+        }
+    }
+
+    // Actualiza el href del botón "Ver PDF" para que el estado de cuenta
+    // también respete la selección actual.
+    function actualizarPdfHref() {
+        const pdfBtn = document.getElementById('consolidar-btn-pdf');
+        if (!pdfBtn || !clienteId) return;
+        const ids = getRentaIdsSeleccionados();
+        const todas = document.querySelectorAll('.consolidar-check-renta').length;
+        pdfBtn.href = (ids.length > 0 && ids.length < todas)
+            ? '/clientes/pdf-estado-cuenta/' + clienteId + '?renta_ids=' + ids.join(',')
+            : '/clientes/pdf-estado-cuenta/' + clienteId;
+    }
+
     // Si el usuario edita "Cambio a entregar" a mano, ya no lo pisamos con el
     // default automático hasta que cambien monto/método (se resetea ahí).
     let cambioEditadoManualmente = false;
@@ -37,9 +76,18 @@
 
     function actualizarPreview() {
         if (!estadoCuenta) return;
+        sincronizarCheckboxesPadre();
+        actualizarPdfHref();
+
+        const idsSeleccionados = getRentaIdsSeleccionados();
+        const rentasSeleccionadas = estadoCuenta.rentas.filter(function (r) {
+            return idsSeleccionados.indexOf(r.id) !== -1;
+        });
+
         const disponible = getDisponible();
         const metodo = document.getElementById('consolidar-metodo').value;
-        const totalAdeudo = estadoCuenta.total_adeudo;
+        // Total adeudo SOLO de las rentas seleccionadas, no de todo el cliente.
+        const totalAdeudo = round2(rentasSeleccionadas.reduce(function (s, r) { return s + r.saldo_pendiente; }, 0));
         const cubreTodo = disponible >= totalAdeudo;
         const esEfectivo = metodo === 'EFECTIVO';
 
@@ -56,10 +104,15 @@
         let poolDeudas = cubreTodo ? Math.min(disponible, totalACobrar) : disponible;
         let totalAplicar = 0;
 
-        // Distribute per individual renta (oldest-first)
+        // Distribute per individual renta (oldest-first), solo entre las
+        // seleccionadas — las que no están marcadas se muestran en "-".
         estadoCuenta.rentas.forEach(function (r) {
             const cell = document.getElementById('consolidar-aplicar-' + r.id);
             if (!cell) return;
+            if (idsSeleccionados.indexOf(r.id) === -1) {
+                cell.textContent = '-';
+                return;
+            }
             const pendiente = r.saldo_pendiente;
             const pago = Math.min(poolDeudas, pendiente);
             poolDeudas = Math.max(0, poolDeudas - pago);
@@ -107,6 +160,7 @@
         const saldoFavorGenerado = round2(excedente - cambioEntregado);
 
         document.getElementById('consolidar-total-aplicar').textContent = fmt(totalAplicar);
+        document.getElementById('consolidar-total-adeudo').textContent = fmt(totalAdeudo);
         document.getElementById('consolidar-preview-disponible').textContent = fmt(disponible);
         document.getElementById('consolidar-preview-adeudo').textContent = fmt(totalAdeudo);
 
@@ -184,7 +238,7 @@
                     var folioStr = '#' + String(cadena.folio_raiz || raizId).padStart(4, '0');
 
                     if (eslabones.length > 1) {
-                        // Fila encabezado de cadena
+                        // Fila encabezado de cadena (selecciona/deselecciona todos sus eslabones)
                         var totalCadena = eslabones.reduce(function(s,e){ return s + e.total; }, 0);
                         var pagadoCadena = eslabones.reduce(function(s,e){ return s + e.pagado; }, 0);
                         var saldoCadena  = eslabones.reduce(function(s,e){ return s + e.saldo_pendiente; }, 0);
@@ -192,6 +246,7 @@
                         var trH = document.createElement('tr');
                         trH.className = 'table-primary fw-semibold';
                         trH.innerHTML =
+                            '<td><input type="checkbox" class="form-check-input consolidar-check-cadena" data-raiz-id="' + raizId + '" checked></td>' +
                             '<td colspan="2">' +
                               '<span class="badge bg-primary me-1">' + folioStr + '</span>' +
                               '<span class="badge bg-secondary" style="font-size:.7em;">' + renoLabel + '</span>' +
@@ -202,12 +257,13 @@
                             '<td class="text-primary">$<span id="consolidar-aplicar-cadena-' + raizId + '">0.00</span></td>';
                         tbody.appendChild(trH);
 
-                        // Sub-filas por eslabón
+                        // Sub-filas por eslabón, cada una con su propio checkbox
                         eslabones.forEach(function (r) {
                             var trE = document.createElement('tr');
                             trE.className = 'small text-muted';
                             trE.innerHTML =
-                                '<td class="ps-3"><span class="badge bg-secondary" style="opacity:.75;">#' + String(r.folio || r.id).padStart(4, '0') + '</span></td>' +
+                                '<td><input type="checkbox" class="form-check-input consolidar-check-renta" data-renta-id="' + r.id + '" data-raiz-id="' + raizId + '" checked></td>' +
+                                '<td class="ps-1"><span class="badge bg-secondary" style="opacity:.75;">#' + String(r.folio || r.id).padStart(4, '0') + '</span></td>' +
                                 '<td>' + (r.fecha_salida || '') + '</td>' +
                                 '<td>$' + fmt(r.total) + '</td>' +
                                 '<td>$' + fmt(r.pagado) + '</td>' +
@@ -220,6 +276,7 @@
                         var r = eslabones[0];
                         var tr = document.createElement('tr');
                         tr.innerHTML =
+                            '<td><input type="checkbox" class="form-check-input consolidar-check-renta" data-renta-id="' + r.id + '" data-raiz-id="' + raizId + '" checked></td>' +
                             '<td><span class="badge bg-secondary">' + folioStr + '</span></td>' +
                             '<td>' + (r.fecha_salida || '') + '</td>' +
                             '<td>$' + fmt(r.total) + '</td>' +
@@ -303,6 +360,33 @@
                 sigDiv.style.display = (metodo && metodo !== 'EFECTIVO') ? '' : 'none';
                 actualizarPreview();
             }
+
+            // "Seleccionar todas" (marca/desmarca cada renta)
+            if (e.target.id === 'consolidar-check-todas') {
+                const marcado = e.target.checked;
+                document.querySelectorAll('.consolidar-check-renta').forEach(function (cb) {
+                    cb.checked = marcado;
+                });
+                cambioEditadoManualmente = false;
+                actualizarPreview();
+            }
+
+            // Checkbox de cadena (marca/desmarca todos sus eslabones)
+            if (e.target.classList.contains('consolidar-check-cadena')) {
+                const raizId = e.target.getAttribute('data-raiz-id');
+                const marcado = e.target.checked;
+                document.querySelectorAll('.consolidar-check-renta[data-raiz-id="' + raizId + '"]').forEach(function (cb) {
+                    cb.checked = marcado;
+                });
+                cambioEditadoManualmente = false;
+                actualizarPreview();
+            }
+
+            // Checkbox individual de una renta
+            if (e.target.classList.contains('consolidar-check-renta')) {
+                cambioEditadoManualmente = false;
+                actualizarPreview();
+            }
         });
 
         // Apply payment
@@ -316,7 +400,12 @@
             const cambioEntregado = cambioDivVisible
                 ? (parseFloat(document.getElementById('consolidar-cambio-entregado').value) || 0)
                 : null;
+            const rentaIdsSeleccionados = getRentaIdsSeleccionados();
 
+            if (rentaIdsSeleccionados.length === 0) {
+                Swal.fire('Atención', 'Selecciona al menos una renta para aplicar el pago.', 'warning');
+                return;
+            }
             if (!metodo) {
                 Swal.fire('Atención', 'Selecciona un método de pago.', 'warning');
                 return;
@@ -330,9 +419,12 @@
                 return;
             }
 
+            const todasSeleccionadas = rentaIdsSeleccionados.length === document.querySelectorAll('.consolidar-check-renta').length;
             Swal.fire({
                 title: '¿Aplicar pago consolidado?',
-                text: 'Se distribuirá el pago entre las rentas con saldo pendiente, de la más antigua a la más reciente.',
+                text: todasSeleccionadas
+                    ? 'Se distribuirá el pago entre las rentas con saldo pendiente, de la más antigua a la más reciente.'
+                    : 'Se distribuirá el pago solo entre las ' + rentaIdsSeleccionados.length + ' renta(s) que seleccionaste, de la más antigua a la más reciente.',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#23395d',
@@ -356,7 +448,8 @@
                         numero_seguimiento: seguimiento,
                         usar_saldo_favor: usarSaldo,
                         facturable: parseInt(facturable),
-                        cambio_entregado: cambioEntregado
+                        cambio_entregado: cambioEntregado,
+                        renta_ids: rentaIdsSeleccionados
                     })
                 })
                 .then(function (r) { return r.json(); })

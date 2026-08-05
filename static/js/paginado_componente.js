@@ -2,7 +2,15 @@ class PaginadorTabla {
   constructor(tabla, opciones = {}) {
     this.tabla = tabla;
     this.tbody = tabla.querySelector("tbody");
-    this.filas = Array.from(this.tbody.querySelectorAll("tr"));
+    // Solo las filas DIRECTAS del tbody cuentan para paginar. Usar
+    // querySelectorAll("tr") aquí buscaría también filas anidadas dentro de
+    // tablas internas (ej. la tabla de renovaciones dentro de una fila
+    // colapsable), inflando el conteo. Además, las filas de detalle
+    // (Bootstrap collapse) tampoco cuentan como fila propia: se agrupan con
+    // la fila principal que las precede (ver mostrarPagina).
+    this.filas = Array.from(this.tbody.querySelectorAll(":scope > tr")).filter(
+      (fila) => !fila.classList.contains("collapse")
+    );
 
     this.filasPorPagina = opciones.filasPorPagina || 8;
     this.paginaActual = 1;
@@ -27,7 +35,16 @@ class PaginadorTabla {
     const fin = inicio + this.filasPorPagina;
 
     this.filas.forEach((fila, index) => {
-      fila.style.display = (index >= inicio && index < fin) ? "" : "none";
+      const visible = index >= inicio && index < fin;
+      fila.style.display = visible ? "" : "none";
+
+      // Si justo después viene su fila de detalle (collapse), se oculta o se
+      // deja libre junto con ella. Al dejarla "libre" (sin display inline),
+      // el estado abierto/cerrado del collapse de Bootstrap sigue mandando.
+      const siguiente = fila.nextElementSibling;
+      if (siguiente && siguiente.classList.contains("collapse")) {
+        siguiente.style.display = visible ? "" : "none";
+      }
     });
 
     this.renderBotones();

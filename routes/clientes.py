@@ -551,6 +551,16 @@ def pago_consolidado(cliente_id):
     cambio_entregado_solicitado = data.get('cambio_entregado', None)
     cambio_entregado_solicitado = float(cambio_entregado_solicitado) if cambio_entregado_solicitado is not None else None
 
+    # Rentas específicas seleccionadas por el usuario (checkboxes del modal).
+    # Si viene vacío/ausente, se mantiene el comportamiento de siempre:
+    # todas las rentas pendientes del cliente.
+    renta_ids_seleccionados = data.get('renta_ids') or None
+    if renta_ids_seleccionados:
+        try:
+            renta_ids_seleccionados = [int(x) for x in renta_ids_seleccionados]
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'renta_ids inválido.'})
+
     if monto_efectivo <= 0 and not usar_saldo_favor:
         return jsonify({'success': False, 'message': 'El monto debe ser mayor a cero.'})
 
@@ -573,7 +583,13 @@ def pago_consolidado(cliente_id):
 
         disponible = monto_efectivo + saldo_favor_a_usar
 
-        cursor.execute("""
+        filtro_ids_sql = ""
+        params_rentas = [cliente_id]
+        if renta_ids_seleccionados:
+            filtro_ids_sql = f" AND r.id IN ({','.join(['%s'] * len(renta_ids_seleccionados))})"
+            params_rentas.extend(renta_ids_seleccionados)
+
+        cursor.execute(f"""
             SELECT r.id, r.folio, r.id_sucursal, r.fecha_salida, r.estado_pago,
                    COALESCE(r.total_con_iva, r.total, 0) AS total,
                    COALESCE(
@@ -584,8 +600,9 @@ def pago_consolidado(cliente_id):
             WHERE r.cliente_id = %s
               AND r.estado_renta NOT IN ('cancelada')
               AND r.estado_pago NOT IN ('Pago realizado','Cancelado sin pago','Reembolsado','Saldo a favor')
+              {filtro_ids_sql}
             ORDER BY r.fecha_salida ASC, r.id ASC
-        """, (cliente_id,))
+        """, tuple(params_rentas))
         rentas = cursor.fetchall()
 
         if not rentas:
@@ -795,6 +812,18 @@ def pago_consolidado(cliente_id):
 @requiere_sesion()
 @requiere_permiso('ver_estado_cuenta')
 def pdf_estado_cuenta(cliente_id):
+    # ?renta_ids=1,2,3 — opcional, para generar el estado de cuenta de solo
+    # algunas rentas específicas (seleccionadas con los checkboxes del
+    # modal). Sin este parámetro, se incluyen todas las rentas pendientes
+    # del cliente (comportamiento de siempre).
+    renta_ids_param = request.args.get('renta_ids', '').strip()
+    renta_ids_filtro = None
+    if renta_ids_param:
+        try:
+            renta_ids_filtro = [int(x) for x in renta_ids_param.split(',') if x.strip().isdigit()]
+        except ValueError:
+            renta_ids_filtro = None
+
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -810,8 +839,14 @@ def pdf_estado_cuenta(cliente_id):
         if not cliente:
             return "Cliente no encontrado", 404
 
+        filtro_ids_sql = ""
+        params_rentas = [cliente_id]
+        if renta_ids_filtro:
+            filtro_ids_sql = f" AND r.id IN ({','.join(['%s'] * len(renta_ids_filtro))})"
+            params_rentas.extend(renta_ids_filtro)
+
         # Rentals with pending balance (including finalized-but-unpaid)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT r.id, r.folio, r.id_sucursal,
                    r.fecha_salida, r.fecha_programada, r.fecha_entrada,
                    r.estado_renta, r.estado_pago, r.direccion_obra,
@@ -833,8 +868,9 @@ def pdf_estado_cuenta(cliente_id):
             WHERE r.cliente_id = %s
               AND r.estado_renta NOT IN ('cancelada')
               AND r.estado_pago NOT IN ('Pago realizado','Cancelado sin pago','Reembolsado','Saldo a favor')
+              {filtro_ids_sql}
             ORDER BY r.fecha_salida ASC, r.id ASC
-        """, (cliente_id,))
+        """, tuple(params_rentas))
         rentas_raw = cursor.fetchall()
 
         rentas = []

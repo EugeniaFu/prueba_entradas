@@ -186,7 +186,7 @@
                             {% if historial %}
                             <div class="historial-card">
                                 <div class="table-responsive">
-                                    <table class="table historial-table mb-0">
+                                    <table class="table historial-table mb-0 tabla-paginada" data-filas="5">
                                         <thead>
                                             <tr>
                                                 <th></th>
@@ -291,6 +291,7 @@
                                             {% endfor %}
                                         </tbody>
                                     </table>
+                                    <div class="paginacion mt-3 d-flex justify-content-center"></div>
                                 </div>
                             </div>
                             {% else %}
@@ -308,7 +309,7 @@
         <div class="col-md-4">
 
             <!-- Saldo a Favor -->
-            <div class="detalle-card mb-4" id="panelSaldoFavor">
+            <div class="detalle-card mb-4 d-none" id="panelSaldoFavor">
                 <div class="detalle-card-title-bar d-flex align-items-center justify-content-between">
                     <span><i class="bi bi-piggy-bank me-1"></i>Saldo a Favor</span>
                 </div>
@@ -332,7 +333,7 @@
             </div>
 
             <!-- Historial de pagos consolidados -->
-            <div class="detalle-card mb-4" id="panelHistorialConsolidados">
+            <div class="detalle-card mb-4 d-none" id="panelHistorialConsolidados">
                 <div class="detalle-card-title-bar">
                     <i class="bi bi-clock-history me-1"></i>Pagos Consolidados
                 </div>
@@ -423,15 +424,21 @@
     var historialTabBtn = document.getElementById('historial-tab');
     var panelArchivos = document.getElementById('panelArchivos');
     var panelResumen = document.getElementById('panelResumen');
+    var panelSaldoFavor = document.getElementById('panelSaldoFavor');
+    var panelHistorialConsolidados = document.getElementById('panelHistorialConsolidados');
 
     if (infoTabBtn && historialTabBtn && panelArchivos && panelResumen) {
         infoTabBtn.addEventListener('shown.bs.tab', function () {
             panelArchivos.classList.remove('d-none');
             panelResumen.classList.add('d-none');
+            if (panelSaldoFavor) panelSaldoFavor.classList.add('d-none');
+            if (panelHistorialConsolidados) panelHistorialConsolidados.classList.add('d-none');
         });
         historialTabBtn.addEventListener('shown.bs.tab', function () {
             panelArchivos.classList.add('d-none');
             panelResumen.classList.remove('d-none');
+            if (panelSaldoFavor) panelSaldoFavor.classList.remove('d-none');
+            if (panelHistorialConsolidados) panelHistorialConsolidados.classList.remove('d-none');
         });
     }
 
