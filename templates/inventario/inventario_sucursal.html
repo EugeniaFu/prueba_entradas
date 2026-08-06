@@ -96,9 +96,13 @@
 
     <!-- Botones de Acción -->
     <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
-        <a href="{{ url_for('inventario.historial_transferencias_page', sucursal_id=sucursal.id_sucursal) }}" 
+        <a href="{{ url_for('inventario.historial_transferencias_page', sucursal_id=sucursal.id_sucursal) }}"
            class="btn btn-inventario-filter">
             <i class="bi bi-clock-history me-2"></i>Historial
+        </a>
+        <a href="{{ url_for('inventario.generar_pdf_conteo_inventario', sucursal_id=sucursal.id_sucursal) }}"
+           target="_blank" class="btn btn-inventario-filter" title="Descargar inventario en PDF para conteo físico">
+            <i class="bi bi-file-earmark-pdf me-2"></i>Descargar PDF
         </a>
         <button class="btn btn-inventario-secondary" data-bs-toggle="modal" data-bs-target="#modalMarcarDaniadas">
             <i class="bi bi-exclamation-triangle me-2"></i>Marcar como Dañadas

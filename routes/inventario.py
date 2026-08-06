@@ -290,7 +290,6 @@ def inventario_sucursal(sucursal_id):
 
 
 
-
 @bp_inventario.route('/enviar-equipos', methods=['POST'])
 @requiere_sesion()
 @requiere_permiso('transferir_piezas_inventario')
@@ -1445,13 +1444,137 @@ def historial_transferencias_page(sucursal_id):
 
 
 
-
-
-
 #######################################
 #######################################
 #######################################
 ############################ ENPONIDS DE PDFS DEL INVENTARIO 
+
+########## PDF INVENTARIO TOTAL ########## 
+@bp_inventario.route('/pdf-conteo/<int:sucursal_id>')
+@requiere_sesion()
+@requiere_permiso('ver_inventario_sucursal')
+def generar_pdf_conteo_inventario(sucursal_id):
+    """
+    Genera un PDF vertical con el inventario completo de la sucursal, listo
+    para imprimir y usar en un conteo físico: incluye las cantidades que
+    tiene el sistema y una línea en blanco debajo de cada una para anotar
+    el conteo real.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("SELECT id AS id_sucursal, nombre FROM sucursales WHERE id = %s", (sucursal_id,))
+    sucursal = cursor.fetchone()
+    if not sucursal:
+        cursor.close()
+        conn.close()
+        return "Sucursal no encontrada", 404
+
+    cursor.execute("""
+        SELECT p.nombre_pieza,
+               IFNULL(i.total, 0) AS total,
+               IFNULL(i.disponibles, 0) AS disponibles,
+               IFNULL(i.rentadas, 0) AS rentadas,
+               IFNULL(i.daniadas, 0) AS daniadas,
+               IFNULL(i.en_reparacion, 0) AS en_reparacion
+        FROM piezas p
+        LEFT JOIN inventario_sucursal i
+            ON p.id_pieza = i.id_pieza AND i.id_sucursal = %s
+        ORDER BY p.nombre_pieza
+    """, (sucursal_id,))
+    piezas = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    page_size = letter
+    page_width, page_height = page_size
+
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=page_size)
+
+    try:
+        font_path = os.path.join(current_app.root_path, 'static/fonts/Carlito-Regular.ttf')
+        if os.path.exists(font_path):
+            pdfmetrics.registerFont(TTFont('Carlito', font_path))
+    except Exception:
+        pass
+
+    fecha_generacion = format_datetime_local(get_local_now(), '%d/%m/%Y %H:%M')
+
+    columnas = [
+        ("PIEZA", 30, None),
+        ("TOTAL SIST.", 250, 45),
+        ("DISPONIBLES", 320, 45),
+        ("RENTADAS", 390, 45),
+        ("DAÑADAS", 455, 45),
+        ("EN REPARACIÓN", 515, 50),
+    ]
+
+    def dibujar_encabezado():
+        can.setFont("Helvetica-Bold", 12)
+        can.drawString(30, page_height - 35, f"INVENTARIO CONTEO FÍSICO — {sucursal['nombre'].upper()}")
+        can.setFont("Carlito", 9)
+        can.drawRightString(page_width - 30, page_height - 35, f"GENERADO: {fecha_generacion}")
+
+        y_tabla = page_height - 60
+        can.setFillColorRGB(0.14, 0.22, 0.37)
+        can.rect(28, y_tabla - 14, page_width - 56, 18, fill=1, stroke=0)
+        can.setFillColorRGB(1, 1, 1)
+        can.setFont("Helvetica-Bold", 8)
+        for nombre_col, x, _ in columnas:
+            can.drawString(x, y_tabla - 8, nombre_col)
+        can.setFillColorRGB(0, 0, 0)
+        return y_tabla - 22
+
+    y = dibujar_encabezado()
+    can.setFont("Carlito", 9)
+
+    for idx, pieza in enumerate(piezas):
+        if y < 50:
+            can.showPage()
+            can.setFont("Carlito", 9)
+            y = dibujar_encabezado()
+            can.setFont("Carlito", 9)
+
+        if idx % 2 == 1:
+            can.setFillColorRGB(0.96, 0.96, 0.96)
+            can.rect(28, y - 16, page_width - 56, 27, fill=1, stroke=0)
+            can.setFillColorRGB(0, 0, 0)
+
+        can.setFont("Helvetica-Bold", 9)
+        can.drawString(30, y-8, str(pieza['nombre_pieza'])[:40].upper())
+        can.drawString(250, y-2, str(pieza['total']))
+        can.drawString(320, y-2, str(pieza['disponibles']))
+        can.drawString(390, y-2, str(pieza['rentadas']))
+        can.drawString(455, y-2, str(pieza['daniadas']))
+        can.drawString(515, y-2, str(pieza['en_reparacion']))
+
+        # Debajo de cada columna numérica, una línea en blanco para anotar
+        # a mano lo que realmente hay en el conteo físico.
+        for _, x, ancho_linea in columnas:
+            if ancho_linea:
+                can.line(x, y - 14, x + ancho_linea, y - 14)
+
+        y -= 28
+
+    can.save()
+    packet.seek(0)
+
+    output = PdfWriter()
+    overlay_pdf = PdfReader(packet)
+    for page in overlay_pdf.pages:
+        output.add_page(page)
+
+    filename = f"Inventario_Conteo_{sucursal['nombre'].replace(' ', '_')}.pdf"
+    output.add_metadata({'/Title': filename})
+
+    output_stream = BytesIO()
+    output.write(output_stream)
+    output_stream.seek(0)
+
+    return send_file(output_stream, download_name=filename, mimetype='application/pdf')
+
+
 
 ########## PDF DE TRANSFERENCIAS DE SALIDAS  ########## 
 
