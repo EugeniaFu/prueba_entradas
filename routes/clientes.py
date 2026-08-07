@@ -18,6 +18,30 @@ from PyPDF2 import PdfReader, PdfWriter
 
 clientes_bp = Blueprint('clientes', __name__, url_prefix='/clientes')
 
+_MESES_ES = {
+    1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+    7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+}
+
+
+def _formatear_periodo(fecha_inicio, fecha_fin=None, label_fin='EN CURSO'):
+    
+    if not fecha_inicio:
+        return '—'
+
+    dia_ini = fecha_inicio.day
+    mes_ini = _MESES_ES[fecha_inicio.month]
+
+    if not fecha_fin:
+        return f"PERIODO DESDE EL {dia_ini:02d} DE {mes_ini} — {label_fin}"
+
+    dia_fin = fecha_fin.day
+    mes_fin = _MESES_ES[fecha_fin.month]
+
+    if fecha_inicio.month == fecha_fin.month and fecha_inicio.year == fecha_fin.year:
+        return f"PERIODO DEL {dia_ini:02d} AL {dia_fin:02d} DE {mes_ini}"
+    return f"PERIODO DEL {dia_ini:02d} DE {mes_ini} AL {dia_fin:02d} DE {mes_fin}"
+
 @clientes_bp.route('/', methods=['GET'])
 @requiere_sesion()
 @requiere_permiso('ver_clientes')
@@ -934,6 +958,8 @@ def pdf_estado_cuenta(cliente_id):
 
         total_adeudo = sum(r['saldo_pendiente'] for r in rentas)
         neto_a_pagar = max(0.0, total_adeudo - saldo_favor)
+        subtotal_general = round(sum(r['subtotal'] for r in rentas), 2)
+        iva_general = round(sum(r['iva_monto'] for r in rentas), 2)
         plantilla_renta = cliente.get('plantilla_cotizacion') or cliente.get('plantilla_renta')
 
     finally:
@@ -961,13 +987,8 @@ def pdf_estado_cuenta(cliente_id):
     can.setFont("Carlito", 10)
     can.drawString(482, 720, fecha_str)
 
-    # ── Datos del cliente ─────────────────────────────────────────────────────
-    y = 690
-    can.setFont("Helvetica-Bold", 11)
-    can.drawString(25, y - 5, "DATOS DEL CLIENTE")
-    y -= 20
-    can.line(25, y + 12, 580, y + 12)
-
+    
+    y = 700
     can.setFont("Carlito", 10)
     codigo = cliente.get('codigo_cliente') or '—'
     can.drawString(25, y, f"CLIENTE: {codigo} - {nombre_completo.upper()}")
@@ -979,10 +1000,21 @@ def pdf_estado_cuenta(cliente_id):
 
     can.setFont("Carlito", 10)
     can.drawString(25, y,
-        "A CONTINUACIÓN SE PRESENTAN LAS RENTAS CON SALDO PENDIENTE DE PAGO:")
+        "A CONTINUACIÓN SE PRESENTAN LAS RENTAS SOLICITADAS:")
     y -= 10
 
-    # ── Encabezado tabla ─────────────────────────────────────────────────────
+    # ── Franja azul fuerte única con encabezado de columnas ─────────────────
+    can.setFillColorRGB(0.14, 0.22, 0.37)
+    can.rect(25, y - 14, 555, 18, fill=1, stroke=0)
+    can.setFillColorRGB(1, 1, 1)
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(30, y - 8, "DESCRIPCIÓN")
+    can.drawRightString(340, y - 8, "CANT.")
+    can.drawRightString(390, y - 8, "DÍAS")
+    can.drawRightString(468, y - 8, "P. UNIT.")
+    can.drawRightString(540, y - 8, "SUBTOTAL")
+    can.setFillColorRGB(0, 0, 0)
+    y -= 16
 
     def nueva_pagina_ec():
         can.showPage()
@@ -1001,81 +1033,23 @@ def pdf_estado_cuenta(cliente_id):
     for raiz_id in orden_raiz:
         cadena = cadenas[raiz_id]
         eslabones = cadena['eslabones']
-        folio_raiz = cadena['folio_raiz']
 
         primer = eslabones[0]
         ultimo = eslabones[-1]
 
-        fecha_inicio = primer['fecha_salida'].strftime('%d/%m/%Y') if primer.get('fecha_salida') else '—'
-        if ultimo.get('fecha_entrada'):
-            fecha_fin_cadena = ultimo['fecha_entrada'].strftime('%d/%m/%Y')
-            lbl_fin_cadena = 'ENTRADA'
-        elif ultimo.get('fecha_programada'):
-            fecha_fin_cadena = ultimo['fecha_programada'].strftime('%d/%m/%Y')
-            lbl_fin_cadena = 'PROG'
-        else:
-            fecha_fin_cadena = 'EN CURSO'
-            lbl_fin_cadena = ''
-
-        total_cadena = sum(e['total_con_iva'] for e in eslabones)
-        pagado_cadena = sum(e['pagado'] for e in eslabones)
-        saldo_cadena = round(sum(e['saldo_pendiente'] for e in eslabones), 2)
-
-        total_prods = sum(len(e.get('productos', [])) for e in eslabones)
-        altura_cadena = 22 + 12 + 14 + len(eslabones) * 13 + total_prods * 10 + 48
+        total_prods = sum(
+            len(e.get('productos', [])) + (1 if float(e.get('costo_traslado') or 0) > 0 else 0)
+            for e in eslabones
+        )
+        altura_cadena = len(eslabones) * 13 + total_prods * 10 + 48
         if y - altura_cadena < 180:
             y = nueva_pagina_ec()
-
-        folio_str = f"#{str(folio_raiz).zfill(4)}" if folio_raiz else f"ID {raiz_id}"
-
-        # ── Encabezado de cadena (azul oscuro) ────────────────────────────
-        can.setFillColorRGB(0.14, 0.22, 0.37)
-        can.rect(25, y - 14, 555, 18, fill=1, stroke=0)
-        can.setFillColorRGB(1, 1, 1)
-        can.setFont("Helvetica-Bold", 9)
-        can.drawString(29, y - 8, f"RENTA {folio_str}")
-        can.setFont("Carlito", 9)
-        periodo_txt = (f"{fecha_inicio}  →  {lbl_fin_cadena + ': ' if lbl_fin_cadena else ''}{fecha_fin_cadena}")
-        can.drawString(106, y - 8, periodo_txt)
-        can.setFillColorRGB(0, 0, 0)
-        y -= 16
-
-        # Dirección de obra (del último eslabón, o del primero)
-        obra = ultimo.get('direccion_obra') or primer.get('direccion_obra')
-        if obra:
-            can.setFillColorRGB(0.94, 0.94, 0.94)
-            can.rect(25, y - 10, 555, 12, fill=1, stroke=0)
-            can.setFillColorRGB(0.2, 0.2, 0.2)
-            can.setFont("Carlito", 8)
-            can.drawString(29, y - 7, f"OBRA: {obra[:90].upper()}")
-            can.setFillColorRGB(0, 0, 0)
-            y -= 12
-
-        # Encabezado de columnas de la cadena
-        can.setFillColorRGB(0.88, 0.88, 0.88)
-        can.rect(25, y - 11, 555, 13, fill=1, stroke=0)
-        can.setFillColorRGB(0, 0, 0)
-        can.setFont("Helvetica-Bold", 8)
-        can.drawString(30, y - 8, "DESCRIPCIÓN")
-        can.drawRightString(340, y - 8, "CANT.")
-        can.drawRightString(390, y - 8, "DÍAS")
-        can.drawRightString(468, y - 8, "P. UNIT.")
-        can.drawRightString(540, y - 8, "SUBTOTAL")
-        y -= 13
 
         # ── Eslabones (cortes de la cadena) ───────────────────────────────
         for eslabon in eslabones:
             e_folio = f"#{str(eslabon['folio']).zfill(4)}" if eslabon.get('folio') else ''
-            e_sal = eslabon['fecha_salida'].strftime('%d/%m/%Y') if eslabon.get('fecha_salida') else '—'
-            if eslabon.get('fecha_entrada'):
-                e_fin = eslabon['fecha_entrada'].strftime('%d/%m/%Y')
-                e_lbl = 'ENTRADA'
-            elif eslabon.get('fecha_programada'):
-                e_fin = eslabon['fecha_programada'].strftime('%d/%m/%Y')
-                e_lbl = 'PROG'
-            else:
-                e_fin = '—'
-                e_lbl = 'PROG'
+            fecha_fin_eslabon = eslabon.get('fecha_entrada') or eslabon.get('fecha_programada')
+            periodo_eslabon = _formatear_periodo(eslabon.get('fecha_salida'), fecha_fin_eslabon)
 
             if y < 80:
                 y = nueva_pagina_ec()
@@ -1087,23 +1061,28 @@ def pdf_estado_cuenta(cliente_id):
             can.setFont("Helvetica-Bold", 8)
             can.drawString(29, y - 6, e_folio)
             can.setFont("Carlito", 8)
-            can.drawString(62, y - 6, f"SALIDA: {e_sal}   {e_lbl}: {e_fin}")
-            costo_tras_e = float(eslabon.get('costo_traslado') or 0)
-            if costo_tras_e > 0:
-                tipo_tras_e = (eslabon.get('traslado') or '').upper()
-                can.drawRightString(540, y - 6, f"TRASLADO ({tipo_tras_e}): ${costo_tras_e:.2f}")
+            can.drawString(62, y - 6, periodo_eslabon)
             can.setFillColorRGB(0, 0, 0)
             y -= 18
 
-            # Productos del eslabón
+            # Productos del eslabón (el traslado se agrega como una fila más,
+            # con las mismas columnas que cualquier producto)
             can.setFont("Carlito", 8)
-            for idx, prod in enumerate(eslabon.get('productos', [])):
+            filas_eslabon = list(eslabon.get('productos', []))
+            costo_tras_e = float(eslabon.get('costo_traslado') or 0)
+            if costo_tras_e > 0:
+                tipo_tras_e = (eslabon.get('traslado') or '').upper()
+                filas_eslabon.append({
+                    'nombre': f"SERVICIO DE TRASLADO {tipo_tras_e}",
+                    'cantidad': 1,
+                    'dias_renta': 1,
+                    'costo_unitario': costo_tras_e,
+                    'subtotal': costo_tras_e,
+                    'es_traslado': True,
+                })
+            for idx, prod in enumerate(filas_eslabon):
                 if y < 80:
                     y = nueva_pagina_ec()
-                if idx % 2 == 1:
-                    can.setFillColorRGB(0.97, 0.97, 0.97)
-                    can.rect(25, y - 3, 555, 11, fill=1, stroke=0)
-                    can.setFillColorRGB(0, 0, 0)
                 can.drawString(30, y, str(prod['nombre'])[:42].upper())
                 can.drawRightString(340, y, str(prod['cantidad']))
                 can.drawRightString(390, y, str(prod.get('dias_renta') or '—'))
@@ -1111,37 +1090,31 @@ def pdf_estado_cuenta(cliente_id):
                 can.drawRightString(540, y, f"${float(prod.get('subtotal', 0)):.2f}")
                 y -= 10
 
-        # ── Totales de la cadena ───────────────────────────────────────────
-        y -= 2
-        can.setStrokeColorRGB(0.65, 0.65, 0.65)
-        can.line(330, y + 2, 555, y + 2)
-        can.setStrokeColorRGB(0, 0, 0)
-        y -= 5
+            # Abono ya realizado a esta renta (antes de este documento)
+            abono_e = float(eslabon.get('pagado') or 0)
+            if abono_e > 0.01:
+                if y < 80:
+                    y = nueva_pagina_ec()
+                can.setFont("Carlito", 8)
+                can.setFillColorRGB(0, 0.45, 0)
+                can.drawRightString(540, y, f"ABONO: ${abono_e:.2f}")
+                can.setFillColorRGB(0, 0, 0)
+                y -= 10
 
-        can.setFont("Carlito", 8)
-        can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y, "TOTAL + IVA(16%):")
-        can.setFillColorRGB(0, 0, 0)
-        can.drawRightString(540, y, f"${total_cadena:.2f}")
-        y -= 10
+            # Dirección de obra de este eslabón (debajo del traslado)
+            obra_e = eslabon.get('direccion_obra')
+            if obra_e:
+                if y < 80:
+                    y = nueva_pagina_ec()
+                can.setFillColorRGB(0.94, 0.94, 0.94)
+                can.rect(25, y - 7, 555, 12, fill=1, stroke=0)
+                can.setFillColorRGB(0.2, 0.2, 0.2)
+                can.setFont("Carlito", 8)
+                can.drawString(29, y - 4, f"OBRA: {obra_e[:90].upper()}")
+                can.setFillColorRGB(0, 0, 0)
+                y -= 12
 
-        can.setFont("Carlito", 8)
-        can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y, "PAGADO:")
-        can.setFillColorRGB(0, 0.45, 0)
-        can.drawRightString(540, y, f"${pagado_cadena:.2f}")
-        can.setFillColorRGB(0, 0, 0)
-        y -= 10
-
-        can.setFillColorRGB(0.96, 0.88, 0.88)
-        can.rect(330, y - 4, 225, 14, fill=1, stroke=0)
-        can.setFillColorRGB(0.65, 0, 0)
-        can.setFont("Helvetica-Bold", 9)
-        can.drawRightString(468, y, "SALDO PENDIENTE:")
-        can.drawRightString(540, y, f"${saldo_cadena:.2f}")
-        can.setFillColorRGB(0, 0, 0)
-        y -= 14
-
+        y -= 8
 
     # ── Resumen general ───────────────────────────────────────────────────────
     if y < 160:
@@ -1154,6 +1127,20 @@ def pdf_estado_cuenta(cliente_id):
     can.setLineWidth(1)
     y -= 7
 
+    can.setFont("Carlito", 10)
+    can.setFillColorRGB(0.35, 0.35, 0.35)
+    can.drawRightString(465, y, "SUBTOTAL:")
+    can.setFillColorRGB(0, 0, 0)
+    can.drawRightString(545, y, f"${subtotal_general:.2f}")
+    y -= 14
+
+    can.setFont("Carlito", 10)
+    can.setFillColorRGB(0.35, 0.35, 0.35)
+    can.drawRightString(465, y, "16% IVA:")
+    can.setFillColorRGB(0, 0, 0)
+    can.drawRightString(545, y, f"${iva_general:.2f}")
+    y -= 14
+
     if saldo_favor > 0:
         can.setFillColorRGB(0, 0.5, 0)
         can.drawRightString(465, y, "SALDO A FAVOR:")
@@ -1161,7 +1148,7 @@ def pdf_estado_cuenta(cliente_id):
         can.setFillColorRGB(0, 0, 0)
         y -= 15
     can.setFont("Helvetica-Bold", 11)
-    can.drawRightString(465, y, "TOTAL ADEUDADO:")
+    can.drawRightString(465, y, "TOTAL:")
     can.drawRightString(545, y, f"${neto_a_pagar:.2f}")
     y -= 10
 
@@ -1262,13 +1249,11 @@ def pdf_estado_cuenta(cliente_id):
 
 
 
-
-
-
-
-
-
-
+##############################################################
+##############################################################
+##############################################################
+##############################################################
+##############################################################
 # ─────────────────────────────────────────────────────────────────────────────
 # PDF COMPROBANTE DE PAGO CONSOLIDADO (post-pago)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1370,6 +1355,8 @@ def pdf_comprobante_consolidado(cliente_id):
                            r.folio
                        ) AS folio_raiz,
                        COALESCE(r.total_con_iva, r.total, 0) AS total_renta,
+                       COALESCE(r.total, 0) AS subtotal_renta,
+                       COALESCE(r.iva, 0) AS iva_renta,
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
                            0
@@ -1399,6 +1386,8 @@ def pdf_comprobante_consolidado(cliente_id):
                            r.folio
                        ) AS folio_raiz,
                        COALESCE(r.total_con_iva, r.total, 0) AS total_renta,
+                       COALESCE(r.total, 0) AS subtotal_renta,
+                       COALESCE(r.iva, 0) AS iva_renta,
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
                            0
@@ -1417,6 +1406,12 @@ def pdf_comprobante_consolidado(cliente_id):
             return "No se encontraron prefacturas", 404
         folio_num = filas[0]['folio'] if filas[0].get('folio') else folio_num
 
+        # Subtotal/IVA global: una sola vez por renta (no por cada abono/prefactura)
+        rentas_unicas = {f['renta_id']: f for f in filas}
+        subtotal_general = round(sum(float(r['subtotal_renta'] or 0) for r in rentas_unicas.values()), 2)
+        iva_general = round(sum(float(r['iva_renta'] or 0) for r in rentas_unicas.values()), 2)
+        total_general = round(subtotal_general + iva_general, 2)
+
         # Detalle de productos por renta (mismo bloque visual que pdf_estado_cuenta)
         for f in filas:
             cursor.execute("""
@@ -1426,6 +1421,12 @@ def pdf_comprobante_consolidado(cliente_id):
                 WHERE rd.renta_id = %s
             """, (f['renta_id'],))
             f['productos'] = cursor.fetchall()
+            cursor.execute("SELECT traslado, costo_traslado, direccion_obra FROM rentas WHERE id = %s", (f['renta_id'],))
+            r_extra = cursor.fetchone() or {}
+            f['traslado'] = r_extra.get('traslado')
+            f['costo_traslado'] = r_extra.get('costo_traslado')
+            if not f.get('direccion_obra'):
+                f['direccion_obra'] = r_extra.get('direccion_obra')
 
         plantilla_renta = cliente.get('plantilla_renta')
         monto_total = sum(float(f['monto']) for f in filas)
@@ -1511,7 +1512,7 @@ def pdf_comprobante_consolidado(cliente_id):
     y_cliente -= 13
     can.drawString(36, y_cliente, f"RFC: {(cliente.get('rfc') or 'NO REGISTRADO').upper()}")
     can.drawString(290, y_cliente, f"SUCURSAL: {(cliente.get('sucursal_nombre') or '').upper()}")
-    y_cliente -= 20
+    y_cliente -= 5
 
     # ── Rentas pagadas en este comprobante (mismo diseño que Estado de Cuenta) ──
     y_tabla = y_cliente - 5
@@ -1541,88 +1542,44 @@ def pdf_comprobante_consolidado(cliente_id):
             orden_raiz.append(raiz_id)
         cadenas[raiz_id]['eslabones'].append(f)
 
+    # ── Franja azul fuerte única con encabezado de columnas ─────────────────
+    can.setFillColorRGB(0.14, 0.22, 0.37)
+    can.rect(25, y_tabla - 14, 555, 18, fill=1, stroke=0)
+    can.setFillColorRGB(1, 1, 1)
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(30, y_tabla - 8, "DESCRIPCIÓN")
+    can.drawRightString(340, y_tabla - 8, "CANT.")
+    can.drawRightString(390, y_tabla - 8, "DÍAS")
+    can.drawRightString(468, y_tabla - 8, "P. UNIT.")
+    can.drawRightString(540, y_tabla - 8, "SUBTOTAL")
+    can.setFillColorRGB(0, 0, 0)
+    y_tabla -= 16
+
     saldo_restante_total = 0.0
     for raiz_id in orden_raiz:
         cadena = cadenas[raiz_id]
         eslabones = cadena['eslabones']
-        folio_raiz = cadena['folio_raiz']
 
-        primer = eslabones[0]
-        ultimo = eslabones[-1]
-        fecha_inicio = primer['fecha_salida'].strftime('%d/%m/%Y') if primer.get('fecha_salida') else '—'
-        if ultimo.get('fecha_entrada'):
-            fecha_fin_cadena = ultimo['fecha_entrada'].strftime('%d/%m/%Y')
-            lbl_fin_cadena = 'ENTRADA'
-        elif ultimo.get('fecha_programada'):
-            fecha_fin_cadena = ultimo['fecha_programada'].strftime('%d/%m/%Y')
-            lbl_fin_cadena = 'PROG'
-        else:
-            fecha_fin_cadena = 'EN CURSO'
-            lbl_fin_cadena = ''
-
-        # Totales agregados de toda la cadena (no por eslabón individual)
+        # Totales agregados de toda la cadena (no se dibujan, solo se
+        # acumulan para el resumen global al final del documento)
         total_cadena = sum(float(e['total_renta']) for e in eslabones)
-        pagado_operacion_cadena = sum(float(e['monto']) for e in eslabones)
         total_pagado_cadena = sum(float(e['total_pagado_renta']) for e in eslabones)
-        abonos_anteriores_cadena = max(0.0, round(total_pagado_cadena - pagado_operacion_cadena, 2))
         saldo_cadena = max(0.0, round(total_cadena - total_pagado_cadena, 2))
         saldo_restante_total = round(saldo_restante_total + saldo_cadena, 2)
 
-        folio_str = f"#{str(folio_raiz).zfill(4)}" if folio_raiz else f"ID {raiz_id}"
-
-        total_prods_cadena = sum(len(e.get('productos', [])) for e in eslabones)
-        altura_cadena = 22 + 12 + 14 + len(eslabones) * 13 + total_prods_cadena * 10 + 48
+        total_prods_cadena = sum(
+            len(e.get('productos', [])) + (1 if float(e.get('costo_traslado') or 0) > 0 else 0)
+            for e in eslabones
+        )
+        altura_cadena = len(eslabones) * 13 + total_prods_cadena * 10 + 48
         if y_tabla - altura_cadena < 180:
             y_tabla = nueva_pagina_comp()
-
-        # Encabezado de cadena (azul oscuro)
-        can.setFillColorRGB(0.14, 0.22, 0.37)
-        can.rect(25, y_tabla - 14, 555, 18, fill=1, stroke=0)
-        can.setFillColorRGB(1, 1, 1)
-        can.setFont("Helvetica-Bold", 9)
-        can.drawString(29, y_tabla - 8, f"RENTA {folio_str}")
-        can.setFont("Carlito", 9)
-        periodo_txt = f"{fecha_inicio}  →  {lbl_fin_cadena + ': ' if lbl_fin_cadena else ''}{fecha_fin_cadena}"
-        can.drawString(106, y_tabla - 8, periodo_txt)
-        can.setFillColorRGB(0, 0, 0)
-        y_tabla -= 16
-
-        # Dirección de obra (del último eslabón, o del primero)
-        obra = ultimo.get('direccion_obra') or primer.get('direccion_obra')
-        if obra:
-            can.setFillColorRGB(0.94, 0.94, 0.94)
-            can.rect(25, y_tabla - 10, 555, 12, fill=1, stroke=0)
-            can.setFillColorRGB(0.2, 0.2, 0.2)
-            can.setFont("Carlito", 8)
-            can.drawString(29, y_tabla - 7, f"OBRA: {obra[:90].upper()}")
-            can.setFillColorRGB(0, 0, 0)
-            y_tabla -= 12
-
-        # Encabezado de columnas de productos
-        can.setFillColorRGB(0.88, 0.88, 0.88)
-        can.rect(25, y_tabla - 11, 555, 13, fill=1, stroke=0)
-        can.setFillColorRGB(0, 0, 0)
-        can.setFont("Helvetica-Bold", 8)
-        can.drawString(30, y_tabla - 8, "DESCRIPCIÓN")
-        can.drawRightString(340, y_tabla - 8, "CANT.")
-        can.drawRightString(390, y_tabla - 8, "DÍAS")
-        can.drawRightString(468, y_tabla - 8, "P. UNIT.")
-        can.drawRightString(540, y_tabla - 8, "SUBTOTAL")
-        y_tabla -= 13
 
         # ── Eslabones (cortes de la cadena): barra de período + sus productos ──
         for eslabon in eslabones:
             e_folio = f"#{str(eslabon['folio_renta']).zfill(4)}" if eslabon.get('folio_renta') else ''
-            e_sal = eslabon['fecha_salida'].strftime('%d/%m/%Y') if eslabon.get('fecha_salida') else '—'
-            if eslabon.get('fecha_entrada'):
-                e_fin = eslabon['fecha_entrada'].strftime('%d/%m/%Y')
-                e_lbl = 'ENTRADA'
-            elif eslabon.get('fecha_programada'):
-                e_fin = eslabon['fecha_programada'].strftime('%d/%m/%Y')
-                e_lbl = 'PROG'
-            else:
-                e_fin = '—'
-                e_lbl = 'PROG'
+            fecha_fin_eslabon = eslabon.get('fecha_entrada') or eslabon.get('fecha_programada')
+            periodo_eslabon = _formatear_periodo(eslabon.get('fecha_salida'), fecha_fin_eslabon)
 
             if y_tabla < 100:
                 y_tabla = nueva_pagina_comp()
@@ -1633,18 +1590,26 @@ def pdf_comprobante_consolidado(cliente_id):
             can.setFont("Helvetica-Bold", 8)
             can.drawString(29, y_tabla - 6, e_folio)
             can.setFont("Carlito", 8)
-            can.drawString(62, y_tabla - 6, f"SALIDA: {e_sal}   {e_lbl}: {e_fin}")
+            can.drawString(62, y_tabla - 6, periodo_eslabon)
             can.setFillColorRGB(0, 0, 0)
             y_tabla -= 18
 
             can.setFont("Carlito", 8)
-            for idx, prod in enumerate(eslabon.get('productos', [])):
+            filas_eslabon = list(eslabon.get('productos', []))
+            costo_tras_e = float(eslabon.get('costo_traslado') or 0)
+            if costo_tras_e > 0:
+                tipo_tras_e = (eslabon.get('traslado') or '').upper()
+                filas_eslabon.append({
+                    'nombre': f"SERVICIO DE TRASLADO {tipo_tras_e}",
+                    'cantidad': 1,
+                    'dias_renta': 1,
+                    'costo_unitario': costo_tras_e,
+                    'subtotal': costo_tras_e,
+                    'es_traslado': True,
+                })
+            for idx, prod in enumerate(filas_eslabon):
                 if y_tabla < 80:
                     y_tabla = nueva_pagina_comp()
-                if idx % 2 == 1:
-                    can.setFillColorRGB(0.97, 0.97, 0.97)
-                    can.rect(25, y_tabla - 3, 555, 11, fill=1, stroke=0)
-                    can.setFillColorRGB(0, 0, 0)
                 can.drawString(30, y_tabla, str(prod['nombre'])[:42].upper())
                 can.drawRightString(340, y_tabla, str(prod['cantidad']))
                 can.drawRightString(390, y_tabla, str(prod.get('dias_renta') or '—'))
@@ -1652,50 +1617,45 @@ def pdf_comprobante_consolidado(cliente_id):
                 can.drawRightString(540, y_tabla, f"${float(prod.get('subtotal', 0)):.2f}")
                 y_tabla -= 10
 
-        # Totales de la cadena (una sola vez, sumando todos sus eslabones)
-        y_tabla -= 2
-        can.setStrokeColorRGB(0.65, 0.65, 0.65)
-        can.line(330, y_tabla + 2, 555, y_tabla + 2)
-        can.setStrokeColorRGB(0, 0, 0)
-        y_tabla -= 5
+            # Dirección de obra de este eslabón (debajo del traslado)
+            obra_e = eslabon.get('direccion_obra')
+            if obra_e:
+                if y_tabla < 80:
+                    y_tabla = nueva_pagina_comp()
+                can.setFillColorRGB(0.94, 0.94, 0.94)
+                can.rect(25, y_tabla - 7, 555, 12, fill=1, stroke=0)
+                can.setFillColorRGB(0.2, 0.2, 0.2)
+                can.setFont("Carlito", 8)
+                can.drawString(29, y_tabla - 4, f"OBRA: {obra_e[:90].upper()}")
+                can.setFillColorRGB(0, 0, 0)
+                y_tabla -= 12
 
-        can.setFont("Carlito", 8)
-        can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y_tabla, "TOTAL + IVA(16%):")
-        can.setFillColorRGB(0, 0, 0)
-        can.drawRightString(540, y_tabla, f"${total_cadena:.2f}")
         y_tabla -= 10
-
-        if abonos_anteriores_cadena > 0.01:
-            can.setFont("Carlito", 8)
-            can.setFillColorRGB(0.35, 0.35, 0.35)
-            can.drawRightString(468, y_tabla, "ABONOS ANTERIORES:")
-            can.setFillColorRGB(0, 0, 0)
-            can.drawRightString(540, y_tabla, f"${abonos_anteriores_cadena:.2f}")
-            y_tabla -= 10
-
-        can.setFont("Carlito", 8)
-        can.setFillColorRGB(0.35, 0.35, 0.35)
-        can.drawRightString(468, y_tabla, "PAGO GENERADO:")
-        can.setFillColorRGB(0, 0.45, 0)
-        can.drawRightString(540, y_tabla, f"${pagado_operacion_cadena:.2f}")
-        can.setFillColorRGB(0, 0, 0)
-        y_tabla -= 10
-
-        can.setFillColorRGB(0.96, 0.88, 0.88)
-        can.rect(330, y_tabla - 4, 225, 14, fill=1, stroke=0)
-        can.setFillColorRGB(0.65, 0, 0)
-        can.setFont("Helvetica-Bold", 9)
-        can.drawRightString(468, y_tabla, "SALDO PENDIENTE:")
-        can.drawRightString(540, y_tabla, f"${saldo_cadena:.2f}")
-        can.setFillColorRGB(0, 0, 0)
-        y_tabla -= 20
 
     # ── Totales ───────────────────────────────────────────────────────────────
     if y_tabla < 160:
         y_tabla = nueva_pagina_comp()
     can.line(28, y_tabla + 15, 585, y_tabla + 15)
     y_totales = y_tabla + 10 - 10
+
+    can.setFont("Carlito", 10)
+    can.setFillColorRGB(0.35, 0.35, 0.35)
+    can.drawString(400, y_totales, "SUBTOTAL:")
+    can.setFillColorRGB(0, 0, 0)
+    can.drawRightString(570, y_totales, f"${subtotal_general:.2f}")
+    y_totales -= 12
+
+    can.setFont("Carlito", 10)
+    can.setFillColorRGB(0.35, 0.35, 0.35)
+    can.drawString(400, y_totales, "16% IVA:")
+    can.setFillColorRGB(0, 0, 0)
+    can.drawRightString(570, y_totales, f"${iva_general:.2f}")
+    y_totales -= 12
+
+    can.setFont("Helvetica-Bold", 9)
+    can.drawString(400, y_totales, "TOTAL:")
+    can.drawRightString(570, y_totales, f"${total_general:.2f}")
+    y_totales -= 14
 
     can.setFont("Helvetica-Bold", 9)
     can.drawString(400, y_totales, "TOTAL PAGADO:")

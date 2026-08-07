@@ -91,6 +91,19 @@ def preview_nota_entrada(renta_id):
 
     padre_real_id = sucursal_row['renta_asociada_id'] if sucursal_row['renta_asociada_id'] else renta_id
 
+    # El traslado "real" siempre se evalúa desde la renta RAÍZ, nunca desde la
+    # renovación actual: las renovaciones siempre se crean con traslado
+    # 'ninguno' (no vuelven a pagar/registrar traslado), pero si la renta
+    # original salió con redondo/medio_regreso, la obligación de que el
+    # chofer recolecte el equipo sigue pendiente hasta que efectivamente
+    # regrese, sin importar cuántas veces se haya renovado en el camino.
+    if padre_real_id == renta_id:
+        traslado_raiz = renta['traslado']
+    else:
+        cursor.execute("SELECT traslado FROM rentas WHERE id = %s", (padre_real_id,))
+        raiz_row = cursor.fetchone()
+        traslado_raiz = raiz_row['traslado'] if raiz_row else renta['traslado']
+
     # Obtener folio de salida y nota_salida_id del padre real
     cursor.execute("""
         SELECT folio, id AS nota_salida_id
@@ -170,7 +183,8 @@ def preview_nota_entrada(renta_id):
     existe_entrada = cursor.fetchone()['total'] > 0
 
     # ¿Esta renta requiere que el chofer recolecte el equipo (traslado redondo o medio_regreso)?
-    requiere_recoleccion = (renta['traslado'] or '').lower() in ('redondo', 'medio_regreso')
+    # Se evalúa contra la renta raíz, no la renovación actual (ver comentario arriba).
+    requiere_recoleccion = (traslado_raiz or '').lower() in ('redondo', 'medio_regreso')
 
     # ¿Ya se hizo la recolección (existe una nota de entrada con todas las piezas en 0,
     # esperando que la secretaria capture lo que el chofer reportó manualmente)?
@@ -240,7 +254,7 @@ def preview_nota_entrada(renta_id):
         'cliente': f"{renta['nombre']} {renta['apellido1']} {renta['apellido2']}",
         'telefono': renta['telefono'],
         'direccion_obra': renta['direccion_obra'],
-        'traslado_original': renta['traslado'],
+        'traslado_original': traslado_raiz,
         'fecha_hora': fecha_hora,
         'fecha_limite': fecha_limite,
         'estado': estado,
@@ -348,9 +362,20 @@ def crear_nota_entrada(renta_id):
             if not cobrar_retraso and nota_existente['estado_retraso'] == 'Retraso Pendiente':
                 estado_retraso = 'Retraso Pendiente'
 
-        # La renta salió con traslado redondo o medio_regreso, es obligatorio seleccionar al Chofer responsable
-        
-        requiere_recoleccion = (renta_check['traslado'] or '').lower() in ('redondo', 'medio_regreso') if renta_check else False
+        # La renta salió con traslado redondo o medio_regreso, es obligatorio seleccionar al Chofer responsable.
+        # Se evalúa contra la renta RAÍZ, no la renovación actual: las renovaciones
+        # siempre se crean con traslado 'ninguno', pero si la renta original salió
+        # con redondo/medio_regreso, la obligación de recolección sigue pendiente
+        # hasta que el equipo efectivamente regrese, sin importar cuántas veces se
+        # haya renovado en el camino.
+        if padre_real_id == renta_id:
+            traslado_raiz_check = renta_check['traslado'] if renta_check else None
+        else:
+            cursor.execute("SELECT traslado FROM rentas WHERE id = %s", (padre_real_id,))
+            raiz_row_check = cursor.fetchone()
+            traslado_raiz_check = raiz_row_check['traslado'] if raiz_row_check else (renta_check['traslado'] if renta_check else None)
+
+        requiere_recoleccion = (traslado_raiz_check or '').lower() in ('redondo', 'medio_regreso')
         es_recoleccion_actual = all(
             (pieza.get('cantidad_recibida', 0) in [0, '', None]) for pieza in piezas
         ) if piezas else False
