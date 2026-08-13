@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from utils.db import get_db_connection
 from datetime import datetime, timedelta
 import json
-from utils.datetime_utils import get_local_now
+from utils.datetime_utils import get_local_now, get_local_now_naive
 from utils.decorators import requiere_sesion, requiere_permiso
 
 from reportlab.lib.pagesizes import letter
@@ -25,8 +25,27 @@ cotizaciones_bp = Blueprint('cotizaciones', __name__, url_prefix='/cotizaciones'
 ESTADOS_COTIZACION = {
     'ENVIADA': 'enviada',
     'VENCIDA': 'vencida',
-    'RENTA': 'renta'
 }
+
+# Ventana de tiempo (en minutos) durante la cual una cotización puede editarse
+# después de haberse creado.
+VENTANA_EDICION_MINUTOS = 60
+
+
+def _dentro_ventana_edicion(fecha_creacion):
+    """True si aún se puede editar la cotización (dentro de los primeros
+    VENTANA_EDICION_MINUTOS minutos desde su creación)."""
+    if not fecha_creacion:
+        return False
+    # fecha_creacion viene de MySQL como datetime naive (la sesión ya está
+    # fijada a la zona horaria de Campeche vía "SET time_zone"), así que se
+    # compara contra la hora local también naive para evitar mezclar
+    # datetimes aware/naive (TypeError).
+    if fecha_creacion.tzinfo is not None:
+        ahora = get_local_now()
+    else:
+        ahora = get_local_now_naive()
+    return (ahora - fecha_creacion) <= timedelta(minutes=VENTANA_EDICION_MINUTOS)
 
 
 def generar_numero_cotizacion(sucursal_id):
@@ -748,6 +767,7 @@ def index():
         cotizaciones_con_estado = []
         for cotizacion in cotizaciones:
             cotizacion['estado_vigencia'] = calcular_estado_vigencia(cotizacion)
+            cotizacion['editable'] = _dentro_ventana_edicion(cotizacion['fecha_creacion'])
             cotizaciones_con_estado.append(cotizacion)
 
         productos_por_cotizacion = {}
@@ -969,7 +989,7 @@ def cambiar_estado_cotizacion(cotizacion_id):
         usuario_id = session.get('user_id')
         
         # Validar que el estado sea válido
-        if nuevo_estado not in ['enviada', 'vencida', 'renta']:
+        if nuevo_estado not in ['enviada', 'vencida']:
             return jsonify({'error': 'Estado no válido'}), 400
         
         conexion = get_db_connection()
@@ -1011,21 +1031,190 @@ def cambiar_estado_cotizacion(cotizacion_id):
 
 
 
-@cotizaciones_bp.route('/<int:cotizacion_id>/convertir-renta', methods=['POST'])  # Quitar '/cotizaciones'
+@cotizaciones_bp.route('/<int:cotizacion_id>/datos')
 @requiere_sesion()
-@requiere_permiso('crear_renta')
-def convertir_cotizacion_a_renta(cotizacion_id):
- 
-    """Convertir cotización a renta"""
+@requiere_permiso('editar_cotizacion')
+def obtener_datos_cotizacion(cotizacion_id):
+    """Devuelve los datos de una cotización (y su detalle de productos) para
+    precargar el modal de edición."""
     try:
-        # Aquí implementarías la lógica para crear una renta basada en la cotización
-        # Por ahora solo cambiamos el estado
-        return cambiar_estado_cotizacion(cotizacion_id)
-        
+        conexion = get_db_connection()
+        cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute("SELECT * FROM cotizaciones WHERE id = %s", (cotizacion_id,))
+        cotizacion = cursor.fetchone()
+        if not cotizacion:
+            cursor.close()
+            conexion.close()
+            return jsonify({'success': False, 'error': 'Cotización no encontrada'}), 404
+
+        cursor.execute("""
+            SELECT cd.producto_id, p.nombre, cd.cantidad, cd.precio_base, cd.ajuste_tipo,
+                   cd.ajuste_valor, cd.precio_final, cd.subtotal
+            FROM cotizacion_detalle cd
+            JOIN productos p ON cd.producto_id = p.id_producto
+            WHERE cd.cotizacion_id = %s
+        """, (cotizacion_id,))
+        productos = cursor.fetchall()
+
+        cursor.close()
+        conexion.close()
+
+        return jsonify({
+            'success': True,
+            'dentro_ventana': _dentro_ventana_edicion(cotizacion['fecha_creacion']),
+            'cotizacion': {
+                'sucursal_id': cotizacion['sucursal_id'],
+                'cliente_nombre': cotizacion['cliente_nombre'],
+                'cliente_telefono': cotizacion['cliente_telefono'],
+                'cliente_email': cotizacion['cliente_email'],
+                'cliente_empresa': cotizacion['cliente_empresa'],
+                'dias_renta': cotizacion['dias_renta'],
+                'requiere_traslado': bool(cotizacion['requiere_traslado']),
+                'tipo_traslado': cotizacion['tipo_traslado'],
+                'costo_traslado': float(cotizacion['costo_traslado'] or 0),
+            },
+            'productos': [
+                {
+                    'producto_id': p['producto_id'],
+                    'nombre': p['nombre'],
+                    'cantidad': float(p['cantidad']),
+                    'precio_base': float(p['precio_base'] or 0),
+                    'ajuste_tipo': p['ajuste_tipo'] or 'ninguno',
+                    'ajuste_valor': float(p['ajuste_valor'] or 0),
+                    'precio_final': float(p['precio_final'] or 0),
+                    'subtotal': float(p['subtotal'] or 0),
+                } for p in productos
+            ]
+        })
+
     except Exception as e:
-        print(f"Error al convertir cotización a renta: {e}")
-        return jsonify({'error': 'Error interno del servidor'}), 500
-    
+        print(f"Error al obtener datos de cotización: {e}")
+        return jsonify({'success': False, 'error': 'Error interno del servidor'}), 500
+
+
+@cotizaciones_bp.route('/<int:cotizacion_id>/editar', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('editar_cotizacion')
+def editar_cotizacion(cotizacion_id):
+    """Editar una cotización existente. Solo permitido dentro de los primeros
+    VENTANA_EDICION_MINUTOS minutos desde su creación (validado en servidor,
+    no solo en el cliente)."""
+    try:
+        conexion = get_db_connection()
+        cursor = conexion.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT fecha_creacion, numero_cotizacion FROM cotizaciones WHERE id = %s",
+            (cotizacion_id,)
+        )
+        actual = cursor.fetchone()
+        if not actual:
+            cursor.close()
+            conexion.close()
+            return jsonify({'success': False, 'error': 'Cotización no encontrada'}), 404
+
+        if not _dentro_ventana_edicion(actual['fecha_creacion']):
+            cursor.close()
+            conexion.close()
+            return jsonify({
+                'success': False,
+                'error': f'El tiempo para editar esta cotización ya expiró (ventana de {VENTANA_EDICION_MINUTOS} minutos desde su creación)'
+            }), 403
+
+        cliente_nombre = request.form.get('cliente_nombre')
+        cliente_telefono = request.form.get('cliente_telefono')
+        cliente_email = request.form.get('cliente_email', '')
+        cliente_empresa = request.form.get('cliente_empresa', '')
+
+        dias_renta_str = request.form.get('dias_renta')
+        dias_renta = int(dias_renta_str) if dias_renta_str else 1
+
+        requiere_traslado = request.form.get('requiere_traslado') == 'on'
+        tipo_traslado = request.form.get('tipo_traslado') if requiere_traslado else None
+
+        costo_traslado_str = request.form.get('costo_traslado', '0')
+        costo_traslado = float(costo_traslado_str) if costo_traslado_str and requiere_traslado else 0.0
+
+        productos = []
+        i = 0
+        while f'productos[{i}][producto_id]' in request.form:
+            producto_id = int(request.form[f'productos[{i}][producto_id]'])
+            cantidad = int(request.form[f'productos[{i}][cantidad]'])
+            precio_base = float(request.form.get(f'productos[{i}][precio_base]', 0))
+            ajuste_tipo = request.form.get(f'productos[{i}][ajuste_tipo]', 'ninguno')
+            ajuste_valor = float(request.form.get(f'productos[{i}][ajuste_valor]', 0))
+            precio_final = float(request.form.get(f'productos[{i}][precio_final]', 0))
+            subtotal = float(request.form[f'productos[{i}][subtotal]'])
+
+            productos.append({
+                'producto_id': producto_id,
+                'cantidad': cantidad,
+                'precio_base': precio_base,
+                'ajuste_tipo': ajuste_tipo,
+                'ajuste_valor': ajuste_valor,
+                'precio_final': precio_final,
+                'subtotal': subtotal
+            })
+            i += 1
+
+        if not productos and not requiere_traslado:
+            cursor.close()
+            conexion.close()
+            return jsonify({'success': False, 'error': 'Debe agregar al menos un producto o servicio de traslado'}), 400
+
+        subtotal_productos = sum(p['subtotal'] for p in productos)
+        subtotal_total = subtotal_productos + costo_traslado
+        iva = subtotal_total * 0.16
+        total = subtotal_total + iva
+
+        usuario_id = session.get('user_id')
+
+        cursor.execute("""
+            UPDATE cotizaciones SET
+                cliente_nombre = %s, cliente_telefono = %s, cliente_email = %s,
+                cliente_empresa = %s, dias_renta = %s, requiere_traslado = %s, tipo_traslado = %s,
+                costo_traslado = %s, subtotal = %s, iva = %s, total = %s
+            WHERE id = %s
+        """, (
+            cliente_nombre, cliente_telefono, cliente_email,
+            cliente_empresa, dias_renta, requiere_traslado, tipo_traslado,
+            costo_traslado, subtotal_total, iva, total, cotizacion_id
+        ))
+
+        cursor.execute("DELETE FROM cotizacion_detalle WHERE cotizacion_id = %s", (cotizacion_id,))
+        for producto in productos:
+            cursor.execute("""
+                INSERT INTO cotizacion_detalle (
+                    cotizacion_id, producto_id, cantidad, precio_unitario, subtotal, precio_base, ajuste_tipo, ajuste_valor, precio_final
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                cotizacion_id, producto['producto_id'], producto['cantidad'],
+                producto['precio_final'], producto['subtotal'],
+                producto['precio_base'], producto['ajuste_tipo'], producto['ajuste_valor'], producto['precio_final']
+            ))
+
+        cursor.execute("""
+            INSERT INTO cotizacion_seguimiento (
+                cotizacion_id, estado_nuevo, comentarios, usuario_id
+            ) VALUES (%s, %s, %s, %s)
+        """, (cotizacion_id, 'enviada', 'Cotización editada', usuario_id))
+
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+
+        return jsonify({
+            'success': True,
+            'cotizacion_id': cotizacion_id,
+            'numero_cotizacion': actual['numero_cotizacion'],
+            'pdf_url': f'/cotizaciones/pdf/{cotizacion_id}'
+        })
+
+    except Exception as e:
+        print(f"Error al editar cotización: {e}")
+        return jsonify({'success': False, 'error': 'Error al editar la cotización'}), 500
+
 
 
 ############################################

@@ -18,6 +18,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const mensajeSinProductos = document.getElementById('mensaje_sin_productos');
     const btnCrearCotizacion = document.getElementById('btn_crear_cotizacion');
     const productosHiddenInputs = document.getElementById('productos_hidden_inputs');
+    const formCotizacion = document.getElementById('form-nueva-cotizacion');
+    const modalCotizacionEl = document.getElementById('modalNuevaCotizacion');
+    const modalCotizacionLabel = document.getElementById('modalNuevaCotizacionLabel');
+    const cotizacionIdEdicionInput = document.getElementById('cotizacion_id_edicion');
+    const urlCrearCotizacion = formCotizacion.action;
 
     // Establecer valor inicial de días
     diasRentaInput.value = 1;
@@ -123,36 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const tipoTraslado = tipoTrasladoSelect.value;
         const costoTraslado = parseFloat(costoTrasladoInput.value);
 
-        const conceptoTraslado = `TRASLADO ${tipoTraslado.toUpperCase()}`;
-
-        // Crear objeto de traslado
-        trasladoAgregado = {
-            tipo: 'traslado',
-            concepto: conceptoTraslado,
-            tipo_traslado: tipoTraslado,
-            costo: costoTraslado
-        };
-
-        // Agregar fila a la tabla (solo concepto y precio para traslado)
-        const fila = document.createElement('tr');
-        fila.setAttribute('data-tipo', 'traslado');
-        fila.innerHTML = `
-            <td><strong>${conceptoTraslado}</strong></td>
-            <td colspan="3" class="text-center text-muted">-</td>
-            <td>$${costoTraslado.toFixed(2)}</td>
-            <td>
-                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarTraslado()">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        `;
-        productosTableBody.appendChild(fila);
-
-        // Deshabilitar el botón
-        agregarTrasladoBtn.disabled = true;
-
-        // Ocultar mensaje sin productos
-        mensajeSinProductos.style.display = 'none';
+        crearFilaTraslado(tipoTraslado, costoTraslado);
 
         // Recalcular totales
         calcularTotales();
@@ -255,6 +231,96 @@ document.addEventListener('DOMContentLoaded', function () {
         agregarProductoBtn.disabled = !valido;
     }
 
+    // Construye una fila de producto en la tabla y la registra en productosAgregados.
+    // Se usa tanto al agregar un producto nuevo como al precargar una cotización
+    // existente en modo edición.
+    function crearFilaProducto(producto, selectDisabled, ajusteValorDisabled) {
+        productosAgregados.push(producto);
+
+        const fila = document.createElement('tr');
+        fila.setAttribute('data-producto-id', producto.producto_id);
+        fila.innerHTML = `
+            <td>${producto.nombre}</td>
+            <td><input type="number" class="form-control form-control-sm cantidad-editable" min="1" value="${producto.cantidad}" style="width: 60px;"></td>
+            <td class="dias">${producto.dias}</td>
+            <td class="precio-base">$${producto.precio_base.toFixed(2)}</td>
+            <td>
+                <select class="ajuste-tipo form-select form-select-sm" style="width: 60px; display:inline-block;" ${selectDisabled}>
+                    <option value="ninguno" ${producto.ajuste_tipo==='ninguno'?'selected':''}>S/A</option>
+                    <option value="porcentaje" ${producto.ajuste_tipo==='porcentaje'?'selected':''}>%</option>
+                    <option value="fijo" ${producto.ajuste_tipo==='fijo'?'selected':''}>$</option>
+                </select>
+            </td>
+            <td>
+                <input type="number" class="ajuste-valor form-control form-control-sm" style="width: 60px; display:inline-block;" value="${producto.ajuste_valor}" ${ajusteValorDisabled}>
+            </td>
+            <td class="precio-final">$${producto.precio_final.toFixed(2)}</td>
+            <td class="subtotal">$${producto.subtotal.toFixed(2)}</td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto('${producto.producto_id}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        productosTableBody.appendChild(fila);
+
+        const cantidadEditable = fila.querySelector('.cantidad-editable');
+        cantidadEditable.addEventListener('input', function() {
+            const nuevaCantidad = parseFloat(this.value) || 1;
+            producto.cantidad = nuevaCantidad;
+            producto.subtotal = nuevaCantidad * producto.precio_final * producto.dias;
+            fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
+            calcularTotales();
+            actualizarHiddenInputs();
+        });
+
+        const selectAjuste = fila.querySelector('.ajuste-tipo');
+        const inputAjuste = fila.querySelector('.ajuste-valor');
+        selectAjuste.addEventListener('change', function() {
+            if (this.value === 'ninguno') {
+                inputAjuste.value = 0;
+                inputAjuste.disabled = true;
+            } else {
+                inputAjuste.disabled = false;
+            }
+            recalcularFilaConAjuste(fila, producto);
+        });
+        inputAjuste.addEventListener('input', function() {
+            recalcularFilaConAjuste(fila, producto);
+        });
+
+        mensajeSinProductos.style.display = 'none';
+    }
+
+    // Construye la fila de traslado en la tabla y actualiza trasladoAgregado.
+    function crearFilaTraslado(tipoTraslado, costoTraslado) {
+        const conceptoTraslado = `TRASLADO ${tipoTraslado.toUpperCase()}`;
+
+        trasladoAgregado = {
+            tipo: 'traslado',
+            concepto: conceptoTraslado,
+            tipo_traslado: tipoTraslado,
+            costo: costoTraslado
+        };
+
+        const fila = document.createElement('tr');
+        fila.setAttribute('data-tipo', 'traslado');
+        fila.innerHTML = `
+            <td><strong>${conceptoTraslado}</strong></td>
+            <td colspan="3" class="text-center text-muted">-</td>
+            <td>$${costoTraslado.toFixed(2)}</td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarTraslado()">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        productosTableBody.appendChild(fila);
+
+        agregarTrasladoBtn.disabled = true;
+        mensajeSinProductos.style.display = 'none';
+    }
+
     // Agregar producto a la tabla
     agregarProductoBtn.addEventListener('click', function () {
         const productoId = productoSelect.value;
@@ -331,71 +397,13 @@ document.addEventListener('DOMContentLoaded', function () {
                             dias: diasRenta,
                             index: productoCounter++
                         };
-                        productosAgregados.push(producto);
-
-                        // Agregar fila a la tabla
-                        const fila = document.createElement('tr');
-                        fila.setAttribute('data-producto-id', productoId);
-                        fila.innerHTML = `
-                            <td>${productoNombre}</td>
-                            <td><input type="number" class="form-control form-control-sm cantidad-editable" min="1" value="${cantidad}" style="width: 60px;"></td>
-                            <td class="dias">${diasRenta}</td>
-                            <td class="precio-base">$${precioBase.toFixed(2)}</td>
-                            <td>
-                                <select class="ajuste-tipo form-select form-select-sm" style="width: 60px; display:inline-block;" ${selectDisabled}>
-                                    <option value="ninguno" ${ajusteTipoDefault==='ninguno'?'selected':''}>S/A</option>
-                                    <option value="porcentaje" ${ajusteTipoDefault==='porcentaje'?'selected':''}>%</option>
-                                    <option value="fijo" ${ajusteTipoDefault==='fijo'?'selected':''}>$</option>
-                                </select>
-                            </td>
-                            <td>
-                                <input type="number" class="ajuste-valor form-control form-control-sm" style="width: 60px; display:inline-block;" value="${ajusteValorDefault}" ${ajusteValorDisabled}>
-                            </td>
-                            <td class="precio-final">$${precioFinal.toFixed(2)}</td>
-                            <td class="subtotal">$${subtotal.toFixed(2)}</td>
-                            <td>
-                                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto('${productoId}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
-                        `;
-                        productosTableBody.appendChild(fila);
-
-                        // Listener para cantidad editable
-                        const cantidadEditable = fila.querySelector('.cantidad-editable');
-                        cantidadEditable.addEventListener('input', function() {
-                            const nuevaCantidad = parseFloat(this.value) || 1;
-                            producto.cantidad = nuevaCantidad;
-                            producto.subtotal = nuevaCantidad * producto.precio_final * producto.dias;
-                            fila.querySelector('.subtotal').textContent = `$${producto.subtotal.toFixed(2)}`;
-                            calcularTotales();
-                            actualizarHiddenInputs();
-                        });
-
-                        // Listeners para recalcular precio final y subtotal al cambiar ajuste
-                        const selectAjuste = fila.querySelector('.ajuste-tipo');
-                        const inputAjuste = fila.querySelector('.ajuste-valor');
-                        selectAjuste.addEventListener('change', function() {
-                            if (this.value === 'ninguno') {
-                                inputAjuste.value = 0;
-                                inputAjuste.disabled = true;
-                            } else {
-                                inputAjuste.disabled = false;
-                            }
-                            recalcularFilaConAjuste(fila, producto);
-                        });
-                        inputAjuste.addEventListener('input', function() {
-                            recalcularFilaConAjuste(fila, producto);
-                        });
+                        crearFilaProducto(producto, selectDisabled, ajusteValorDisabled);
                     }
 
                     // Limpiar formulario
                     productoSelect.value = '';
                     cantidadInput.value = '';
                     agregarProductoBtn.disabled = true;
-
-                    // Ocultar mensaje sin productos
-                    mensajeSinProductos.style.display = 'none';
 
                     // Recalcular totales
                     calcularTotales();
@@ -495,16 +503,125 @@ document.addEventListener('DOMContentLoaded', function () {
         btnCrearCotizacion.disabled = !valido;
     }
 
-    // Manejar el envío del formulario de nueva cotización
-    document.getElementById('form-nueva-cotizacion').addEventListener('submit', function (e) {
+    // Vacía la tabla de productos/traslado y el estado en memoria (usado antes
+    // de precargar una edición y al resetear el modal a modo creación).
+    function limpiarProductosYTraslado() {
+        productosAgregados = [];
+        trasladoAgregado = null;
+        productosTableBody.innerHTML = '';
+        mensajeSinProductos.style.display = 'block';
+    }
+
+    // Regresa el modal a su estado original de "Nueva Cotización".
+    function resetearModoCreacion() {
+        formCotizacion.action = urlCrearCotizacion;
+        cotizacionIdEdicionInput.value = '';
+        modalCotizacionLabel.innerHTML = '<i class="bi bi-file-earmark-text me-2"></i>Nueva Cotización';
+        btnCrearCotizacion.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Generar Cotización';
+        formCotizacion.reset();
+        limpiarProductosYTraslado();
+        tipoTrasladoContainer.style.display = 'none';
+        costoTrasladoContainer.style.display = 'none';
+        diasRentaInput.value = 1;
+        calcularTotales();
+        actualizarHiddenInputs();
+        validarFormularioCompleto();
+    }
+
+    modalCotizacionEl.addEventListener('hidden.bs.modal', resetearModoCreacion);
+
+    // Abre el modal precargado con los datos de una cotización existente.
+    // La ventana de 60 minutos se valida en el servidor (dentro_ventana),
+    // que es la autoridad real — el botón ya viene deshabilitado desde el
+    // template si expiró.
+    window.editarCotizacion = function (cotizacionId) {
+        fetch(`/cotizaciones/${cotizacionId}/datos`)
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    Swal.fire('Error', data.error || 'No se pudo cargar la cotización', 'error');
+                    return;
+                }
+                if (!data.dentro_ventana) {
+                    Swal.fire('Tiempo expirado', 'Ya pasó el tiempo disponible para editar esta cotización (60 minutos desde su creación).', 'warning');
+                    return;
+                }
+
+                const cot = data.cotizacion;
+
+                formCotizacion.action = `/cotizaciones/${cotizacionId}/editar`;
+                cotizacionIdEdicionInput.value = cotizacionId;
+                modalCotizacionLabel.innerHTML = '<i class="bi bi-pencil-square me-2"></i>Editar Cotización';
+                btnCrearCotizacion.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Guardar Cambios';
+
+                const sucursalSelect = document.getElementById('id_sucursal');
+                if (sucursalSelect) sucursalSelect.value = cot.sucursal_id;
+                formCotizacion.querySelector('[name="cliente_nombre"]').value = cot.cliente_nombre || '';
+                formCotizacion.querySelector('[name="cliente_telefono"]').value = cot.cliente_telefono || '';
+                formCotizacion.querySelector('[name="cliente_email"]').value = cot.cliente_email || '';
+                formCotizacion.querySelector('[name="cliente_empresa"]').value = cot.cliente_empresa || '';
+                diasRentaInput.value = cot.dias_renta;
+
+                limpiarProductosYTraslado();
+
+                const sucursalId = sucursalSelect ? sucursalSelect.value : null;
+                const esEscarcega = (sucursalId === '4');
+                const puedeAjustar = window.puedeAjustarPrecios || false;
+                const disabled = (esEscarcega || !puedeAjustar) ? 'disabled' : '';
+
+                (data.productos || []).forEach(p => {
+                    crearFilaProducto({
+                        tipo: 'producto',
+                        producto_id: String(p.producto_id),
+                        nombre: p.nombre,
+                        cantidad: p.cantidad,
+                        precio_base: p.precio_base,
+                        ajuste_tipo: p.ajuste_tipo,
+                        ajuste_valor: p.ajuste_valor,
+                        precio_final: p.precio_final,
+                        subtotal: p.subtotal,
+                        dias: cot.dias_renta,
+                        index: productoCounter++
+                    }, disabled, disabled);
+                });
+
+                requiereTrasladoCheck.checked = !!cot.requiere_traslado;
+                if (cot.requiere_traslado) {
+                    tipoTrasladoContainer.style.display = 'block';
+                    costoTrasladoContainer.style.display = 'block';
+                    tipoTrasladoSelect.value = cot.tipo_traslado;
+                    costoTrasladoInput.value = cot.costo_traslado;
+                    crearFilaTraslado(cot.tipo_traslado, cot.costo_traslado);
+                } else {
+                    tipoTrasladoContainer.style.display = 'none';
+                    costoTrasladoContainer.style.display = 'none';
+                }
+
+                calcularTotales();
+                actualizarHiddenInputs();
+                validarFormularioCompleto();
+
+                bootstrap.Modal.getOrCreateInstance(modalCotizacionEl).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire('Error', 'Hubo un error al cargar la cotización para editar', 'error');
+            });
+    };
+
+    // Manejar el envío del formulario de nueva cotización / edición
+    formCotizacion.addEventListener('submit', function (e) {
         e.preventDefault(); // Prevenir el envío normal del formulario
 
         const form = e.target;
         const btnCrear = document.getElementById('btn_crear_cotizacion');
+        const esEdicion = !!cotizacionIdEdicionInput.value;
 
         // Deshabilitar botón y mostrar loading
         btnCrear.disabled = true;
-        btnCrear.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creando cotización...';
+        btnCrear.innerHTML = esEdicion
+            ? '<span class="spinner-border spinner-border-sm me-2"></span>Guardando cambios...'
+            : '<span class="spinner-border spinner-border-sm me-2"></span>Creando cotización...';
 
         // Enviar datos via fetch pero esperando JSON con la URL
         fetch(form.action, {
@@ -517,15 +634,15 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(response => response.json())
             .then(data => {
                 console.log('Respuesta del servidor:', data); // Para debug
-                
+
                 if (data.success) {
                     // Cerrar modal
-                    bootstrap.Modal.getInstance(document.getElementById('modalNuevaCotizacion')).hide();
+                    bootstrap.Modal.getInstance(modalCotizacionEl).hide();
 
                     // Mostrar SweetAlert con opción de ver PDF
                     Swal.fire({
-                        title: '¡Cotización Exitosa!',
-                        html: `Cotización creada correctamente.<br>Folio: <strong>#${data.numero_cotizacion}</strong>`,
+                        title: esEdicion ? '¡Cotización actualizada!' : '¡Cotización Exitosa!',
+                        html: `${esEdicion ? 'Cotización actualizada' : 'Cotización creada'} correctamente.<br>Folio: <strong>#${data.numero_cotizacion}</strong>`,
                         icon: 'success',
                         showCancelButton: true,
                         confirmButtonText: 'Descargar PDF',
@@ -539,22 +656,24 @@ document.addEventListener('DOMContentLoaded', function () {
                             console.log('PDF URL:', data.pdf_url); // Para debug
                             window.open(data.pdf_url, '_blank');
                         }
-                        
+
                         // Recargar la página solo después de que el usuario tome una decisión
                         location.reload();
                     });
                 } else {
-                    Swal.fire('Error', data.error || 'Error al crear cotización', 'error');
+                    Swal.fire('Error', data.error || (esEdicion ? 'Error al guardar los cambios' : 'Error al crear cotización'), 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                Swal.fire('Error', 'Hubo un error al crear la cotización', 'error');
+                Swal.fire('Error', 'Hubo un error al guardar la cotización', 'error');
             })
             .finally(() => {
                 // Restaurar botón
                 btnCrear.disabled = false;
-                btnCrear.innerHTML = 'Crear Cotización';
+                btnCrear.innerHTML = esEdicion
+                    ? '<i class="bi bi-check2-circle me-2"></i>Guardar Cambios'
+                    : '<i class="bi bi-check2-circle me-2"></i>Generar Cotización';
             });
     });
 
@@ -591,60 +710,6 @@ function cambiarEstado(cotizacionId, nuevoEstado) {
             alert('Error al cambiar el estado');
         });
 }
-
-// ===============================================
-// Función para convertir cotización a renta
-// ===============================================
-
-// Función para convertir cotización a renta (VERSIÓN SIMPLE)
-function convertirARenta(cotizacionId) {
-    Swal.fire({
-        title: '¿Convertir a renta?',
-        text: 'Esta acción marcará la cotización como convertida a renta para fines estadísticos.',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#28a745',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, convertir',
-        cancelButtonText: 'Cancelar',
-        reverseButtons: true
-    }).then((result) => {
-        if (result.isConfirmed) {
-            fetch(`/cotizaciones/${cotizacionId}/convertir-renta`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    estado: 'renta',
-                    comentarios: 'Cotización convertida a renta'
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            title: '¡Convertida!',
-                            text: 'La cotización ha sido marcada como renta exitosamente.',
-                            icon: 'success',
-                            confirmButtonText: 'Entendido'
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Error', data.error || 'Error al convertir a renta', 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    Swal.fire('Error', 'Hubo un error al convertir a renta', 'error');
-                });
-        }
-    });
-}
-
-
-
 
 // ===============================================
 //  FUNCIÓN ELIMINAR COTIZACIONES
