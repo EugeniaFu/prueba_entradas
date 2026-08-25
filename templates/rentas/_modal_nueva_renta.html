@@ -28,7 +28,7 @@
                                     <select class="form-select" id="cliente_id" name="cliente_id" required>
                                         <option value="">Selecciona un cliente</option>
                                         {% for cliente in clientes %}
-                                        <option value="{{ cliente[0] }}">{{ cliente[1] }} {{ cliente[2] }}</option>
+                                        <option value="{{ cliente[0] }}">{{ cliente[1] or '—' }} | {{ cliente[2] }} {{ cliente[3] }} {{ cliente[4] or '' }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>

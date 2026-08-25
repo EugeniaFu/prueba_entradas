@@ -195,7 +195,12 @@ def modulo_rentas(sucursal_id=None):
                 productos_por_renta.setdefault(renta_id, []).append(f"{nombre} x{cantidad}")
 
     # Clientes activos (excluyendo clientes betados)
-    cursor.execute("SELECT id, nombre, apellido1 FROM clientes WHERE activo = 1 AND tipo_cliente != 'betado'")
+    cursor.execute("""
+        SELECT id, codigo_cliente, nombre, apellido1, apellido2
+        FROM clientes
+        WHERE activo = 1 AND tipo_cliente != 'betado'
+        ORDER BY nombre, apellido1
+    """)
     clientes = cursor.fetchall()
 
     # Productos y precios
