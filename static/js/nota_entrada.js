@@ -154,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('checkbox-recoleccion').disabled = false;
             document.getElementById('div-chofer-traslado-extra').classList.add('d-none');
             document.getElementById('select-chofer-traslado-extra').value = '';
+            document.getElementById('btn-cancelar-recoleccion').classList.add('d-none');
 
             // Fetch datos para el modal
             fetch(`/notas_entrada/preview/${rentaId}`)
@@ -219,6 +220,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         window.notaEntradaEnRecoleccion = false;
                         divChofer.classList.add('d-none');
                         selectChofer.value = '';
+                        // El cliente puede avisar que ya no pasen a recoger el equipo:
+                        // se ofrece cancelar el despacho en vez de forzar una captura falsa.
+                        document.getElementById('btn-cancelar-recoleccion').classList.remove('d-none');
                     } else if ((data.traslado_original || '').toLowerCase() === 'ninguno') {
                         // Sin traslado: el cliente entrega/recoge el equipo por su cuenta,
                         // no aplica que un chofer nuestro vaya a recolectarlo.
@@ -616,6 +620,42 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    // Cancelar la recolección: el cliente avisó que ya no pasen a recoger
+    // el equipo, así que se anula el despacho del chofer y la renta regresa
+    // a su estado anterior.
+    document.getElementById('btn-cancelar-recoleccion').addEventListener('click', function () {
+        const rentaId = window.rentaIdNotaEntradaActual;
+        if (!rentaId) return;
+
+        Swal.fire({
+            title: '¿Cancelar recolección?',
+            text: 'El chofer ya no pasará a recoger el equipo. La renta regresará a su estado anterior.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, cancelar recolección',
+            cancelButtonText: 'Volver'
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            fetch(`/notas_entrada/cancelar_recoleccion/${rentaId}`, { method: 'POST' })
+                .then(resp => resp.json())
+                .then(json => {
+                    if (json.success) {
+                        bootstrap.Modal.getInstance(document.getElementById('modalNotaEntrada')).hide();
+                        Swal.fire('Recolección cancelada', 'La renta regresó a su estado anterior.', 'success')
+                            .then(() => window.location.reload());
+                    } else {
+                        Swal.fire('Error', json.error || 'No se pudo cancelar la recolección', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('Error', 'Error al enviar los datos al servidor', 'error');
+                });
+        });
+    });
 
     // Limpiar rentaId cuando se cierre el modal
     document.getElementById('modalNotaEntrada').addEventListener('hidden.bs.modal', () => {

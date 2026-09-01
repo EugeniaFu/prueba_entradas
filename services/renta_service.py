@@ -119,7 +119,8 @@ class RentasService:
                         ELSE 1
                     END
                     FROM notas_salida ns WHERE ns.renta_id = r.id
-                ) AS tiene_nota_salida
+                ) AS tiene_nota_salida,
+                c.codigo_cliente
 
             FROM rentas r
             JOIN clientes c ON r.cliente_id = c.id

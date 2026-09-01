@@ -272,6 +272,96 @@ def preview_nota_entrada(renta_id):
 ####################################################################
 ####################################################################
 
+@notas_entrada_bp.route('/cancelar_recoleccion/<int:renta_id>', methods=['POST'])
+@requiere_sesion()
+@requiere_permiso('crear_nota_entrada')
+def cancelar_recoleccion(renta_id):
+    """
+    Cancela el despacho de un chofer a recolectar equipo (traslado redondo o
+    medio_regreso) cuando el cliente avisa que ya no lo pasen a recoger.
+
+    El despacho crea una nota de entrada "en blanco" (todas sus piezas en 0,
+    a la espera de que el chofer regrese y se capturen las cantidades reales)
+    y pone la renta en estado 'en recolección'. Como esa nota en blanco nunca
+    tocó inventario (todas las cantidades eran 0), se puede borrar por
+    completo y regresar la renta a como estaba antes del despacho.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        cursor.execute("SELECT estado_renta, renta_asociada_id FROM rentas WHERE id = %s", (renta_id,))
+        renta = cursor.fetchone()
+        if not renta:
+            return jsonify({'success': False, 'error': 'Renta no encontrada'}), 404
+
+        if (renta['estado_renta'] or '').lower() != 'en recolección':
+            return jsonify({
+                'success': False,
+                'error': 'Esta renta no está en estado "En Recolección", no hay nada que cancelar.'
+            }), 400
+
+        # Localizar la nota de entrada "en blanco" del despacho: todas sus
+        # piezas están en 0/NULL porque todavía no se capturó lo que
+        # realmente regresó (mismo criterio que usa crear_nota_entrada).
+        cursor.execute("""
+            SELECT ne.id, ne.requiere_traslado_extra, ne.costo_traslado_extra
+            FROM notas_entrada ne
+            WHERE ne.renta_id = %s
+            AND (
+                SELECT COUNT(*) FROM notas_entrada_detalle ned
+                WHERE ned.nota_entrada_id = ne.id
+                AND (ned.cantidad_recibida IS NULL OR ned.cantidad_recibida = 0)
+            ) = (SELECT COUNT(*) FROM notas_entrada_detalle WHERE nota_entrada_id = ne.id)
+            LIMIT 1
+        """, (renta_id,))
+        nota_existente = cursor.fetchone()
+
+        if not nota_existente:
+            return jsonify({
+                'success': False,
+                'error': 'No se encontró la nota de recolección pendiente para esta renta.'
+            }), 404
+
+        nota_entrada_id = nota_existente['id']
+        tenia_traslado_extra = (
+            (nota_existente['requiere_traslado_extra'] or 'ninguno') != 'ninguno'
+            and float(nota_existente['costo_traslado_extra'] or 0) > 0
+        )
+
+        cursor.execute("DELETE FROM notas_entrada_detalle WHERE nota_entrada_id = %s", (nota_entrada_id,))
+        cursor.execute("DELETE FROM notas_entrada WHERE id = %s", (nota_entrada_id,))
+
+        # Regresa la renta al estado que tenía antes del despacho: 'activa
+        # renovacion' si es una renovación, 'Activo' si es la renta original
+        # (mismos valores que usa el resto del flujo de notas de entrada).
+        nuevo_estado = 'activa renovacion' if renta['renta_asociada_id'] else 'Activo'
+        cursor.execute("UPDATE rentas SET estado_renta = %s WHERE id = %s", (nuevo_estado, renta_id))
+
+        # El único cobro extra que pudo generar esta nota en blanco es el
+        # traslado extra del propio despacho (dañadas/sucias/perdidas siempre
+        # son 0 en una nota totalmente vacía); al cancelar, ese cobro se anula.
+        if tenia_traslado_extra:
+            cursor.execute("""
+                UPDATE rentas SET estado_cobro_extra = NULL
+                WHERE id = %s AND estado_cobro_extra = 'Extra Pendiente'
+            """, (renta_id,))
+
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+
+####################################################################
+####################################################################
+####################################################################
+####################################################################
+
 @notas_entrada_bp.route('/crear/<int:renta_id>', methods=['POST'])
 @requiere_sesion()
 @requiere_permiso('crear_nota_entrada')
