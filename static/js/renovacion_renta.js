@@ -120,13 +120,66 @@ document.addEventListener('DOMContentLoaded', function () {
         fechaFinInput.value = '';
         document.getElementById('observaciones_modal').value = '';
 
+        // Calcula el día siguiente (YYYY-MM-DD) a una fecha YYYY-MM-DD dada.
+        function diaSiguiente(fechaStr) {
+            const fecha = new Date(fechaStr.substring(0, 10) + 'T00:00:00');
+            fecha.setDate(fecha.getDate() + 1);
+            return fecha.toISOString().substring(0, 10);
+        }
+
+        function bloquearPorFaltaFechaEntrada() {
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+            Swal.fire({
+                title: 'Falta la fecha de entrada',
+                text: 'La renta anterior de esta cadena no tiene fecha de entrada registrada. Captúrala antes de poder continuar.',
+                icon: 'warning',
+                confirmButtonText: 'Entendido'
+            });
+        }
+
         fetch(`/rentas/detalle/${rentaId}`)
             .then(res => res.json())
             .then(data => {
+                if (!modoEdicionId) {
+                    // Crear renovación nueva: la fecha de inicio no puede ser
+                    // anterior al día siguiente a la fecha de entrada de la
+                    // renta que se está renovando — y esa fecha debe existir.
+                    const fechaEntradaAntecesora = data.renta.fecha_entrada;
+                    if (!fechaEntradaAntecesora || fechaEntradaAntecesora === 'Indefinida') {
+                        bloquearPorFaltaFechaEntrada();
+                        return;
+                    }
+
+                    const minSalidaStr = diaSiguiente(fechaEntradaAntecesora);
+                    fechaInicioInput.min = minSalidaStr;
+                    fechaFinInput.min = minSalidaStr;
+                    // La renta antecesora casi siempre prellenaría una fecha ya
+                    // inválida (su propia fecha de inicio, anterior a la de entrada);
+                    // se usa la primera fecha permitida como valor de partida.
+                    fechaInicioInput.value = minSalidaStr;
+                    fechaFinInput.value = '';
+                } else {
+                    // Editar una renovación existente: normalmente aquí solo se
+                    // ajusta la fecha de entrega (más o menos días), pero la fecha
+                    // de inicio tampoco puede moverse antes del día siguiente a la
+                    // fecha de entrada de la renta antecesora directa (el eslabón
+                    // inmediato anterior de la cadena, calculado en el servidor).
+                    const fechaEntradaAntecesora = data.renta.antecesora_fecha_entrada;
+                    if (!fechaEntradaAntecesora) {
+                        bloquearPorFaltaFechaEntrada();
+                        return;
+                    }
+
+                    const minSalidaStr = diaSiguiente(fechaEntradaAntecesora);
+                    fechaInicioInput.min = minSalidaStr;
+                    fechaFinInput.min = minSalidaStr;
+                    fechaInicioInput.value = data.renta.fecha_salida?.substring(0, 10) || '';
+                    fechaFinInput.value = data.renta.fecha_entrada?.substring(0, 10) || '';
+                }
+
                 document.getElementById('cliente_nombre_modal').value = data.cliente.nombre || '';
                 document.getElementById('direccion_obra_modal').value = data.renta.direccion_obra || '';
-                fechaInicioInput.value = data.renta.fecha_salida?.substring(0, 10) || '';
-                fechaFinInput.value = data.renta.fecha_entrada?.substring(0, 10) || '';
                 document.getElementById('observaciones_modal').value = data.renta.observaciones || '';
 
                 if (Array.isArray(data.productos)) {
@@ -193,6 +246,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // Recalcular totales cuando cambian fechas
     fechaInicioInput.addEventListener('change', actualizarDiasYPrecios);
     fechaFinInput.addEventListener('change', actualizarDiasYPrecios);
+
+    // La fecha de fin no puede ser anterior a la fecha de inicio elegida
+    fechaInicioInput.addEventListener('change', function () {
+        fechaFinInput.min = this.value;
+        if (fechaFinInput.value && fechaFinInput.value < this.value) {
+            fechaFinInput.value = this.value;
+        }
+    });
 
     // Recalcular totales cuando cambia traslado
     if (trasladoEl) trasladoEl.addEventListener('input', recalcularTotalesDinamicos);

@@ -1181,6 +1181,45 @@ class RentasService:
                 return False, "La fecha de inicio es requerida"
 
             if es_renovacion:
+                # La fecha de inicio de esta renovación no puede ser anterior al
+                # día siguiente a la fecha de entrada de SU antecesora directa
+                # (el eslabón justo anterior en la cadena, no necesariamente la
+                # renta raíz: renta_asociada_id siempre apunta a la raíz, así que
+                # hay que recorrer la cadena para encontrar el eslabón inmediato).
+                raiz_id = renta['renta_asociada_id']
+                cursor.execute("""
+                    SELECT id, fecha_entrada FROM rentas
+                    WHERE id = %s OR renta_asociada_id = %s
+                    ORDER BY id ASC
+                """, (raiz_id, raiz_id))
+                cadena = cursor.fetchall()
+                idx_actual = next((i for i, r in enumerate(cadena) if r['id'] == renta_id), None)
+                antecesora = cadena[idx_actual - 1] if idx_actual else None
+                fecha_entrada_antecesora = antecesora['fecha_entrada'] if antecesora else None
+
+                if not fecha_entrada_antecesora:
+                    return False, "La renta anterior de esta cadena no tiene fecha de entrada registrada. Captúrala antes de poder editar esta renovación."
+
+                fecha_minima_salida = fecha_entrada_antecesora + timedelta(days=1)
+                try:
+                    fecha_salida_dt = datetime.strptime(fecha_salida, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    return False, "La fecha de inicio no es válida."
+
+                if fecha_salida_dt < fecha_minima_salida:
+                    return False, (
+                        f"La fecha de inicio debe ser a partir del {fecha_minima_salida.strftime('%d/%m/%Y')} "
+                        f"(día siguiente a la fecha de entrada de la renta anterior)."
+                    )
+
+                if fecha_entrada:
+                    try:
+                        fecha_entrada_dt = datetime.strptime(fecha_entrada, "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        return False, "La fecha de entrada no es válida."
+                    if fecha_entrada_dt < fecha_salida_dt:
+                        return False, "La fecha de entrada no puede ser anterior a la fecha de salida."
+
                 # Solo fechas y dirección de obra; recalcular días y totales con las
                 # mismas piezas/precios que ya tenía la renovación
                 cursor.execute("""
@@ -1491,7 +1530,26 @@ class RentasService:
                 from datetime import timedelta
                 fecha_limite_obj = renta['fecha_entrada'] + timedelta(days=1)
                 fecha_limite = f"{fecha_limite_obj.strftime('%d/%m/%Y')} antes de las 10:00 a.m."
-            
+
+            # Si esta renta es una renovación, se busca la fecha de entrada de
+            # SU antecesora directa (el eslabón inmediato anterior en la cadena,
+            # no la renta raíz: renta_asociada_id siempre apunta a la raíz) para
+            # que el frontend pueda bloquear que la edición mueva la fecha de
+            # inicio antes de ese punto.
+            antecesora_fecha_entrada = None
+            if renta['renta_asociada_id']:
+                raiz_id = renta['renta_asociada_id']
+                cursor.execute("""
+                    SELECT id, fecha_entrada FROM rentas
+                    WHERE id = %s OR renta_asociada_id = %s
+                    ORDER BY id ASC
+                """, (raiz_id, raiz_id))
+                cadena = cursor.fetchall()
+                idx_actual = next((i for i, r in enumerate(cadena) if r['id'] == renta_id), None)
+                antecesora = cadena[idx_actual - 1] if idx_actual else None
+                if antecesora and antecesora['fecha_entrada']:
+                    antecesora_fecha_entrada = antecesora['fecha_entrada'].strftime('%Y-%m-%d')
+
             direccion_cliente = renta['calle'] or ''
             if renta['numero_exterior']: direccion_cliente += f" #{renta['numero_exterior']}"
             if renta['numero_interior']: direccion_cliente += f", Int. {renta['numero_interior']}"
@@ -1516,7 +1574,8 @@ class RentasService:
                 'total': float(renta['total_con_iva'] or 0),
                 'observaciones': renta['observaciones'],
                 'fecha_limite': fecha_limite,
-                'estado_entrega': estado_entrega
+                'estado_entrega': estado_entrega,
+                'antecesora_fecha_entrada': antecesora_fecha_entrada
             }
 
             cliente_dict = {
@@ -1547,14 +1606,43 @@ class RentasService:
             conn.start_transaction()
 
             cursor.execute(
-                "SELECT cliente_id, direccion_obra, id_sucursal, renta_asociada_id "
+                "SELECT cliente_id, direccion_obra, id_sucursal, renta_asociada_id, fecha_entrada "
                 "FROM rentas WHERE id = %s", (renta_id,)
             )
             renta_original = cursor.fetchone()
             if not renta_original:
                 raise ValueError("La renta original no existe.")
 
-            cliente_id, direccion_obra, sucursal_id, renta_asociada_id_db = renta_original
+            cliente_id, direccion_obra, sucursal_id, renta_asociada_id_db, fecha_entrada_antecesora = renta_original
+
+            # No se puede renovar una renta que no tiene registrada su fecha de
+            # entrada (regreso), porque no hay forma de saber a partir de
+            # cuándo debe empezar la renovación sin ese dato.
+            if not fecha_entrada_antecesora:
+                raise ValueError(
+                    "Esta renta no tiene fecha de entrada registrada. "
+                    "Captúrala antes de poder renovarla."
+                )
+
+            fecha_minima_salida = fecha_entrada_antecesora + timedelta(days=1)
+            try:
+                nueva_fecha_salida_dt = datetime.strptime(nueva_fecha_salida, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                raise ValueError("La nueva fecha de salida no es válida.")
+
+            if nueva_fecha_salida_dt < fecha_minima_salida:
+                raise ValueError(
+                    f"La renovación debe iniciar a partir del {fecha_minima_salida.strftime('%d/%m/%Y')} "
+                    f"(día siguiente a la fecha de entrada de la renta anterior)."
+                )
+
+            if fecha_entrada:
+                try:
+                    fecha_entrada_dt = datetime.strptime(fecha_entrada, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    raise ValueError("La fecha de entrada de la renovación no es válida.")
+                if fecha_entrada_dt < nueva_fecha_salida_dt:
+                    raise ValueError("La fecha de entrada no puede ser anterior a la fecha de salida de la renovación.")
             # Una renovación es una renta nueva que no implica un viaje del camión
             # (el equipo se queda en la obra): nunca hereda el traslado de la renta
             # original ni admite traslado extra propio.

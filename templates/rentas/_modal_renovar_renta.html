@@ -25,11 +25,13 @@
                             <div class="row mb-3">
                                 <div class="col">
                                     <label for="fecha_salida_modal" class="form-label">Fecha inicio</label>
-                                    <input type="date" class="form-control" id="fecha_salida_modal" name="nueva_fecha_salida" required>
+                                    <input type="date" class="form-control" id="fecha_salida_modal" name="nueva_fecha_salida"
+                                        min="{{ fecha_hoy }}" required>
                                 </div>
                                 <div class="col">
                                     <label for="fecha_entrada_modal" class="form-label">Fecha fin (opcional)</label>
-                                    <input type="date" class="form-control" id="fecha_entrada_modal" name="fecha_entrada">
+                                    <input type="date" class="form-control" id="fecha_entrada_modal" name="fecha_entrada"
+                                        min="{{ fecha_hoy }}">
                                 </div>
                             </div>
                             <div class="mb-3">

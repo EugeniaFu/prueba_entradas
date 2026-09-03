@@ -286,7 +286,8 @@ def modulo_rentas(sucursal_id=None):
         es_admin=(sucursal_id_usuario is None),
         rentas_pagadas=rentas_pagadas,
         puede_ajustar_precios=puede_ajustar_precios,
-        puede_crear_nota_entrada_multiple=puede_crear_nota_entrada_multiple
+        puede_crear_nota_entrada_multiple=puede_crear_nota_entrada_multiple,
+        fecha_hoy=get_local_now_naive().strftime('%Y-%m-%d')
     )
 
 
@@ -349,6 +350,40 @@ def crear_renta():
             'costo_traslado': float(request.form.get('costo_traslado') or 0),
             'traslado': request.form.get('traslado') or 'ninguno'
         }
+
+        # No se pueden registrar rentas con fechas ya pasadas: la fecha de
+        # salida (y la programada, si aplica) deben ser desde hoy en adelante,
+        # y la fecha de entrada (si se captura) no puede ser anterior a la salida.
+        hoy = get_local_now_naive().date()
+        try:
+            fecha_salida_dt = datetime.strptime(datos_renta['fecha_salida'], "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            flash("La fecha de salida no es válida.", "danger")
+            return redirect(url_for('rentas.modulo_rentas'))
+
+        if fecha_salida_dt < hoy:
+            flash("La fecha de salida no puede ser anterior a hoy.", "danger")
+            return redirect(url_for('rentas.modulo_rentas'))
+
+        if datos_renta['fecha_entrada']:
+            try:
+                fecha_entrada_dt = datetime.strptime(datos_renta['fecha_entrada'], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                flash("La fecha de entrada no es válida.", "danger")
+                return redirect(url_for('rentas.modulo_rentas'))
+            if fecha_entrada_dt < fecha_salida_dt:
+                flash("La fecha de entrada no puede ser anterior a la fecha de salida.", "danger")
+                return redirect(url_for('rentas.modulo_rentas'))
+
+        if datos_renta['fecha_programada']:
+            try:
+                fecha_programada_dt = datetime.strptime(datos_renta['fecha_programada'], "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                flash("La fecha programada no es válida.", "danger")
+                return redirect(url_for('rentas.modulo_rentas'))
+            if fecha_programada_dt < hoy:
+                flash("La fecha programada no puede ser anterior a hoy.", "danger")
+                return redirect(url_for('rentas.modulo_rentas'))
 
         # Arrays de detalles
         productos = request.form.getlist('producto_id[]')

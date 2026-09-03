@@ -233,7 +233,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // Listeners para fechas
     const fechaSalida = document.getElementById('fecha_salida');
     const fechaEntrada = document.getElementById('fecha_entrada');
-    if (fechaSalida) fechaSalida.addEventListener('change', actualizarDiasYPrecios);
+    if (fechaSalida) {
+        fechaSalida.addEventListener('change', actualizarDiasYPrecios);
+        // La fecha de fin no puede ser anterior a la fecha de inicio elegida
+        fechaSalida.addEventListener('change', function () {
+            if (fechaEntrada) {
+                fechaEntrada.min = this.value;
+                if (fechaEntrada.value && fechaEntrada.value < this.value) {
+                    fechaEntrada.value = this.value;
+                }
+            }
+        });
+    }
     if (fechaEntrada) fechaEntrada.addEventListener('change', actualizarDiasYPrecios);
 
     // Agregar productos a la tabla
