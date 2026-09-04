@@ -4,6 +4,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 {% endblock %}
 
 {% block content %}
@@ -248,5 +249,17 @@
 <script>
     window.puedeAjustarPrecios = {{ 'true' if puede_ajustar_precios_cotizacion else 'false' }};
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function () {
+        $('#producto_select').select2({
+            dropdownParent: $('#modalNuevaCotizacion'),
+            width: '100%',
+            placeholder: 'Selecciona un producto'
+        });
+    });
+</script>
+
 <script src="{{ url_for('static', filename='js/cotizaciones.js') }}"></script>
 {% endblock %}

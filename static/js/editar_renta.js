@@ -2,11 +2,14 @@
 // bloqueando los campos que no se pueden modificar en lugar de construir un modal aparte.
 document.addEventListener('DOMContentLoaded', function () {
     let modoEdicionRentaId = null; // null = el modal de Nueva Renta está en modo creación
+    let modoSoloFechas = false; // true = renta ya pagada: solo se puede mover la fecha de inicio
+    let diasPagadosSoloFechas = 1;
 
     const formNuevaRenta = document.getElementById('form-nueva-renta');
     const modalNuevaRentaEl = document.getElementById('modalNuevaRenta');
     const tituloNuevaRenta = document.getElementById('modalNuevaRentaLabel');
     const btnGuardarRenta = document.getElementById('btn-guardar-renta');
+    const avisoSoloFechas = document.getElementById('aviso_solo_fechas');
 
     if (!formNuevaRenta || !modalNuevaRentaEl) return;
 
@@ -17,8 +20,47 @@ document.addEventListener('DOMContentLoaded', function () {
             : '<i class="bi bi-check2-circle me-2"></i>Guardar Renta';
     }
 
+    // Bloquea/desbloquea todo lo que no sean fechas: productos, precios,
+    // traslado y programación. Se usa cuando la renta ya tiene pago/abono
+    // registrado, para que solo se pueda reprogramar la fecha de inicio.
+    function aplicarBloqueoSoloFechas(bloquear) {
+        document.getElementById('fecha_entrada').readOnly = bloquear;
+        document.getElementById('renta_programada').disabled = bloquear;
+        document.getElementById('fecha_programada').disabled = bloquear;
+        document.getElementById('traslado').disabled = bloquear;
+        document.getElementById('costo_traslado').disabled = bloquear;
+        document.getElementById('agregar_producto').disabled = bloquear;
+        document.getElementById('producto_select').disabled = bloquear;
+        document.getElementById('cantidad_producto').disabled = bloquear;
+
+        document.querySelectorAll('#tabla-productos tbody input').forEach(input => { input.readOnly = bloquear; });
+        document.querySelectorAll('#tabla-productos tbody select').forEach(sel => { sel.disabled = bloquear; });
+        document.querySelectorAll('#tabla-productos tbody .btn-eliminar-producto').forEach(btn => {
+            btn.style.display = bloquear ? 'none' : '';
+        });
+
+        if (avisoSoloFechas) avisoSoloFechas.classList.toggle('d-none', !bloquear);
+    }
+
+    function recalcularFechaEntradaSoloFechas() {
+        const fechaSalidaInput = document.getElementById('fecha_salida');
+        const fechaEntradaInput = document.getElementById('fecha_entrada');
+        if (!fechaSalidaInput.value) return;
+        const d = new Date(fechaSalidaInput.value + 'T00:00:00');
+        d.setDate(d.getDate() + (diasPagadosSoloFechas - 1));
+        fechaEntradaInput.value = d.toISOString().substring(0, 10);
+    }
+
+    document.getElementById('fecha_salida').addEventListener('change', function () {
+        if (modoSoloFechas) recalcularFechaEntradaSoloFechas();
+    });
+
     function resetModalNuevaRentaACreacion() {
         modoEdicionRentaId = null;
+        if (modoSoloFechas) {
+            modoSoloFechas = false;
+            aplicarBloqueoSoloFechas(false);
+        }
         if (tituloNuevaRenta) tituloNuevaRenta.innerHTML = '<i class="bi bi-plus-circle me-2"></i>Nueva Renta';
         if (btnGuardarRenta) btnGuardarRenta.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Guardar Renta';
         if (window.jQuery) $('#cliente_id').prop('disabled', false);
@@ -68,6 +110,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function abrirModalEditarRentaOriginal(rentaId, info) {
         modoEdicionRentaId = rentaId;
+        modoSoloFechas = info.modo === 'solo_fechas';
+        diasPagadosSoloFechas = Number(info.dias_pagados) || 1;
         if (tituloNuevaRenta) tituloNuevaRenta.innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Renta';
         if (btnGuardarRenta) btnGuardarRenta.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Guardar Cambios';
 
@@ -109,6 +153,9 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('#tabla-productos .cantidad').forEach(input => {
             input.dispatchEvent(new Event('input', { bubbles: true }));
         });
+
+        aplicarBloqueoSoloFechas(modoSoloFechas);
+        if (modoSoloFechas) recalcularFechaEntradaSoloFechas();
 
         bootstrap.Modal.getOrCreateInstance(modalNuevaRentaEl).show();
     }

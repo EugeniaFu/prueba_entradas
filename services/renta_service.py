@@ -1097,7 +1097,12 @@ class RentasService:
         estado_pago_lower = (estado_pago or '').lower().strip()
         if es_renovacion:
             return estado_renta_lower == 'activa renovacion' and estado_pago_lower == 'pago pendiente'
-        return estado_renta_lower in ('en curso', 'programada') and estado_pago_lower == 'pago pendiente'
+        # Una renta original sigue siendo editable aunque ya tenga pago/abono
+        # registrado, mientras el equipo no haya salido físicamente todavía
+        # (en cuanto hay nota de salida, estado_renta deja de ser 'en curso'/
+        # 'programada'). Si ya está pagada, editar_renta() restringe el guardado
+        # a solo mover las fechas, sin tocar productos/precios ya cobrados.
+        return estado_renta_lower in ('en curso', 'programada')
 
     @staticmethod
     def info_editar_renta(renta_id):
@@ -1144,6 +1149,17 @@ class RentasService:
             """, (renta_id,))
             info['productos'] = cursor.fetchall()
 
+            # Si ya hay pago/abono registrado, solo se permite mover la fecha
+            # de salida (la de entrada se recalcula sola para conservar los
+            # días que ya se cobraron); productos, precios y traslado quedan
+            # bloqueados porque ya se cobraron con esos datos.
+            estado_pago_lower = (renta['estado_pago'] or '').lower().strip()
+            if estado_pago_lower == 'pago pendiente':
+                info['modo'] = 'completo'
+            else:
+                info['modo'] = 'solo_fechas'
+                info['dias_pagados'] = max((p['dias_renta'] for p in info['productos']), default=1)
+
             return info
         finally:
             cursor.close()
@@ -1171,7 +1187,9 @@ class RentasService:
 
             es_renovacion = renta['renta_asociada_id'] is not None
             if not RentasService._puede_editar_renta(renta['estado_renta'], renta['estado_pago'], es_renovacion):
-                return False, "Esta renta ya no se puede editar (ya tiene salida, cobro o pago registrado). Cancélala si necesitas hacer cambios."
+                if es_renovacion:
+                    return False, "Esta renovación ya no se puede editar (ya tiene salida, cobro o pago registrado). Cancélala si necesitas hacer cambios."
+                return False, "Esta renta ya no se puede editar porque el equipo ya salió. Cancélala si necesitas hacer cambios."
 
             fecha_salida = data.get('fecha_salida')
             fecha_entrada = data.get('fecha_entrada') or None
@@ -1252,8 +1270,35 @@ class RentasService:
                     UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
                 """, (total, iva, total_con_iva, renta_id))
 
+            elif (renta['estado_pago'] or '').lower().strip() != 'pago pendiente':
+                # Renta original ya pagada (total o abono): solo se permite
+                # reprogramar la fecha de salida, sin tocar productos, precios,
+                # traslado ni totales que ya se cobraron. La fecha de entrada
+                # nunca se toma de lo que mande el cliente: se recalcula aquí
+                # para conservar exactamente los días que ya se pagaron.
+                hoy = get_local_now_naive().date()
+                try:
+                    fecha_salida_dt = datetime.strptime(fecha_salida, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    return False, "La fecha de salida no es válida."
+
+                if fecha_salida_dt < hoy:
+                    return False, "La fecha de salida no puede ser anterior a hoy."
+
+                cursor.execute("SELECT dias_renta FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+                dias_renta_rows = cursor.fetchall()
+                dias_pagados = max((r['dias_renta'] for r in dias_renta_rows), default=1)
+
+                fecha_entrada_calculada = fecha_salida_dt + timedelta(days=dias_pagados - 1)
+
+                cursor.execute("""
+                    UPDATE rentas
+                    SET fecha_salida=%s, fecha_entrada=%s, direccion_obra=%s, observaciones=%s
+                    WHERE id=%s
+                """, (fecha_salida_dt, fecha_entrada_calculada, direccion_obra, data.get('observaciones', ''), renta_id))
+
             else:
-                # Renta original: se puede editar todo menos cliente y sucursal
+                # Renta original sin pago aún: se puede editar todo menos cliente y sucursal
                 traslado = data.get('traslado') or 'ninguno'
                 costo_traslado = float(data.get('costo_traslado') or 0)
                 observaciones = data.get('observaciones', '')

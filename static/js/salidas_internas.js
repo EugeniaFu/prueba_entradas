@@ -63,9 +63,10 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             actualizarTablaProductos();
-            
-            // Limpiar selección
-            selectProducto.value = '';
+
+            // Limpiar selección (usa jQuery para que select2 también se actualice visualmente)
+            if (window.jQuery) $(selectProducto).val('').trigger('change');
+            else selectProducto.value = '';
             inputCantidad.value = '';
         });
     }
@@ -227,7 +228,8 @@ document.addEventListener('DOMContentLoaded', function () {
             productosSeleccionados = [];
             document.getElementById('responsable_entrega').value = '';
             document.getElementById('observaciones_salida').value = '';
-            document.getElementById('producto_select_salida').value = '';
+            if (window.jQuery) $('#producto_select_salida').val('').trigger('change');
+            else document.getElementById('producto_select_salida').value = '';
             document.getElementById('cantidad_producto_salida').value = '';
             tablaProductos.querySelector('tbody').innerHTML = '';
             mensajeProductosVacio.style.display = 'block';

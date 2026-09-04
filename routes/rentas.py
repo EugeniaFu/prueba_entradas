@@ -242,12 +242,17 @@ def modulo_rentas(sucursal_id=None):
         return None
 
     def calcular_puede_editar(renta):
+        # Misma regla que RentasService._puede_editar_renta: una renta original
+        # sigue siendo editable aunque ya esté pagada/con abono, mientras el
+        # equipo no haya salido todavía; solo las renovaciones siguen exigiendo
+        # pago pendiente (editar_renta() ya restringe qué se puede cambiar
+        # según el estado de pago real).
         es_renovacion = renta[23] is not None
         estado_renta_lower = (renta[4] or '').lower().strip()
         estado_pago_lower = (renta[5] or '').lower().strip()
         if es_renovacion:
             return estado_renta_lower == 'activa renovacion' and estado_pago_lower == 'pago pendiente'
-        return estado_renta_lower in ('en curso', 'programada') and estado_pago_lower == 'pago pendiente'
+        return estado_renta_lower in ('en curso', 'programada')
 
     def calcular_puede_cancelar(renta):
         estado_renta_lower = (renta[4] or '').lower().strip()
