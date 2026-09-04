@@ -78,6 +78,23 @@ def index():
     
     salidas_internas = cursor.fetchall()
 
+    # Piezas de cada salida (para mostrar "Marcos Estándar x5, Coples x6..."
+    # en la tabla, igual que la columna Kit/Producto de rentas)
+    productos_por_salida = {}
+    if salidas_internas:
+        salida_ids = [s['id'] for s in salidas_internas]
+        formato_ids = ','.join(['%s'] * len(salida_ids))
+        cursor.execute(f"""
+            SELECT sid.salida_interna_id, p.nombre_pieza, sid.cantidad
+            FROM salidas_internas_detalle sid
+            JOIN piezas p ON sid.id_pieza = p.id_pieza
+            WHERE sid.salida_interna_id IN ({formato_ids})
+        """, tuple(salida_ids))
+        for fila in cursor.fetchall():
+            productos_por_salida.setdefault(fila['salida_interna_id'], []).append(
+                f"{fila['nombre_pieza']} x{fila['cantidad']}"
+            )
+
     # Obtener productos disponibles en la sucursal para el modal
     sucursal_para_productos = sucursal_filtro if sucursal_filtro and sucursal_filtro != 'todas' else (sucursal_id_usuario or 1)
     if sucursal_para_productos:
@@ -108,6 +125,7 @@ def index():
     return render_template(
         'salidas_internas/index.html',
         salidas_internas=salidas_internas,
+        productos_por_salida=productos_por_salida,
         productos_disponibles=productos_disponibles,
         sucursal_actual=sucursal_actual,
         sucursales=sucursales if sucursal_id_usuario is None else [],

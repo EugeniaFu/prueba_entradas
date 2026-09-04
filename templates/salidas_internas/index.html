@@ -69,7 +69,6 @@
             <th>Fecha de Salida</th>
             <th>Responsable</th>
             <th>Productos</th>
-            <th>Total Equipos</th>
             <th>Estado</th>
             <th>Observaciones</th>
             <th>Acciones</th>
@@ -96,12 +95,25 @@
 
             <!-- COLUMNA DE PRODUCTOS -->
             <td>
-              <span class="badge bg-secondary">{{ salida.total_productos }} tipo(s)</span>
-            </td>
-
-            <!-- COLUMNA DE TOTAL EQUIPOS -->
-            <td>
-              <span class="badge bg-primary">{{ salida.cantidad_total_equipos }} equipo(s)</span>
+              <div class="productos-lista">
+                {% if productos_por_salida.get(salida.id) %}
+                {% set productos_list = productos_por_salida[salida.id] %}
+                {% if productos_list|length > 2 %}
+                <span class="tooltip-producto" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true"
+                  title="{% for item in productos_list %}<div class='mb-1'>• {{ item }}</div>{% endfor %}">
+                  <span class="producto-item">{{ productos_list[0] }}</span>
+                  <span class="producto-item">{{ productos_list[1] }}</span>
+                  <small class="text-muted">+{{ productos_list|length - 2 }} más...</small>
+                </span>
+                {% else %}
+                {% for item in productos_list %}
+                <span class="producto-item">{{ item }}</span>
+                {% endfor %}
+                {% endif %}
+                {% else %}
+                <small class="text-muted">Sin productos</small>
+                {% endif %}
+              </div>
             </td>
 
             <!-- COLUMNA DE ESTADO -->
