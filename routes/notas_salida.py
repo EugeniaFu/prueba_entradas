@@ -492,8 +492,13 @@ def generar_pdf_nota_salida(nota_salida_id):
         # Fecha límite de entrega (en negritas)
         can.setFont("Helvetica-Bold", 9)
         if nota['fecha_entrada']:
-            fecha_limite_obj = nota['fecha_entrada'] + timedelta(days=1)
-            fecha_limite = f"{fecha_limite_obj.strftime('%d/%m/%Y')} ANTES DE LAS 9:00 A.M."
+            dias_es = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO']
+            fecha_entrada_nota = nota['fecha_entrada']
+            if fecha_entrada_nota.weekday() == 5:  # sábado: no se labora domingo, el límite no se corre
+                fecha_limite = f"{dias_es[5]} {fecha_entrada_nota.strftime('%d/%m/%Y')} ANTES DE LAS 3:00 P.M."
+            else:
+                fecha_limite_obj = fecha_entrada_nota + timedelta(days=1)
+                fecha_limite = f"{dias_es[fecha_limite_obj.weekday()]} {fecha_limite_obj.strftime('%d/%m/%Y')} ANTES DE LAS 9:00 A.M."
             can.drawString(36, y_position, f"FECHA LÍMITE DE ENTREGA: {fecha_limite}")
         else:
             can.drawString(36, y_position, "FECHA LÍMITE DE ENTREGA: INDEFINIDA")
@@ -544,7 +549,7 @@ def generar_pdf_nota_salida(nota_salida_id):
         
         # Etiquetas de firmas
         can.drawString(60, y_position, "ENTREGA: ANDAMIOS COLOSIO")
-        can.drawString(350, y_position, "RECIBE: _______________________")
+        can.drawString(350, y_position, "NOMBRE Y FIRMA DE QUIEN RECIBE")
         y_position -= 10
         
         nombre_entrega = nota['chofer_nombre'].upper() if nota.get('chofer_nombre') else usuario_nombre
