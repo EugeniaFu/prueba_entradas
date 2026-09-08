@@ -1102,7 +1102,14 @@ class RentasService:
         # (en cuanto hay nota de salida, estado_renta deja de ser 'en curso'/
         # 'programada'). Si ya está pagada, editar_renta() restringe el guardado
         # a solo mover las fechas, sin tocar productos/precios ya cobrados.
-        return estado_renta_lower in ('en curso', 'programada')
+        if estado_renta_lower in ('en curso', 'programada'):
+            return True
+        # El equipo ya salió (estado 'activo') pero nada se ha cobrado aún:
+        # se permite mover la fecha de entrega y el ajuste de precio, sin
+        # tocar productos/cantidades (eso implicaría una segunda salida física
+        # real, fuera de alcance de una edición) ni la fecha de salida (ya
+        # quedó fija en la nota de salida real).
+        return estado_renta_lower == 'activo' and estado_pago_lower == 'pago pendiente'
 
     @staticmethod
     def info_editar_renta(renta_id):
@@ -1149,14 +1156,21 @@ class RentasService:
             """, (renta_id,))
             info['productos'] = cursor.fetchall()
 
-            # Si ya hay pago/abono registrado, solo se permite mover la fecha
-            # de salida (la de entrada se recalcula sola para conservar los
-            # días que ya se cobraron); productos, precios y traslado quedan
-            # bloqueados porque ya se cobraron con esos datos.
+            estado_renta_lower = (renta['estado_renta'] or '').lower().strip()
             estado_pago_lower = (renta['estado_pago'] or '').lower().strip()
-            if estado_pago_lower == 'pago pendiente':
+            if estado_renta_lower == 'activo':
+                # El equipo ya salió (nota de salida real) pero nada se ha
+                # cobrado: solo se permite mover la fecha de entrega, dirección/
+                # observaciones y el ajuste de precio — mismos productos y
+                # cantidades, sin tocar la fecha de salida real.
+                info['modo'] = 'solo_entrega'
+            elif estado_pago_lower == 'pago pendiente':
                 info['modo'] = 'completo'
             else:
+                # Ya hay pago/abono registrado: solo se permite mover la fecha
+                # de salida (la de entrada se recalcula sola para conservar los
+                # días que ya se cobraron); productos, precios y traslado
+                # quedan bloqueados porque ya se cobraron con esos datos.
                 info['modo'] = 'solo_fechas'
                 info['dias_pagados'] = max((p['dias_renta'] for p in info['productos']), default=1)
 
@@ -1269,6 +1283,106 @@ class RentasService:
                 cursor.execute("""
                     UPDATE rentas SET total=%s, iva=%s, total_con_iva=%s WHERE id=%s
                 """, (total, iva, total_con_iva, renta_id))
+
+            elif (renta['estado_renta'] or '').lower().strip() == 'activo':
+                # El equipo ya salió (nota de salida real, con su propia fecha
+                # de salida documentada) pero nada se ha cobrado todavía: solo
+                # se permite mover la fecha de entrega, dirección/observaciones
+                # y el ajuste de precio. No se toca la fecha de salida (ya
+                # quedó fija en la nota de salida) ni se agregan/quitan
+                # productos o cantidades (eso implicaría una segunda salida
+                # física real, fuera de alcance de una edición).
+                cursor.execute("SELECT fecha_salida, costo_traslado FROM rentas WHERE id = %s", (renta_id,))
+                renta_actual = cursor.fetchone()
+                fecha_salida_real = renta_actual['fecha_salida']
+                costo_traslado_actual = float(renta_actual['costo_traslado'] or 0)
+
+                if not fecha_entrada:
+                    return False, "La fecha de entrega es requerida."
+                try:
+                    fecha_entrada_dt = datetime.strptime(fecha_entrada, "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    return False, "La fecha de entrega no es válida."
+
+                if fecha_entrada_dt < fecha_salida_real:
+                    return False, "La fecha de entrega no puede ser anterior a la fecha de salida real del equipo."
+
+                dias_renta = max(1, (fecha_entrada_dt - fecha_salida_real).days + 1)
+
+                cursor.execute("SELECT id, id_producto, cantidad FROM renta_detalle WHERE renta_id = %s", (renta_id,))
+                detalles_actuales = {d['id_producto']: d for d in cursor.fetchall()}
+
+                productos_payload = data.get('productos', [])
+                try:
+                    ids_payload = {int(p['id_producto']) for p in productos_payload}
+                except (KeyError, ValueError, TypeError):
+                    return False, "Datos de productos inválidos."
+
+                if ids_payload != set(detalles_actuales.keys()):
+                    return False, "En este modo no se pueden agregar ni quitar productos, solo ajustar precio y fechas."
+
+                total = 0
+                for prod in productos_payload:
+                    id_producto = int(prod['id_producto'])
+                    detalle_actual = detalles_actuales[id_producto]
+                    cantidad = detalle_actual['cantidad']  # nunca se toca en este modo
+
+                    # El precio base se retarifa según el nuevo rango de días
+                    # (igual que al crear una renta o en "Editar fecha de
+                    # entrada"): menos días sube el costo por día, más días
+                    # lo baja. El ajuste de precio se aplica sobre ese precio
+                    # ya retarifado, nunca sobre el que tenía antes.
+                    cursor.execute("""
+                        SELECT precio_dia, precio_14_dias, precio_29_dias, precio_30_dias
+                        FROM producto_precios WHERE id_producto = %s
+                    """, (id_producto,))
+                    precios_row = cursor.fetchone()
+                    cursor.execute("SELECT precio_unico FROM productos WHERE id_producto = %s", (id_producto,))
+                    precio_unico_row = cursor.fetchone()
+                    precio_unico = precio_unico_row['precio_unico'] if precio_unico_row else 0
+
+                    if not precios_row:
+                        return False, "No se encontraron precios configurados para uno de los productos."
+
+                    if precio_unico == 1:
+                        precio_base = float(precios_row['precio_dia'])
+                    elif dias_renta <= 2:
+                        precio_base = float(precios_row['precio_dia'])
+                    elif dias_renta <= 14:
+                        precio_base = float(precios_row['precio_14_dias'])
+                    elif dias_renta <= 29:
+                        precio_base = float(precios_row['precio_29_dias'])
+                    else:
+                        precio_base = float(precios_row['precio_30_dias'])
+
+                    ajuste_tipo = prod.get('ajuste_tipo', 'ninguno')
+                    ajuste_valor = float(prod.get('ajuste_valor') or 0)
+
+                    if ajuste_tipo == 'porcentaje':
+                        costo_unitario = precio_base * (1 + ajuste_valor / 100)
+                    elif ajuste_tipo == 'fijo':
+                        costo_unitario = precio_base + ajuste_valor
+                    else:
+                        costo_unitario = precio_base
+                    costo_unitario = max(0, costo_unitario)
+
+                    subtotal = cantidad * dias_renta * costo_unitario
+                    total += subtotal
+
+                    cursor.execute("""
+                        UPDATE renta_detalle
+                        SET dias_renta=%s, precio_base=%s, costo_unitario=%s, ajuste_tipo=%s, ajuste_valor=%s, subtotal=%s
+                        WHERE id=%s
+                    """, (dias_renta, precio_base, costo_unitario, ajuste_tipo, ajuste_valor, subtotal, detalle_actual['id']))
+
+                total += costo_traslado_actual
+                iva = total * 0.16
+                total_con_iva = total + iva
+                cursor.execute("""
+                    UPDATE rentas
+                    SET fecha_entrada=%s, direccion_obra=%s, observaciones=%s, total=%s, iva=%s, total_con_iva=%s
+                    WHERE id=%s
+                """, (fecha_entrada_dt, direccion_obra, data.get('observaciones', ''), total, iva, total_con_iva, renta_id))
 
             elif (renta['estado_pago'] or '').lower().strip() != 'pago pendiente':
                 # Renta original ya pagada (total o abono): solo se permite

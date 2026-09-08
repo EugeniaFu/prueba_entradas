@@ -2,16 +2,23 @@
 // bloqueando los campos que no se pueden modificar en lugar de construir un modal aparte.
 document.addEventListener('DOMContentLoaded', function () {
     let modoEdicionRentaId = null; // null = el modal de Nueva Renta está en modo creación
-    let modoSoloFechas = false; // true = renta ya pagada: solo se puede mover la fecha de inicio
+    let modoSoloFechas = false; // true = renta ya pagada (aún no salió): solo se puede mover la fecha de inicio
     let diasPagadosSoloFechas = 1;
+    let modoSoloEntrega = false; // true = el equipo ya salió y nada se ha cobrado: solo fecha de entrega, dirección y ajuste de precio
 
     const formNuevaRenta = document.getElementById('form-nueva-renta');
     const modalNuevaRentaEl = document.getElementById('modalNuevaRenta');
     const tituloNuevaRenta = document.getElementById('modalNuevaRentaLabel');
     const btnGuardarRenta = document.getElementById('btn-guardar-renta');
     const avisoSoloFechas = document.getElementById('aviso_solo_fechas');
+    const avisoSoloEntrega = document.getElementById('aviso_solo_entrega');
 
     if (!formNuevaRenta || !modalNuevaRentaEl) return;
+
+    // min original (hoy) que el servidor ya dejó en el HTML, para poder
+    // restaurarlo al salir del modo "solo entrega" (que aprieta el min al
+    // día real de salida de esa renta específica).
+    const minFechaEntradaBase = document.getElementById('fecha_entrada').getAttribute('min');
 
     function restaurarBotonGuardar() {
         btnGuardarRenta.disabled = false;
@@ -42,6 +49,31 @@ document.addEventListener('DOMContentLoaded', function () {
         if (avisoSoloFechas) avisoSoloFechas.classList.toggle('d-none', !bloquear);
     }
 
+    // Bloquea/desbloquea todo lo que no sea fecha de entrega, dirección/
+    // observaciones o ajuste de precio. Se usa cuando el equipo ya salió
+    // (nota de salida real) pero nada se ha cobrado todavía: no se toca la
+    // fecha de salida (ya quedó fija en la nota de salida) ni se agregan,
+    // quitan o cambian cantidades de productos (eso implicaría una segunda
+    // salida física real).
+    function aplicarBloqueoSoloEntrega(bloquear) {
+        document.getElementById('fecha_salida').readOnly = bloquear;
+        document.getElementById('renta_programada').disabled = bloquear;
+        document.getElementById('fecha_programada').disabled = bloquear;
+        document.getElementById('traslado').disabled = bloquear;
+        document.getElementById('costo_traslado').disabled = bloquear;
+        document.getElementById('agregar_producto').disabled = bloquear;
+        document.getElementById('producto_select').disabled = bloquear;
+        document.getElementById('cantidad_producto').disabled = bloquear;
+
+        document.querySelectorAll('#tabla-productos tbody .cantidad').forEach(input => { input.readOnly = bloquear; });
+        document.querySelectorAll('#tabla-productos tbody .btn-eliminar-producto').forEach(btn => {
+            btn.style.display = bloquear ? 'none' : '';
+        });
+
+        if (!bloquear) document.getElementById('fecha_entrada').min = minFechaEntradaBase;
+        if (avisoSoloEntrega) avisoSoloEntrega.classList.toggle('d-none', !bloquear);
+    }
+
     function recalcularFechaEntradaSoloFechas() {
         const fechaSalidaInput = document.getElementById('fecha_salida');
         const fechaEntradaInput = document.getElementById('fecha_entrada');
@@ -60,6 +92,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (modoSoloFechas) {
             modoSoloFechas = false;
             aplicarBloqueoSoloFechas(false);
+        }
+        if (modoSoloEntrega) {
+            modoSoloEntrega = false;
+            aplicarBloqueoSoloEntrega(false);
         }
         if (tituloNuevaRenta) tituloNuevaRenta.innerHTML = '<i class="bi bi-plus-circle me-2"></i>Nueva Renta';
         if (btnGuardarRenta) btnGuardarRenta.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Guardar Renta';
@@ -112,6 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
         modoEdicionRentaId = rentaId;
         modoSoloFechas = info.modo === 'solo_fechas';
         diasPagadosSoloFechas = Number(info.dias_pagados) || 1;
+        modoSoloEntrega = info.modo === 'solo_entrega';
         if (tituloNuevaRenta) tituloNuevaRenta.innerHTML = '<i class="bi bi-pencil me-2"></i>Editar Renta';
         if (btnGuardarRenta) btnGuardarRenta.innerHTML = '<i class="bi bi-check2-circle me-2"></i>Guardar Cambios';
 
@@ -125,6 +162,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         document.getElementById('fecha_salida').value = info.fecha_salida || '';
         document.getElementById('fecha_entrada').value = info.fecha_entrada || '';
+        // La fecha de entrega no puede ser anterior a la fecha de salida real
+        // del equipo (que en este modo ya no se puede mover).
+        document.getElementById('fecha_entrada').min = modoSoloEntrega ? (info.fecha_salida || '') : minFechaEntradaBase;
         document.getElementById('direccion_obra').value = info.direccion_obra || '';
         document.getElementById('observaciones').value = info.observaciones || '';
         document.getElementById('traslado').value = info.traslado || 'ninguno';
@@ -156,6 +196,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         aplicarBloqueoSoloFechas(modoSoloFechas);
         if (modoSoloFechas) recalcularFechaEntradaSoloFechas();
+
+        aplicarBloqueoSoloEntrega(modoSoloEntrega);
 
         bootstrap.Modal.getOrCreateInstance(modalNuevaRentaEl).show();
     }

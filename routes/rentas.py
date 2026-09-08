@@ -252,7 +252,9 @@ def modulo_rentas(sucursal_id=None):
         estado_pago_lower = (renta[5] or '').lower().strip()
         if es_renovacion:
             return estado_renta_lower == 'activa renovacion' and estado_pago_lower == 'pago pendiente'
-        return estado_renta_lower in ('en curso', 'programada')
+        if estado_renta_lower in ('en curso', 'programada'):
+            return True
+        return estado_renta_lower == 'activo' and estado_pago_lower == 'pago pendiente'
 
     def calcular_puede_cancelar(renta):
         estado_renta_lower = (renta[4] or '').lower().strip()
