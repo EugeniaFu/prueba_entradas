@@ -322,6 +322,12 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
         return false;
     }
 
+    // Validar teléfono a 10 dígitos
+    if (!telefonoValido(document.getElementById('telefono').value)) {
+        alert('El teléfono debe tener 10 dígitos.');
+        return false;
+    }
+
     // Validar alojamiento de cliente foráneo
     if (document.getElementById('es_foraneo').checked && !document.getElementById('direccion_alojamiento').value.trim()) {
         alert('Por favor, ingresa la dirección de alojamiento del cliente foráneo.');

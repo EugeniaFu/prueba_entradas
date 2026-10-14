@@ -7,6 +7,7 @@ from io import BytesIO
 from datetime import datetime
 from utils.datetime_utils import get_local_now, format_date_local
 from utils.decorators import requiere_sesion, requiere_permiso
+from utils.telefonos import normalizar_telefono
 from services.cliente_service import ClienteService
 from services.renta_service import RentasService
 from reportlab.lib.pagesizes import letter
@@ -78,7 +79,7 @@ def editar_cliente(id):
             'nombre': request.form['nombre'],
             'apellido1': request.form['apellido1'],
             'apellido2': request.form['apellido2'],
-            'telefono': request.form['telefono'],
+            'telefono': normalizar_telefono(request.form.get('telefono')),
             'correo': request.form['correo'],
             'rfc': request.form['rfc'],
             'tipo_cliente': request.form['tipo_cliente'],
@@ -93,6 +94,15 @@ def editar_cliente(id):
         }
         datos_cliente['es_foraneo'] = 1 if request.form.get('es_foraneo') == '1' else 0
         datos_cliente['direccion_alojamiento'] = (request.form.get('direccion_alojamiento', '').strip() or None) if datos_cliente['es_foraneo'] else None
+
+        if not datos_cliente['telefono']:
+            flash("El teléfono debe tener 10 dígitos.", "danger")
+            return redirect(url_for('clientes.editar_cliente', id=id))
+
+        error_telefono = ClienteService.verificar_telefono_duplicado(datos_cliente['telefono'], excluir_id=id)
+        if error_telefono:
+            flash(error_telefono, "danger")
+            return redirect(url_for('clientes.editar_cliente', id=id))
 
         if datos_cliente['es_foraneo'] and not datos_cliente['direccion_alojamiento']:
             flash("Debes ingresar la dirección de alojamiento del cliente foráneo.", "danger")
@@ -270,7 +280,7 @@ def nuevo_cliente():
             'nombre': request.form['nombre'],
             'apellido1': request.form['apellido1'],
             'apellido2': request.form['apellido2'],
-            'telefono': request.form['telefono'],
+            'telefono': normalizar_telefono(request.form.get('telefono')),
             'correo': request.form.get('correo'),
             'rfc': request.form.get('rfc'),
             'tipo_cliente': request.form['tipo_cliente'],
@@ -296,8 +306,11 @@ def nuevo_cliente():
 
         # VALIDACIONES
         errores = []
-        if not datos_cliente['nombre'] or not datos_cliente['apellido1'] or not datos_cliente['apellido2'] or not datos_cliente['telefono'] or not datos_cliente['tipo_cliente']:
+        if not datos_cliente['nombre'] or not datos_cliente['apellido1'] or not datos_cliente['apellido2'] or not datos_cliente['tipo_cliente']:
             errores.append("Todos los campos obligatorios deben estar llenos.")
+
+        if not datos_cliente['telefono']:
+            errores.append("El teléfono debe tener 10 dígitos.")
         
         if not datos_cliente['calle'] or not datos_cliente['numero_exterior'] or not datos_cliente['colonia'] or not datos_cliente['codigo_postal'] or not datos_cliente['municipio'] or not datos_cliente['estado']:
             errores.append("Todos los campos de dirección son obligatorios.")

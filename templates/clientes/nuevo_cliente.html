@@ -62,7 +62,9 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Teléfono *</label>
-                                        <input type="text" class="form-control" name="telefono" required>
+                                        <input type="text" class="form-control" name="telefono" id="telefono"
+                                            data-telefono inputmode="numeric"
+                                            placeholder="981 876 5432" required>
                                     </div>
 
 
@@ -267,5 +269,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/formato_telefono.js') }}"></script>
 <script src="{{ url_for('static', filename='js/nuevo_cliente.js') }}"></script>
 {% endblock %}

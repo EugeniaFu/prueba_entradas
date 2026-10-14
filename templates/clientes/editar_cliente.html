@@ -65,8 +65,9 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Teléfono *</label>
-                                        <input type="text" class="form-control" name="telefono"
-                                            value="{{ cliente.telefono }}" required>
+                                        <input type="text" class="form-control" name="telefono" id="telefono_editar"
+                                            data-telefono inputmode="numeric"
+                                            placeholder="981 876 5432" value="{{ cliente.telefono }}" required>
                                     </div>
 
                                     <!-- SECCIÓN DE DIRECCIÓN -->
@@ -334,6 +335,7 @@
 
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/formato_telefono.js') }}"></script>
 <script>
     // ========================================
     // VARIABLES GLOBALES
@@ -580,6 +582,13 @@
         if (!direccionCompletaEditar) {
             e.preventDefault();
             alert('Por favor, completa la dirección del cliente antes de guardar.');
+            return false;
+        }
+
+        // Validar teléfono a 10 dígitos
+        if (!telefonoValido(document.getElementById('telefono_editar').value)) {
+            e.preventDefault();
+            alert('El teléfono debe tener 10 dígitos.');
             return false;
         }
 

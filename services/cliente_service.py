@@ -21,9 +21,11 @@ class ClienteService:
 
             # Lógica: Filtro por búsqueda de texto
             if busqueda:
-                query += " AND (nombre LIKE %s OR apellido1 LIKE %s OR apellido2 LIKE %s OR telefono LIKE %s)"
+                # El teléfono se compara sin espacios para encontrarlo con o sin separaciones
+                query += " AND (codigo_cliente LIKE %s OR nombre LIKE %s OR apellido1 LIKE %s OR apellido2 LIKE %s OR REPLACE(telefono, ' ', '') LIKE %s)"
                 like = f"%{busqueda}%"
-                params.extend([like, like, like, like])
+                like_tel = f"%{busqueda.replace(' ', '')}%"
+                params.extend([like, like, like, like, like_tel])
 
             # Lógica: Filtro por tipo de cliente
             if filtro in ['betado', 'frecuente', 'ocasional']:
@@ -141,14 +143,52 @@ class ClienteService:
                 apellido1 LIKE %s OR
                 apellido2 LIKE %s OR
                 CONCAT(nombre, ' ', apellido1, ' ', apellido2) LIKE %s OR
-                telefono LIKE %s OR
+                REPLACE(telefono, ' ', '') LIKE %s OR
                 correo LIKE %s
             )
             LIMIT 10
             """
             like = f"%{term}%"
-            cursor.execute(query, (like, like, like, like, like, like, like))
+            like_tel = f"%{term.replace(' ', '')}%"
+            cursor.execute(query, (like, like, like, like, like, like_tel, like))
             return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
+
+#########################################################
+#########################################################
+#########################################################
+    @staticmethod
+    def verificar_telefono_duplicado(telefono, excluir_id=None):
+        """
+        Busca el teléfono (ya normalizado) en TODOS los clientes: activos, dados de baja y betados.
+        excluir_id: id del cliente que se está editando, para no compararlo consigo mismo.
+        Regresa el mensaje de error o None si el teléfono está libre.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            query = """
+                SELECT codigo_cliente, nombre, apellido1, apellido2, tipo_cliente, activo
+                FROM clientes WHERE telefono = %s
+            """
+            params = [telefono]
+            if excluir_id:
+                query += " AND id <> %s"
+                params.append(excluir_id)
+            cursor.execute(query + " LIMIT 1", params)
+            existente = cursor.fetchone()
+            if not existente:
+                return None
+
+            nombre = ' '.join(filter(None, [existente['nombre'], existente['apellido1'], existente['apellido2']]))
+            cliente = f"{existente['codigo_cliente']} - {nombre}"
+            if not existente['activo']:
+                return f"Este teléfono pertenece a un cliente DADO DE BAJA: {cliente}. No se puede registrar."
+            if existente['tipo_cliente'] == 'betado':
+                return f"Este teléfono pertenece a un cliente BETADO: {cliente}. No se puede registrar."
+            return f"Ya existe un cliente registrado con ese teléfono: {cliente}."
         finally:
             cursor.close()
             conn.close()
@@ -163,9 +203,9 @@ class ClienteService:
         cursor = conn.cursor(dictionary=True)
         errores = []
         try:
-            cursor.execute("SELECT * FROM clientes WHERE telefono = %s AND activo = 1", (telefono,))
-            if cursor.fetchone():
-                errores.append("Ya existe un cliente registrado con ese número de teléfono.")
+            error_telefono = ClienteService.verificar_telefono_duplicado(telefono)
+            if error_telefono:
+                errores.append(error_telefono)
             if correo:
                 cursor.execute("SELECT * FROM clientes WHERE correo = %s AND activo = 1", (correo,))
                 if cursor.fetchone():
@@ -213,12 +253,8 @@ class ClienteService:
             
             cliente_id = cursor.lastrowid
 
-            # Generar Código de Cliente
-            cursor.execute("SELECT MAX(CAST(SUBSTRING(codigo_cliente, 3, 5) AS UNSIGNED)) FROM clientes WHERE sucursal_id = %s", (sucursal_id,))
-            max_consecutivo = cursor.fetchone()[0] or 0
-            consecutivo = max_consecutivo + 1
-            consecutivo_str = str(consecutivo).zfill(5)
-            codigo_cliente = f"{prefijo_sucursal}{consecutivo_str}"
+            # Generar Código de Cliente: prefijo de sucursal + id (consecutivo global, único por la BD)
+            codigo_cliente = f"{prefijo_sucursal}{str(cliente_id).zfill(4)}"
             cursor.execute("UPDATE clientes SET codigo_cliente = %s WHERE id = %s", (codigo_cliente, cliente_id))
 
             # Insertar documentos
