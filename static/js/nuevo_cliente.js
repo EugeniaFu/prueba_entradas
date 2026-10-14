@@ -299,18 +299,35 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ========================================
+// CLIENTE FORÁNEO
+// ========================================
+
+document.getElementById('es_foraneo').addEventListener('change', function () {
+    const alojamiento = document.getElementById('direccion_alojamiento');
+    document.getElementById('grupoAlojamiento').style.display = this.checked ? 'block' : 'none';
+    alojamiento.required = this.checked;
+    if (!this.checked) alojamiento.value = '';
+});
+
+// ========================================
 // VALIDACIÓN Y ENVÍO DEL FORMULARIO
 // ========================================
 
 document.getElementById('formNuevoCliente').addEventListener('submit', function (e) {
     e.preventDefault();
-    
+
     // Validar dirección
     if (!direccionCompleta) {
         alert('Por favor, ingresa la dirección del cliente antes de guardar.');
         return false;
     }
-    
+
+    // Validar alojamiento de cliente foráneo
+    if (document.getElementById('es_foraneo').checked && !document.getElementById('direccion_alojamiento').value.trim()) {
+        alert('Por favor, ingresa la dirección de alojamiento del cliente foráneo.');
+        return false;
+    }
+
     // Validar archivos
     if (archivosSeleccionados.length === 0) {
         alert('Debes subir al menos un documento.');

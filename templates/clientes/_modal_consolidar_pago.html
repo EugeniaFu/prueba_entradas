@@ -99,7 +99,7 @@
                       <option value="T.CRÉDITO">Tarjeta Crédito</option>
                       <option value="TRANSFERENCIA">Transferencia</option>
                     </select>
-                    <small class="text-muted">En efectivo el total se redondea a la moneda de $0.50. Con tarjeta o transferencia se mantiene exacto, con centavos.</small>
+                  
                   </div>
 
                   <div id="consolidar-seguimiento-div" class="mb-3" style="display:none;">
@@ -128,16 +128,16 @@
                   <!-- Preview -->
                   <div class="alert alert-info py-2 mb-0">
                     <div class="d-flex justify-content-between">
-                      <span>Disponible total:</span>
-                      <strong>$<span id="consolidar-preview-disponible">0.00</span></strong>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                      <span>Total adeudo:</span>
+                      <span>Total + IVA:</span>
                       <strong class="text-danger">$<span id="consolidar-preview-adeudo">0.00</span></strong>
                     </div>
-                    <div class="d-flex justify-content-between" id="consolidar-preview-redondeo-row" style="display:none;">
-                      <span>Total a cobrar (redondeado):</span>
-                      <strong>$<span id="consolidar-preview-total-cobrar">0.00</span></strong>
+                    <div class="d-flex justify-content-between">
+                      <span>Saldo a Favor:</span>
+                      <strong class="text-success">$<span id="consolidar-preview-saldo-favor">0.00</span></strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                      <span>Total Final:</span>
+                      <strong>$<span id="consolidar-preview-total-final">0.00</span></strong>
                     </div>
                     <hr class="my-1">
                     <div class="d-flex justify-content-between" id="consolidar-preview-cambio-row" style="display:none;">

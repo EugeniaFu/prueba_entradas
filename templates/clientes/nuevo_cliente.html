@@ -99,6 +99,22 @@
                                         <input type="hidden" name="estado" id="hidden_estado">
                                     </div>
 
+                                    <!-- CLIENTE FORÁNEO -->
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                name="es_foraneo" id="es_foraneo" value="1">
+                                            <label class="form-check-label" for="es_foraneo">Cliente foráneo</label>
+                                        </div>
+                                        <div id="grupoAlojamiento" class="mt-2" style="display: none;">
+                                            <label class="form-label" for="direccion_alojamiento">Dirección de alojamiento temporal *</label>
+                                            <textarea class="form-control" name="direccion_alojamiento"
+                                                id="direccion_alojamiento" rows="2" maxlength="255"
+                                                placeholder="Ej: Hotel Misión, Blvd. Independencia #123, hab. 214"></textarea>
+                                            <small class="text-muted">Hotel, hostal o casa de renta donde se hospeda mientras está en obra</small>
+                                        </div>
+                                    </div>
+
                                     <div class="mb-3">
                                         <label class="form-label">Correo electrónico</label>
                                         <input type="email" class="form-control" name="correo">

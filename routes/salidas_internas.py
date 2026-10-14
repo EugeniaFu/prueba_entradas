@@ -513,10 +513,13 @@ def generar_pdf_salida_interna(folio):
     """
     Generar PDF de nota de salida para salidas internas
     """
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    
+    conn = None
+    cursor = None
+
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
         # Primero obtener datos de la salida interna
         cursor.execute("""
             SELECT si.*, s.nombre as sucursal_nombre
@@ -546,9 +549,11 @@ def generar_pdf_salida_interna(folio):
             cursor.close()
             conn.close()
             return jsonify({'error': 'No hay productos en esta salida interna'}), 404
-        
+
         # === OBTENER PLANTILLA DE LA SUCURSAL ===
         plantilla_renta = None
+        conn2 = None
+        cursor2 = None
         try:
             conn2 = get_db_connection()
             cursor2 = conn2.cursor(dictionary=True)
@@ -556,10 +561,22 @@ def generar_pdf_salida_interna(folio):
             sucursal_row = cursor2.fetchone()
             if sucursal_row and sucursal_row.get('plantilla_renta'):
                 plantilla_renta = sucursal_row['plantilla_renta']
-            cursor2.close()
-            conn2.close()
         except Exception as e:
             print(f"Error obteniendo plantilla_renta: {e}")
+        finally:
+            if cursor2:
+                cursor2.close()
+            if conn2:
+                conn2.close()
+
+        # Ya no se necesita la conexión principal (los datos de la salida y sus
+        # productos ya se leyeron) — cerrarla aquí evita dejarla abierta
+        # mientras se arma el PDF, que es lo que agotaba las conexiones de
+        # MySQL y tumbaba el sistema completo.
+        cursor.close()
+        conn.close()
+        cursor = None
+        conn = None
 
         # Crear PDF
         buffer = BytesIO()

@@ -91,6 +91,12 @@
                             <span class="badge badge-clientes bg-secondary">Desconocido</span>
                             {% endif %}
                             {% endif %}
+                            <br>
+                            {% if cliente.es_foraneo %}
+                            <span class="badge badge-clientes bg-secondary mt-1">Foráneo</span>
+                            {% else %}
+                            <span class="badge badge-clientes bg-primary mt-1">Local</span>
+                            {% endif %}
                         </td>
                         <td>
                             <a href="{{ url_for('clientes.detalle_cliente', id=cliente.id) }}"

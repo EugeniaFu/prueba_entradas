@@ -198,14 +198,17 @@ class ClienteService:
             cursor.execute("""
                 INSERT INTO clientes (nombre, apellido1, apellido2, telefono, correo, rfc, tipo_cliente, 
                                      calle, entre_calles, numero_exterior, numero_interior, colonia, 
-                                     codigo_postal, municipio, estado, rol_id, sucursal_id, fecha_alta)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                     codigo_postal, municipio, estado, es_foraneo, direccion_alojamiento,
+                                     rol_id, sucursal_id, fecha_alta)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
-                datos_cliente['nombre'], datos_cliente['apellido1'], datos_cliente['apellido2'], 
+                datos_cliente['nombre'], datos_cliente['apellido1'], datos_cliente['apellido2'],
                 datos_cliente['telefono'], datos_cliente['correo'], datos_cliente['rfc'], datos_cliente['tipo_cliente'],
-                datos_cliente['calle'], datos_cliente['entre_calles'], datos_cliente['numero_exterior'], 
-                datos_cliente['numero_interior'], datos_cliente['colonia'], datos_cliente['codigo_postal'], 
-                datos_cliente['municipio'], datos_cliente['estado'], rol_id, sucursal_id, datos_cliente['fecha_alta']
+                datos_cliente['calle'], datos_cliente['entre_calles'], datos_cliente['numero_exterior'],
+                datos_cliente['numero_interior'], datos_cliente['colonia'], datos_cliente['codigo_postal'],
+                datos_cliente['municipio'], datos_cliente['estado'],
+                datos_cliente['es_foraneo'], datos_cliente['direccion_alojamiento'],
+                rol_id, sucursal_id, datos_cliente['fecha_alta']
             ))
             
             cliente_id = cursor.lastrowid
@@ -248,14 +251,16 @@ class ClienteService:
             cursor.execute("""
                 UPDATE clientes SET nombre=%s, apellido1=%s, apellido2=%s, telefono=%s, correo=%s, rfc=%s, tipo_cliente=%s,
                                 calle=%s, entre_calles=%s, numero_exterior=%s, numero_interior=%s, colonia=%s,
-                                codigo_postal=%s, municipio=%s, estado=%s
+                                codigo_postal=%s, municipio=%s, estado=%s,
+                                es_foraneo=%s, direccion_alojamiento=%s
                 WHERE id=%s
             """, (
-                datos_cliente['nombre'], datos_cliente['apellido1'], datos_cliente['apellido2'], 
+                datos_cliente['nombre'], datos_cliente['apellido1'], datos_cliente['apellido2'],
                 datos_cliente['telefono'], datos_cliente['correo'], datos_cliente['rfc'], datos_cliente['tipo_cliente'],
-                datos_cliente['calle'], datos_cliente['entre_calles'], datos_cliente['numero_exterior'], 
-                datos_cliente['numero_interior'], datos_cliente['colonia'], datos_cliente['codigo_postal'], 
-                datos_cliente['municipio'], datos_cliente['estado'], id
+                datos_cliente['calle'], datos_cliente['entre_calles'], datos_cliente['numero_exterior'],
+                datos_cliente['numero_interior'], datos_cliente['colonia'], datos_cliente['codigo_postal'],
+                datos_cliente['municipio'], datos_cliente['estado'],
+                datos_cliente['es_foraneo'], datos_cliente['direccion_alojamiento'], id
             ))
 
             # Eliminar documentos seleccionados

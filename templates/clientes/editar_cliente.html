@@ -119,6 +119,24 @@
                                             value="{{ cliente.estado or '' }}">
                                     </div>
 
+                                    <!-- CLIENTE FORÁNEO -->
+                                    <div class="mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                name="es_foraneo" id="es_foraneo_editar" value="1"
+                                                {% if cliente.es_foraneo %}checked{% endif %}>
+                                            <label class="form-check-label" for="es_foraneo_editar">Cliente foráneo</label>
+                                        </div>
+                                        <div id="grupoAlojamientoEditar" class="mt-2" {% if not cliente.es_foraneo %}style="display: none;"{% endif %}>
+                                            <label class="form-label" for="direccion_alojamiento_editar">Dirección de alojamiento temporal *</label>
+                                            <textarea class="form-control" name="direccion_alojamiento"
+                                                id="direccion_alojamiento_editar" rows="2" maxlength="255"
+                                                placeholder="Ej: Hotel Misión, Blvd. Independencia #123, hab. 214"
+                                                {% if cliente.es_foraneo %}required{% endif %}>{{ cliente.direccion_alojamiento or '' }}</textarea>
+                                            <small class="text-muted">Hotel, hostal o casa de renta donde se hospeda mientras está en obra</small>
+                                        </div>
+                                    </div>
+
                                     <div class="mb-3">
                                         <label class="form-label">Correo electrónico</label>
                                         <input type="email" class="form-control" name="correo" value="{{ cliente.correo }}">
@@ -543,6 +561,17 @@
     });
 
     // ========================================
+    // CLIENTE FORÁNEO
+    // ========================================
+
+    document.getElementById('es_foraneo_editar').addEventListener('change', function () {
+        const alojamiento = document.getElementById('direccion_alojamiento_editar');
+        document.getElementById('grupoAlojamientoEditar').style.display = this.checked ? 'block' : 'none';
+        alojamiento.required = this.checked;
+        if (!this.checked) alojamiento.value = '';
+    });
+
+    // ========================================
     // VALIDACIÓN Y ENVÍO DEL FORMULARIO
     // ========================================
 
@@ -551,6 +580,13 @@
         if (!direccionCompletaEditar) {
             e.preventDefault();
             alert('Por favor, completa la dirección del cliente antes de guardar.');
+            return false;
+        }
+
+        // Validar alojamiento de cliente foráneo
+        if (document.getElementById('es_foraneo_editar').checked && !document.getElementById('direccion_alojamiento_editar').value.trim()) {
+            e.preventDefault();
+            alert('Por favor, ingresa la dirección de alojamiento del cliente foráneo.');
             return false;
         }
 

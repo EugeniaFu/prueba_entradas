@@ -140,6 +140,12 @@
                                         {% endif %}
                                     </div>
                                 </div>
+                                {% if cliente.es_foraneo %}
+                                <div class="detalle-info-row">
+                                    <div class="detalle-info-label">Alojamiento temporal</div>
+                                    <div class="detalle-info-value">{{ cliente.direccion_alojamiento or '-' }}</div>
+                                </div>
+                                {% endif %}
                                 <div class="detalle-info-row">
                                     <div class="detalle-info-label">Sucursal</div>
                                     <div class="detalle-info-value">{{ cliente.sucursal_nombre or '-' }}</div>
@@ -165,6 +171,12 @@
                                         <span class="historial-badge historial-badge-cancelada">Betado</span>
                                         {% else %}
                                         <span class="historial-badge historial-badge-finalizada">Desconocido</span>
+                                        {% endif %}
+                                        <br>
+                                        {% if cliente.es_foraneo %}
+                                        <span class="badge bg-secondary mt-1">Foráneo</span>
+                                        {% else %}
+                                        <span class="badge bg-primary mt-1">Local</span>
                                         {% endif %}
                                     </div>
                                 </div>

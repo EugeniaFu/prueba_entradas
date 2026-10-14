@@ -63,9 +63,13 @@
         if (!pdfBtn || !clienteId) return;
         const ids = getRentaIdsSeleccionados();
         const todas = document.querySelectorAll('.consolidar-check-renta').length;
-        pdfBtn.href = (ids.length > 0 && ids.length < todas)
-            ? '/clientes/pdf-estado-cuenta/' + clienteId + '?renta_ids=' + ids.join(',')
-            : '/clientes/pdf-estado-cuenta/' + clienteId;
+        const usarSaldoFavor = document.getElementById('consolidar-usar-saldo-favor').checked;
+
+        const params = [];
+        if (ids.length > 0 && ids.length < todas) params.push('renta_ids=' + ids.join(','));
+        if (usarSaldoFavor) params.push('usar_saldo_favor=1');
+
+        pdfBtn.href = '/clientes/pdf-estado-cuenta/' + clienteId + (params.length ? '?' + params.join('&') : '');
     }
 
     // Si el usuario edita "Cambio a entregar" a mano, ya no lo pisamos con el
@@ -91,21 +95,14 @@
         const cubreTodo = disponible >= totalAdeudo;
         const esEfectivo = metodo === 'EFECTIVO';
 
-        // El total redondeado se muestra en cuanto se elige "Efectivo", sin
-        // depender de si ya se escribió el monto (es informativo: así se va
-        // a cobrar en cuanto paguen el total).
         const totalRedondeadoInfo = esEfectivo ? redondearEfectivo(totalAdeudo) : totalAdeudo;
 
-        // Para la distribución real entre rentas, el redondeo solo se aplica
-        // si el monto disponible efectivamente cubre todo el adeudo.
         const totalACobrar = (esEfectivo && cubreTodo) ? totalRedondeadoInfo : totalAdeudo;
 
         // Bolsa para pagar deudas (limitada al total ya redondeado)
         let poolDeudas = cubreTodo ? Math.min(disponible, totalACobrar) : disponible;
         let totalAplicar = 0;
 
-        // Distribute per individual renta (oldest-first), solo entre las
-        // seleccionadas — las que no están marcadas se muestran en "-".
         estadoCuenta.rentas.forEach(function (r) {
             const cell = document.getElementById('consolidar-aplicar-' + r.id);
             if (!cell) return;
@@ -133,12 +130,7 @@
             chainCell.textContent = fmt(chainTotal);
         });
 
-        // Excedente real: se calcula contra totalACobrar (ya redondeado), NO
-        // contra totalAplicar. Una renta nunca se puede sobrepagar más allá
-        // de su saldo real, así que el ajuste de redondeo (ej. $0.24 si el
-        // total subió de $11,530.76 a $11,531.00) nunca llega a aplicarse a
-        // ninguna deuda; si se comparara contra totalAplicar esos centavos
-        // se colarían como si fueran cambio real que hay que entregar.
+        
         const excedente = Math.max(0, round2(disponible - totalACobrar));
 
         // Campo de "Cambio a entregar" — solo aplica en efectivo con excedente
@@ -161,18 +153,19 @@
 
         document.getElementById('consolidar-total-aplicar').textContent = fmt(totalAplicar);
         document.getElementById('consolidar-total-adeudo').textContent = fmt(totalAdeudo);
-        document.getElementById('consolidar-preview-disponible').textContent = fmt(disponible);
-        document.getElementById('consolidar-preview-adeudo').textContent = fmt(totalAdeudo);
 
-        // Fila de redondeo: visible en cuanto se elige Efectivo, sin importar
-        // si ya se escribió el monto — es informativa (así se va a cobrar).
-        const redondeoRow = document.getElementById('consolidar-preview-redondeo-row');
-        if (esEfectivo && Math.abs(totalRedondeadoInfo - totalAdeudo) > 0.001) {
-            redondeoRow.style.display = '';
-            document.getElementById('consolidar-preview-total-cobrar').textContent = fmt(totalRedondeadoInfo);
-        } else {
-            redondeoRow.style.display = 'none';
-        }
+        // "Total + IVA": el total de las rentas seleccionadas, ya redondeado
+        // si el método es Efectivo (informativo, así se va a cobrar).
+        document.getElementById('consolidar-preview-adeudo').textContent = fmt(totalRedondeadoInfo);
+
+        // "Saldo a Favor": el saldo disponible del cliente (mismo dato que la
+        // caja verde de arriba), y "Total Final": lo que realmente le falta
+        // pagar — solo se descuenta el saldo si el check está marcado.
+        const usarSaldoFavor = document.getElementById('consolidar-usar-saldo-favor').checked;
+        const saldoFavorDisponible = estadoCuenta.saldo_favor || 0;
+        const totalFinal = Math.max(0, round2(totalRedondeadoInfo - (usarSaldoFavor ? saldoFavorDisponible : 0)));
+        document.getElementById('consolidar-preview-saldo-favor').textContent = fmt(saldoFavorDisponible);
+        document.getElementById('consolidar-preview-total-final').textContent = fmt(totalFinal);
 
         const cambioRow = document.getElementById('consolidar-preview-cambio-row');
         if (esEfectivo && excedente > 0.01) {

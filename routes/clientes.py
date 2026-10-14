@@ -91,7 +91,13 @@ def editar_cliente(id):
             'municipio': request.form.get('municipio', '').strip(),
             'estado': request.form.get('estado', '').strip()
         }
-        
+        datos_cliente['es_foraneo'] = 1 if request.form.get('es_foraneo') == '1' else 0
+        datos_cliente['direccion_alojamiento'] = (request.form.get('direccion_alojamiento', '').strip() or None) if datos_cliente['es_foraneo'] else None
+
+        if datos_cliente['es_foraneo'] and not datos_cliente['direccion_alojamiento']:
+            flash("Debes ingresar la dirección de alojamiento del cliente foráneo.", "danger")
+            return redirect(url_for('clientes.editar_cliente', id=id))
+
         ids_eliminar = request.form.getlist('eliminar_doc')
         
         # Procesar actualizaciones de tipo de documento
@@ -278,6 +284,8 @@ def nuevo_cliente():
             'municipio': request.form.get('municipio', '').strip(),
             'estado': request.form.get('estado', '').strip()
         }
+        datos_cliente['es_foraneo'] = 1 if request.form.get('es_foraneo') == '1' else 0
+        datos_cliente['direccion_alojamiento'] = (request.form.get('direccion_alojamiento', '').strip() or None) if datos_cliente['es_foraneo'] else None
 
         archivos = request.files.getlist('documentos')
         
@@ -293,7 +301,10 @@ def nuevo_cliente():
         
         if not datos_cliente['calle'] or not datos_cliente['numero_exterior'] or not datos_cliente['colonia'] or not datos_cliente['codigo_postal'] or not datos_cliente['municipio'] or not datos_cliente['estado']:
             errores.append("Todos los campos de dirección son obligatorios.")
-        
+
+        if datos_cliente['es_foraneo'] and not datos_cliente['direccion_alojamiento']:
+            errores.append("Debes ingresar la dirección de alojamiento del cliente foráneo.")
+
         if not any(archivo.filename for archivo in archivos):
             errores.append("Debes subir al menos un documento (INE, Licencia o Comprobante).")
         if not sucursal_id:
@@ -761,9 +772,9 @@ def pago_consolidado(cliente_id):
                 sucursal_id = cli['sucursal_id'] if cli else (rentas[0]['id_sucursal'] if rentas else 1)
                 cursor.execute("""
                     INSERT INTO saldo_favor_clientes
-                        (cliente_id, sucursal_id, tipo, monto, concepto, referencia_tabla, usuario_id)
-                    VALUES (%s, %s, 'debito', %s, 'Aplicado en pago consolidado', 'consolidado', %s)
-                """, (cliente_id, sucursal_id, usado_real, session.get('user_id')))
+                        (cliente_id, sucursal_id, tipo, monto, concepto, referencia_tabla, referencia_id, usuario_id)
+                    VALUES (%s, %s, 'debito', %s, 'Aplicado en pago consolidado', 'consolidado', %s, %s)
+                """, (cliente_id, sucursal_id, usado_real, folio_compartido, session.get('user_id')))
 
         # Excedente no entregado como cambio → saldo a favor
         if saldo_favor_generado > 0.01:
@@ -847,6 +858,11 @@ def pdf_estado_cuenta(cliente_id):
             renta_ids_filtro = [int(x) for x in renta_ids_param.split(',') if x.strip().isdigit()]
         except ValueError:
             renta_ids_filtro = None
+
+    # ?usar_saldo_favor=1 — refleja si el checkbox "Aplicar saldo a favor en
+    # este pago" del modal estaba marcado al generar el PDF. Solo entonces se
+    # muestra/descuenta el saldo a favor del cliente (igual que el preview).
+    usar_saldo_favor = request.args.get('usar_saldo_favor') == '1'
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -957,7 +973,7 @@ def pdf_estado_cuenta(cliente_id):
         saldo_favor = float(row['saldo']) if row and row['saldo'] else 0.0
 
         total_adeudo = sum(r['saldo_pendiente'] for r in rentas)
-        neto_a_pagar = max(0.0, total_adeudo - saldo_favor)
+        neto_a_pagar = max(0.0, total_adeudo - saldo_favor) if usar_saldo_favor else total_adeudo
         subtotal_general = round(sum(r['subtotal'] for r in rentas), 2)
         iva_general = round(sum(r['iva_monto'] for r in rentas), 2)
         plantilla_renta = cliente.get('plantilla_cotizacion') or cliente.get('plantilla_renta')
@@ -1141,7 +1157,7 @@ def pdf_estado_cuenta(cliente_id):
     can.drawRightString(545, y, f"${iva_general:.2f}")
     y -= 14
 
-    if saldo_favor > 0:
+    if usar_saldo_favor and saldo_favor > 0:
         can.setFillColorRGB(0, 0.5, 0)
         can.drawRightString(465, y, "SALDO A FAVOR:")
         can.drawRightString(545, y, f"-${saldo_favor:.2f}")
@@ -1412,6 +1428,18 @@ def pdf_comprobante_consolidado(cliente_id):
         iva_general = round(sum(float(r['iva_renta'] or 0) for r in rentas_unicas.values()), 2)
         total_general = round(subtotal_general + iva_general, 2)
 
+        # Saldo a favor aplicado en este pago (si se usó el checkbox al pagar):
+        # se guardó como débito ligado a este folio en pago_consolidado().
+        cursor.execute("""
+            SELECT COALESCE(SUM(monto), 0) AS monto
+            FROM saldo_favor_clientes
+            WHERE cliente_id = %s AND tipo = 'debito'
+              AND referencia_tabla = 'consolidado' AND referencia_id = %s
+        """, (cliente_id, folio_num))
+        saldo_favor_row = cursor.fetchone()
+        saldo_favor_aplicado = round(float(saldo_favor_row['monto'] or 0), 2) if saldo_favor_row else 0.0
+        total_renta = round(total_general - saldo_favor_aplicado, 2)
+
         # Detalle de productos por renta (mismo bloque visual que pdf_estado_cuenta)
         for f in filas:
             cursor.execute("""
@@ -1429,7 +1457,6 @@ def pdf_comprobante_consolidado(cliente_id):
                 f['direccion_obra'] = r_extra.get('direccion_obra')
 
         plantilla_renta = cliente.get('plantilla_renta')
-        monto_total = sum(float(f['monto']) for f in filas)
         fecha_pago = filas[0]['fecha_emision']
         metodo_pago = filas[0]['metodo_pago']
 
@@ -1555,17 +1582,9 @@ def pdf_comprobante_consolidado(cliente_id):
     can.setFillColorRGB(0, 0, 0)
     y_tabla -= 16
 
-    saldo_restante_total = 0.0
     for raiz_id in orden_raiz:
         cadena = cadenas[raiz_id]
         eslabones = cadena['eslabones']
-
-        # Totales agregados de toda la cadena (no se dibujan, solo se
-        # acumulan para el resumen global al final del documento)
-        total_cadena = sum(float(e['total_renta']) for e in eslabones)
-        total_pagado_cadena = sum(float(e['total_pagado_renta']) for e in eslabones)
-        saldo_cadena = max(0.0, round(total_cadena - total_pagado_cadena, 2))
-        saldo_restante_total = round(saldo_restante_total + saldo_cadena, 2)
 
         total_prods_cadena = sum(
             len(e.get('productos', [])) + (1 if float(e.get('costo_traslado') or 0) > 0 else 0)
@@ -1657,23 +1676,18 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawRightString(570, y_totales, f"${total_general:.2f}")
     y_totales -= 14
 
+    if saldo_favor_aplicado > 0:
+        can.setFont("Carlito", 10)
+        can.setFillColorRGB(0, 0.5, 0)
+        can.drawString(400, y_totales, "SALDO A FAVOR:")
+        can.drawRightString(570, y_totales, f"-${saldo_favor_aplicado:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y_totales -= 12
+
     can.setFont("Helvetica-Bold", 9)
-    can.drawString(400, y_totales, "TOTAL PAGADO:")
-    can.drawRightString(570, y_totales, f"${monto_total:.2f}")
-    y_totales -= 12
-
-    # Monto entregado y cambio (solo si el cliente entregó de más en
-    # efectivo; en pagos exactos o con tarjeta/transferencia no aplica)
-    if cambio_operacion > 0.01:
-        can.setFont("Carlito", 10)
-        can.drawString(400, y_totales, "MONTO ENTREGADO:")
-        can.drawRightString(570, y_totales, f"${monto_entregado_operacion:.2f}")
-        y_totales -= 12
-
-        can.setFont("Carlito", 10)
-        can.drawString(400, y_totales, "CAMBIO:")
-        can.drawRightString(570, y_totales, f"${cambio_operacion:.2f}")
-        y_totales -= 12
+    can.drawString(400, y_totales, "TOTAL RENTA:")
+    can.drawRightString(570, y_totales, f"${total_renta:.2f}")
+    y_totales -= 14
 
     # Método(s) de pago
     metodos_unicos = list(dict.fromkeys(f['metodo_pago'] for f in filas))
@@ -1682,11 +1696,14 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawRightString(570, y_totales, ' / '.join(metodos_unicos))
     y_totales -= 12
 
-    can.setFont("Helvetica-Bold", 9)
-    can.setFillColorRGB(0.65, 0, 0)
-    can.drawString(400, y_totales, "SALDO RESTANTE:")
-    can.drawRightString(570, y_totales, f"${saldo_restante_total:.2f}")
-    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Carlito", 10)
+    can.drawString(400, y_totales, "MONTO RECIBIDO:")
+    can.drawRightString(570, y_totales, f"${monto_entregado_operacion:.2f}")
+    y_totales -= 12
+
+    can.setFont("Carlito", 10)
+    can.drawString(400, y_totales, "CAMBIO:")
+    can.drawRightString(570, y_totales, f"${cambio_operacion:.2f}")
     y_totales -= 12
 
 
