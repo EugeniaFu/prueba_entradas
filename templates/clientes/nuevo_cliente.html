@@ -43,6 +43,7 @@
                 <div class="card-body">
                     <h3 class="nuevo-cliente-title"><i class="bi bi-person-plus"></i> Nuevo Cliente</h3>
                     <form method="POST" enctype="multipart/form-data" id="formNuevoCliente">
+                        <input type="hidden" name="confirmar_nombre_similar" id="confirmar_nombre_similar" value="0">
                         <div class="row">
                             <!-- Información del cliente -->
                             <div class="col-md-6">
@@ -50,15 +51,15 @@
                                     <h5>Información Personal</h5>
                                     <div class="mb-3">
                                         <label class="form-label">Nombres *</label>
-                                        <input type="text" class="form-control" name="nombre" required>
+                                        <input type="text" class="form-control" name="nombre" id="nombre" required>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Primer Apellido *</label>
-                                        <input type="text" class="form-control" name="apellido1" required>
+                                        <input type="text" class="form-control" name="apellido1" id="apellido1" required>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Segundo Apellido *</label>
-                                        <input type="text" class="form-control" name="apellido2" required>
+                                        <input type="text" class="form-control" name="apellido2" id="apellido2" required>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Teléfono *</label>

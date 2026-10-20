@@ -229,6 +229,43 @@ def buscar_clientes():
 ############################################
 ############################## BUSCADOR DE CODIGOS POSTALES 
 
+@clientes_bp.route('/api/nombres-similares')
+@requiere_sesion()
+@requiere_permiso('crear_cliente')
+def nombres_similares():
+    """Clientes con nombre igual o parecido, para avisar antes de dar de alta."""
+    similares = ClienteService.buscar_nombres_similares(
+        request.args.get('nombre', '').strip(),
+        request.args.get('apellido1', '').strip(),
+        request.args.get('apellido2', '').strip()
+    )
+    return jsonify([{
+        'id': c['id'],
+        'codigo_cliente': c['codigo_cliente'],
+        'nombre': ' '.join(filter(None, [c['nombre'], c['apellido1'], c['apellido2']])),
+        'telefono': c['telefono'],
+        'estatus': 'baja' if not c['activo'] else c['tipo_cliente'],
+        'url_detalle': url_for('clientes.detalle_cliente', id=c['id'])
+    } for c in similares])
+
+@clientes_bp.route('/api/telefono-duplicado')
+@requiere_sesion()
+@requiere_permiso('crear_cliente')
+def telefono_duplicado():
+    """Cliente que ya tiene ese teléfono (o null), para avisar antes de dar de alta."""
+    telefono = normalizar_telefono(request.args.get('telefono'))
+    existente = ClienteService.buscar_cliente_por_telefono(telefono) if telefono else None
+    if not existente:
+        return jsonify(None)
+    return jsonify({
+        'id': existente['id'],
+        'codigo_cliente': existente['codigo_cliente'],
+        'nombre': ' '.join(filter(None, [existente['nombre'], existente['apellido1'], existente['apellido2']])),
+        'telefono': existente['telefono'],
+        'estatus': 'baja' if not existente['activo'] else existente['tipo_cliente'],
+        'url_detalle': url_for('clientes.detalle_cliente', id=existente['id'])
+    })
+
 @clientes_bp.route('/api/colonias/<codigo_postal>')
 @requiere_sesion()
 def obtener_colonias_por_cp(codigo_postal):
@@ -325,6 +362,13 @@ def nuevo_cliente():
 
         # Verificar duplicados desde el servicio
         errores.extend(ClienteService.verificar_duplicados(datos_cliente['telefono'], datos_cliente['correo']))
+
+        # Nombre parecido: no bloquea, pero el usuario debe haber confirmado que es otra persona
+        if not errores and request.form.get('confirmar_nombre_similar') != '1':
+            similares = ClienteService.buscar_nombres_similares(datos_cliente['nombre'], datos_cliente['apellido1'], datos_cliente['apellido2'])
+            if similares:
+                lista = ', '.join(f"{c['codigo_cliente']} ({c['telefono']})" for c in similares)
+                errores.append(f"Hay clientes con un nombre similar: {lista}. Verifica que no sea el mismo cliente antes de darlo de alta.")
 
         # Obtener sucursales por si hay fallo y debemos re-renderizar
         conn = get_db_connection()

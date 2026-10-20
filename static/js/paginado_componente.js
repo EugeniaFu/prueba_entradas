@@ -121,6 +121,24 @@ class PaginadorTabla {
   render() {
     this.mostrarPagina(1);
   }
+
+  // Deja en la paginación solo las filas que cumplen el predicado y regresa a la página 1.
+  // Las filas que no cumplen se ocultan (junto con su fila de detalle, si tienen).
+  filtrar(predicado) {
+    if (!this.todasLasFilas) this.todasLasFilas = this.filas;
+    this.filas = this.todasLasFilas.filter(predicado);
+
+    this.todasLasFilas.forEach((fila) => {
+      if (this.filas.includes(fila)) return;
+      fila.style.display = "none";
+      const siguiente = fila.nextElementSibling;
+      if (siguiente && siguiente.classList.contains("collapse")) siguiente.style.display = "none";
+    });
+
+    this.totalPaginas = Math.max(1, Math.ceil(this.filas.length / this.filasPorPagina));
+    this.mostrarPagina(1);
+    return this.filas.length;
+  }
 }
 
 function iniciarPaginacion() {
@@ -128,7 +146,7 @@ function iniciarPaginacion() {
     // Allow per-table override via `data-filas` attribute, fallback to 8
     const filasAttr = parseInt(tabla.dataset.filas);
     const filas = Number.isInteger(filasAttr) && filasAttr > 0 ? filasAttr : 8;
-    new PaginadorTabla(tabla, { filasPorPagina: filas });
+    tabla.paginador = new PaginadorTabla(tabla, { filasPorPagina: filas });
   });
 }
 

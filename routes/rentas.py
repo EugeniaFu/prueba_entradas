@@ -13,6 +13,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 from services.renta_service import RentasService
+from services.cliente_service import ClienteService
 
 # ======================= BLUEPRINT =======================
 rentas_bp = Blueprint('rentas', __name__, url_prefix='/rentas')
@@ -194,14 +195,8 @@ def modulo_rentas(sucursal_id=None):
             for renta_id, nombre, cantidad, id_producto, tipo in detalles:
                 productos_por_renta.setdefault(renta_id, []).append(f"{nombre} x{cantidad}")
 
-    # Clientes activos (excluyendo clientes betados)
-    cursor.execute("""
-        SELECT id, codigo_cliente, nombre, apellido1, apellido2
-        FROM clientes
-        WHERE activo = 1 AND tipo_cliente != 'betado'
-        ORDER BY nombre, apellido1
-    """)
-    clientes = cursor.fetchall()
+    # Clientes a los que se les puede rentar (activos y no betados)
+    clientes = ClienteService.obtener_clientes_para_renta()
 
     # Productos y precios
     cursor.execute("""
@@ -357,6 +352,12 @@ def crear_renta():
             'costo_traslado': float(request.form.get('costo_traslado') or 0),
             'traslado': request.form.get('traslado') or 'ninguno'
         }
+
+        # Solo se renta a clientes activos y no betados
+        error_cliente = ClienteService.puede_rentar(datos_renta['cliente_id'])
+        if error_cliente:
+            flash(error_cliente, "danger")
+            return redirect(url_for('rentas.modulo_rentas'))
 
         # No se pueden registrar rentas con fechas ya pasadas: la fecha de
         # salida (y la programada, si aplica) deben ser desde hoy en adelante,

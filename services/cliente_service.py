@@ -1,6 +1,28 @@
+from difflib import SequenceMatcher
 from utils.db import get_db_connection
+from utils.nombres import simplificar_nombre
 
 class ClienteService:
+    @staticmethod
+    def _condicion_busqueda(texto):
+        """
+        Arma el WHERE de búsqueda: cada palabra escrita debe aparecer en el código,
+        nombre, apellidos, teléfono (comparado sin espacios) o correo.
+        Así "Juan Pérez" o "Pérez López" encuentran al cliente aunque estén en campos distintos.
+        """
+        condiciones, params = [], []
+        for palabra in texto.split():
+            like = f"%{palabra}%"
+            condiciones.append(
+                "(codigo_cliente LIKE %s OR nombre LIKE %s OR apellido1 LIKE %s OR apellido2 LIKE %s"
+                " OR REPLACE(telefono, ' ', '') LIKE %s OR correo LIKE %s)"
+            )
+            params.extend([like] * 6)
+        return ' AND '.join(condiciones) or '1 = 1', params
+
+#########################################################
+#########################################################
+#########################################################
     @staticmethod
     def obtener_lista_clientes(busqueda='', filtro='', ver_bajas='0'):
         """
@@ -21,11 +43,9 @@ class ClienteService:
 
             # Lógica: Filtro por búsqueda de texto
             if busqueda:
-                # El teléfono se compara sin espacios para encontrarlo con o sin separaciones
-                query += " AND (codigo_cliente LIKE %s OR nombre LIKE %s OR apellido1 LIKE %s OR apellido2 LIKE %s OR REPLACE(telefono, ' ', '') LIKE %s)"
-                like = f"%{busqueda}%"
-                like_tel = f"%{busqueda.replace(' ', '')}%"
-                params.extend([like, like, like, like, like_tel])
+                condicion, params_busqueda = ClienteService._condicion_busqueda(busqueda)
+                query += f" AND {condicion}"
+                params.extend(params_busqueda)
 
             # Lógica: Filtro por tipo de cliente
             if filtro in ['betado', 'frecuente', 'ocasional']:
@@ -134,23 +154,15 @@ class ClienteService:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            query = """
-            SELECT id, codigo_cliente, nombre, apellido1, apellido2, telefono, correo
-            FROM clientes
-            WHERE activo = 1 AND (
-                codigo_cliente LIKE %s OR
-                nombre LIKE %s OR
-                apellido1 LIKE %s OR
-                apellido2 LIKE %s OR
-                CONCAT(nombre, ' ', apellido1, ' ', apellido2) LIKE %s OR
-                REPLACE(telefono, ' ', '') LIKE %s OR
-                correo LIKE %s
-            )
-            LIMIT 10
-            """
-            like = f"%{term}%"
-            like_tel = f"%{term.replace(' ', '')}%"
-            cursor.execute(query, (like, like, like, like, like, like_tel, like))
+            condicion, params = ClienteService._condicion_busqueda(term)
+            if not params:
+                return []
+            cursor.execute(f"""
+                SELECT id, codigo_cliente, nombre, apellido1, apellido2, telefono, correo
+                FROM clientes
+                WHERE activo = 1 AND {condicion}
+                LIMIT 10
+            """, params)
             return cursor.fetchall()
         finally:
             cursor.close()
@@ -160,17 +172,97 @@ class ClienteService:
 #########################################################
 #########################################################
     @staticmethod
-    def verificar_telefono_duplicado(telefono, excluir_id=None):
+    def buscar_nombres_similares(nombre, apellido1, apellido2, excluir_id=None, limite=5):
+        """
+        Busca clientes (activos, dados de baja y betados) con el nombre completo
+        igual o muy parecido. No bloquea: sirve para avisar antes de dar de alta.
+        """
+        buscado = simplificar_nombre(f"{nombre} {apellido1} {apellido2}")
+        if not buscado:
+            return []
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT id, codigo_cliente, nombre, apellido1, apellido2, telefono, tipo_cliente, activo
+                FROM clientes
+            """)
+            similares = []
+            for c in cursor.fetchall():
+                if excluir_id and c['id'] == excluir_id:
+                    continue
+                existente = simplificar_nombre(f"{c['nombre']} {c['apellido1']} {c['apellido2'] or ''}")
+                comparador = SequenceMatcher(None, buscado, existente)
+                if existente == buscado or (comparador.quick_ratio() >= 0.9 and comparador.ratio() >= 0.9):
+                    c['parecido'] = 1.0 if existente == buscado else comparador.ratio()
+                    similares.append(c)
+            similares.sort(key=lambda c: c['parecido'], reverse=True)
+            return similares[:limite]
+        finally:
+            cursor.close()
+            conn.close()
+
+#########################################################
+#########################################################
+#########################################################
+    @staticmethod
+    def obtener_clientes_para_renta():
+        """Clientes a los que se les puede rentar: activos y no betados."""
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT id, codigo_cliente, nombre, apellido1, apellido2
+                FROM clientes
+                WHERE activo = 1 AND tipo_cliente != 'betado'
+                ORDER BY nombre, apellido1
+            """)
+            return cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
+
+#########################################################
+#########################################################
+#########################################################
+    @staticmethod
+    def puede_rentar(cliente_id):
+        """
+        Revisa si al cliente se le puede rentar.
+        Regresa None si puede, o el mensaje de por qué no.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("SELECT codigo_cliente, activo, tipo_cliente FROM clientes WHERE id = %s", (cliente_id,))
+            cliente = cursor.fetchone()
+            if not cliente:
+                return "El cliente seleccionado no existe."
+            if not cliente['activo']:
+                return f"El cliente {cliente['codigo_cliente']} está dado de baja. No se le puede rentar."
+            if cliente['tipo_cliente'] == 'betado':
+                return f"El cliente {cliente['codigo_cliente']} está betado. No se le puede rentar."
+            return None
+        finally:
+            cursor.close()
+            conn.close()
+
+#########################################################
+#########################################################
+#########################################################
+    @staticmethod
+    def buscar_cliente_por_telefono(telefono, excluir_id=None):
         """
         Busca el teléfono (ya normalizado) en TODOS los clientes: activos, dados de baja y betados.
         excluir_id: id del cliente que se está editando, para no compararlo consigo mismo.
-        Regresa el mensaje de error o None si el teléfono está libre.
+        Regresa el cliente que tiene ese teléfono o None si está libre.
         """
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             query = """
-                SELECT codigo_cliente, nombre, apellido1, apellido2, tipo_cliente, activo
+                SELECT id, codigo_cliente, nombre, apellido1, apellido2, telefono, tipo_cliente, activo
                 FROM clientes WHERE telefono = %s
             """
             params = [telefono]
@@ -178,20 +270,28 @@ class ClienteService:
                 query += " AND id <> %s"
                 params.append(excluir_id)
             cursor.execute(query + " LIMIT 1", params)
-            existente = cursor.fetchone()
-            if not existente:
-                return None
-
-            nombre = ' '.join(filter(None, [existente['nombre'], existente['apellido1'], existente['apellido2']]))
-            cliente = f"{existente['codigo_cliente']} - {nombre}"
-            if not existente['activo']:
-                return f"Este teléfono pertenece a un cliente DADO DE BAJA: {cliente}. No se puede registrar."
-            if existente['tipo_cliente'] == 'betado':
-                return f"Este teléfono pertenece a un cliente BETADO: {cliente}. No se puede registrar."
-            return f"Ya existe un cliente registrado con ese teléfono: {cliente}."
+            return cursor.fetchone()
         finally:
             cursor.close()
             conn.close()
+
+#########################################################
+#########################################################
+#########################################################
+    @staticmethod
+    def verificar_telefono_duplicado(telefono, excluir_id=None):
+        """Regresa el mensaje de error si el teléfono ya lo tiene otro cliente, o None si está libre."""
+        existente = ClienteService.buscar_cliente_por_telefono(telefono, excluir_id)
+        if not existente:
+            return None
+
+        nombre = ' '.join(filter(None, [existente['nombre'], existente['apellido1'], existente['apellido2']]))
+        cliente = f"{existente['codigo_cliente']} - {nombre}"
+        if not existente['activo']:
+            return f"Este teléfono pertenece a un cliente DADO DE BAJA: {cliente}. No se puede registrar."
+        if existente['tipo_cliente'] == 'betado':
+            return f"Este teléfono pertenece a un cliente BETADO: {cliente}. No se puede registrar."
+        return f"Ya existe un cliente registrado con ese teléfono: {cliente}."
 
 #########################################################
 #########################################################

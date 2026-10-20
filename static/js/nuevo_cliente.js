@@ -310,10 +310,148 @@ document.getElementById('es_foraneo').addEventListener('change', function () {
 });
 
 // ========================================
+// AVISO DE NOMBRE SIMILAR
+// Nombres + primer apellido + segundo apellido se revisan juntos
+// ========================================
+
+const camposNombre = ['nombre', 'apellido1', 'apellido2'].map(id => document.getElementById(id));
+const confirmarNombre = document.getElementById('confirmar_nombre_similar');
+let revisionNombre = { clave: '', similares: Promise.resolve([]) };
+let avisoMostradoPara = '';
+
+function escaparHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto ?? '';
+    return div.innerHTML;
+}
+
+// Renglón con los datos de un cliente existente (aviso de nombre y de teléfono)
+function htmlClienteExistente(c) {
+    const estatus = c.estatus === 'betado' ? '<span class="text-danger fw-bold">BETADO</span>'
+        : c.estatus === 'baja' ? '<span class="text-danger fw-bold">DADO DE BAJA</span>'
+        : escaparHtml(c.estatus);
+    return `<li class="mb-2">
+                <strong>${escaparHtml(c.codigo_cliente)} – ${escaparHtml(c.nombre)}</strong><br>
+                Tel. ${escaparHtml(c.telefono)} · ${estatus} ·
+                <a href="${escaparHtml(c.url_detalle)}" target="_blank">Ver cliente</a>
+            </li>`;
+}
+
+// Consulta los clientes parecidos solo cuando los tres campos tienen texto y el nombre cambió
+function obtenerNombresSimilares() {
+    const valores = camposNombre.map(c => c.value.trim());
+    if (!valores.every(Boolean)) return Promise.resolve([]);
+
+    const clave = valores.join('|').toLowerCase();
+    if (clave !== revisionNombre.clave) {
+        confirmarNombre.value = '0';
+        const params = new URLSearchParams({ nombre: valores[0], apellido1: valores[1], apellido2: valores[2] });
+        revisionNombre = {
+            clave,
+            similares: fetch(`/clientes/api/nombres-similares?${params}`)
+                .then(r => r.ok ? r.json() : [])
+                .catch(() => [])
+        };
+    }
+    return revisionNombre.similares;
+}
+
+// Regresa true si se puede continuar (sin parecidos o el usuario confirmó que es otra persona)
+async function revisarNombreSimilar() {
+    const similares = await obtenerNombresSimilares();
+    if (!similares.length || confirmarNombre.value === '1') return true;
+
+    avisoMostradoPara = revisionNombre.clave;
+    const lista = similares.map(htmlClienteExistente).join('');
+
+    const resultado = await Swal.fire({
+        icon: 'warning',
+        title: 'Hay clientes con un nombre similar',
+        html: `<p>Verifica con el cliente que no esté ya registrado:</p>
+               <ul class="text-start">${lista}</ul>`,
+        showCancelButton: true,
+        confirmButtonText: 'Es otra persona, continuar',
+        cancelButtonText: 'Revisar',
+        allowOutsideClick: false
+    });
+
+    if (resultado.isConfirmed) {
+        confirmarNombre.value = '1';
+        return true;
+    }
+    return false;
+}
+
+// Al salir de cualquiera de los tres campos; el aviso sale una sola vez por nombre
+camposNombre.forEach(campo => {
+    campo.addEventListener('blur', async function () {
+        const similares = await obtenerNombresSimilares();
+        if (similares.length && confirmarNombre.value !== '1' && avisoMostradoPara !== revisionNombre.clave) {
+            revisarNombreSimilar();
+        }
+    });
+});
+
+// ========================================
+// AVISO DE TELÉFONO DUPLICADO
+// A diferencia del nombre, este aviso bloquea el alta
+// ========================================
+
+const campoTelefono = document.getElementById('telefono');
+let revisionTelefono = { telefono: '', existente: Promise.resolve(null) };
+let avisoTelefonoMostradoPara = '';
+
+// Consulta solo cuando el teléfono tiene 10 dígitos y cambió desde la última revisión
+function obtenerTelefonoDuplicado() {
+    const telefono = campoTelefono.value;
+    if (!telefonoValido(telefono)) return Promise.resolve(null);
+
+    if (telefono !== revisionTelefono.telefono) {
+        revisionTelefono = {
+            telefono,
+            existente: fetch(`/clientes/api/telefono-duplicado?${new URLSearchParams({ telefono })}`)
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+        };
+    }
+    return revisionTelefono.existente;
+}
+
+// Regresa true si el teléfono está libre
+async function revisarTelefonoDuplicado() {
+    const existente = await obtenerTelefonoDuplicado();
+    if (!existente) return true;
+
+    avisoTelefonoMostradoPara = revisionTelefono.telefono;
+    const motivo = existente.estatus === 'betado' ? 'pertenece a un cliente <span class="text-danger fw-bold">BETADO</span>'
+        : existente.estatus === 'baja' ? 'pertenece a un cliente <span class="text-danger fw-bold">DADO DE BAJA</span>'
+        : 'ya está registrado con otro cliente';
+
+    await Swal.fire({
+        icon: 'error',
+        title: 'Teléfono ya registrado',
+        html: `<p>Este teléfono ${motivo}. No se puede dar de alta.</p>
+               <ul class="text-start">${htmlClienteExistente(existente)}</ul>`,
+        confirmButtonText: 'Entendido',
+        allowOutsideClick: false,
+        didClose: () => campoTelefono.focus()
+    });
+    return false;
+}
+
+// Al salir del campo; el aviso sale una sola vez por número
+campoTelefono.addEventListener('blur', async function () {
+    const existente = await obtenerTelefonoDuplicado();
+    if (existente && avisoTelefonoMostradoPara !== revisionTelefono.telefono) {
+        revisarTelefonoDuplicado();
+    }
+});
+
+// ========================================
 // VALIDACIÓN Y ENVÍO DEL FORMULARIO
 // ========================================
 
-document.getElementById('formNuevoCliente').addEventListener('submit', function (e) {
+document.getElementById('formNuevoCliente').addEventListener('submit', async function (e) {
     e.preventDefault();
 
     // Validar dirección
@@ -325,6 +463,11 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
     // Validar teléfono a 10 dígitos
     if (!telefonoValido(document.getElementById('telefono').value)) {
         alert('El teléfono debe tener 10 dígitos.');
+        return false;
+    }
+
+    // Teléfono de otro cliente: se vuelve a mostrar el aviso y no se guarda
+    if (!(await revisarTelefonoDuplicado())) {
         return false;
     }
 
@@ -340,6 +483,11 @@ document.getElementById('formNuevoCliente').addEventListener('submit', function 
         return false;
     }
     
+    // Nombre similar sin confirmar: se vuelve a mostrar el aviso
+    if (!(await revisarNombreSimilar())) {
+        return false;
+    }
+
     // Sin restricción de tamaño para documentos de clientes
     // (Permitir archivos grandes para documentos e imágenes de alta calidad)
     

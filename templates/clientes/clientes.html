@@ -40,16 +40,16 @@
                 <i class="bi bi-person-plus"></i> Nuevo Cliente
             </a>
         </div>
-        <form method="get" class="d-flex flex-wrap align-items-center mb-3 gap-2">
-            <input type="text" class="search-clientes-box" name="busqueda" placeholder="Buscar cliente..."
+        <form method="get" class="d-flex flex-wrap align-items-center mb-3 gap-2" id="formBuscarClientes">
+            <input type="text" class="search-clientes-box" name="busqueda" id="buscarCliente" autocomplete="off"
+                placeholder="Buscar por nombre, apellidos, código o teléfono..."
                 value="{{ request.args.get('busqueda', '') }}">
-            <select class="form-select" name="filtro" style="max-width:180px;">
+            <select class="form-select" name="filtro" id="filtroTipo" style="max-width:180px;">
                 <option value="">Todos</option>
                 <option value="frecuente" {% if filtro=='frecuente' %}selected{% endif %}>Frecuente</option>
                 <option value="ocasional" {% if filtro=='ocasional' %}selected{% endif %}>Ocasional</option>
                 <option value="betado" {% if filtro=='betado' %}selected{% endif %}>Betado</option>
             </select>
-            <button type="submit" class="btn btn-clientes-filter"><i class="bi bi-search"></i> Buscar</button>
             <a href="{{ url_for('clientes.clientes', ver_bajas=ver_bajas|default(0)|int == 0 and 1 or 0) }}"
                 class="btn btn-clientes-filter {{ 'active' if ver_bajas == '1' else '' }}">
                 {{ 'Ver Bajas' if ver_bajas != '1' else 'Ver Activos' }}
@@ -71,7 +71,8 @@
                 <tbody>
                     {% if clientes %}
                     {% for cliente in clientes %}
-                    <tr>
+                    <tr data-busqueda="{{ cliente.codigo_cliente }} {{ cliente.nombre }} {{ cliente.apellido1 }} {{ cliente.apellido2 or '' }} {{ (cliente.telefono or '')|replace(' ', '') }} {{ cliente.correo or '' }}"
+                        data-tipo="{{ cliente.tipo_cliente }}">
                         <td>{{ cliente.codigo_cliente }}</td>
                         <td class="fw-bold">{{ cliente.nombre }}</td>
                         <td>{{ cliente.apellido1 }} {{ cliente.apellido2 }}</td>
@@ -134,6 +135,9 @@
                     {% endif %}
                 </tbody>
             </table>
+            <div id="sinResultados" class="text-center text-muted py-3" style="display: none;">
+                No se encontraron clientes con esa búsqueda.
+            </div>
             <div class="paginacion mt-3 d-flex justify-content-center"></div>
         </div>
     </div>
@@ -201,4 +205,41 @@ function confirmarEliminacion(url, nombre) {
 {% endblock %}
 
 {% block scripts %}
+<script>
+// ========================================
+// BÚSQUEDA EN TIEMPO REAL
+// Cada palabra escrita debe aparecer en el código, nombre, apellidos, teléfono o correo
+// ========================================
+document.addEventListener('DOMContentLoaded', function () {
+    const tabla = document.getElementById('tablaClientes');
+    const buscador = document.getElementById('buscarCliente');
+    const filtroTipo = document.getElementById('filtroTipo');
+    const sinResultados = document.getElementById('sinResultados');
+
+    // Minúsculas y sin acentos, para que "perez" encuentre "Pérez"
+    const normalizar = texto => (texto || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    function filtrarClientes() {
+        if (!tabla.paginador) return;
+        const palabras = normalizar(buscador.value).split(/\s+/).filter(Boolean);
+        const tipo = filtroTipo.value;
+
+        const encontrados = tabla.paginador.filtrar(fila => {
+            if (!fila.dataset.busqueda) return palabras.length === 0 && !tipo;  // fila "No hay clientes"
+            if (tipo && fila.dataset.tipo !== tipo) return false;
+            const texto = normalizar(fila.dataset.busqueda);
+            return palabras.every(p => texto.includes(p));
+        });
+
+        sinResultados.style.display = encontrados ? 'none' : '';
+    }
+
+    buscador.addEventListener('input', filtrarClientes);
+    filtroTipo.addEventListener('change', filtrarClientes);
+    // Enter ya no recarga la página: la búsqueda es instantánea
+    document.getElementById('formBuscarClientes').addEventListener('submit', e => e.preventDefault());
+
+    if (buscador.value || filtroTipo.value) filtrarClientes();
+});
+</script>
 {% endblock %}
