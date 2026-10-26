@@ -845,6 +845,8 @@ def generar_pdf_entrada_interna(entrada_id):
 
         # === OBTENER PLANTILLA DE LA SUCURSAL ===
         plantilla_renta = None
+        conn2 = None
+        cursor2 = None
         try:
             conn2 = get_db_connection()
             cursor2 = conn2.cursor(dictionary=True)
@@ -852,10 +854,13 @@ def generar_pdf_entrada_interna(entrada_id):
             sucursal_row = cursor2.fetchone()
             if sucursal_row and sucursal_row.get('plantilla_renta'):
                 plantilla_renta = sucursal_row['plantilla_renta']
-            cursor2.close()
-            conn2.close()
         except Exception as e:
             print(f"Error obteniendo plantilla_renta: {e}")
+        finally:
+            if cursor2:
+                cursor2.close()
+            if conn2:
+                conn2.close()
 
         # Crear PDF
         buffer = BytesIO()

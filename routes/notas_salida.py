@@ -358,6 +358,8 @@ def generar_pdf_nota_salida(nota_salida_id):
         nota = cursor.fetchone()
 
         if not nota:
+            cursor.close()
+            conn.close()
             return "Nota de salida no encontrada", 404
 
         # Obtener piezas de la nota de salida
