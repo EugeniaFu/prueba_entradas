@@ -249,6 +249,16 @@ def registrar_pago_prefactura(renta_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # Misma regla que el aviso del frontend: una renta indefinida no se
+        # puede cobrar hasta registrar su fecha de entrada (su total actual
+        # es provisional, 1 día a precio_dia).
+        cursor.execute("SELECT fecha_entrada FROM rentas WHERE id = %s", (renta_id,))
+        fila_fecha = cursor.fetchone()
+        if not fila_fecha or not fila_fecha[0]:
+            cursor.close()
+            conn.close()
+            return jsonify({'success': False, 'error': 'Debes registrar primero la fecha de entrada para esta renta con valor indefinido.'}), 400
+
         # Función para redondear según reglas de efectivo
         def redondear_efectivo(monto):
             entero = int(monto)

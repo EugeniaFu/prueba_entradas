@@ -16,6 +16,14 @@
           <p class="mt-2 text-muted">Cargando estado de cuenta…</p>
         </div>
 
+        <!-- Aviso: rentas indefinidas que aún no se pueden cobrar -->
+        <div id="consolidar-indefinidas" class="alert alert-warning" style="display:none;">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Estas rentas no tienen fecha de entrada y no se incluyen en el estado de cuenta.
+          Registra su fecha de entrada para poder cobrarlas:
+          <span id="consolidar-indefinidas-lista" class="fw-semibold"></span>
+        </div>
+
         <!-- Content -->
         <div id="consolidar-content" style="display:none;">
           <div class="row g-3">

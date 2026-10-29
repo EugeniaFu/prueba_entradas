@@ -10,6 +10,7 @@ from config import config
 from routes.login import login_bp
 from routes.dashboard import dashboard_bp
 from routes.clientes import clientes_bp
+from routes.pagos_consolidados import pagos_consolidados_bp
 from routes.inventario import bp_inventario
 from routes.producto import bp_producto
 from routes.empleados import empleados_bp
@@ -76,6 +77,7 @@ def create_app(config_name='default'):
     app.register_blueprint(login_bp)           # Maneja login y autenticación
     app.register_blueprint(dashboard_bp)       # Maneja el tablero principal
     app.register_blueprint(clientes_bp)        # Maneja todo de clientes
+    app.register_blueprint(pagos_consolidados_bp)  # Maneja saldo a favor / estado de cuenta / pagos consolidados
     app.register_blueprint(bp_inventario)      # Maneja inventario y almacén
     app.register_blueprint(bp_producto)        # Maneja productos y piezas
     app.register_blueprint(empleados_bp)       # Maneja empleados

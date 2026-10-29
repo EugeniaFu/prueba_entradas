@@ -190,6 +190,7 @@
         document.getElementById('consolidar-content').style.display = 'none';
         document.getElementById('consolidar-sin-rentas').style.display = 'none';
         document.getElementById('consolidar-btn-aplicar').style.display = 'none';
+        document.getElementById('consolidar-indefinidas').style.display = 'none';
 
         fetch('/clientes/api/estado-cuenta/' + clienteId)
             .then(function (r) { return r.json(); })
@@ -200,6 +201,15 @@
                     return;
                 }
                 estadoCuenta = data;
+
+                // Aviso de rentas indefinidas (no cobrables hasta registrar su fecha de entrada)
+                if (data.rentas_indefinidas && data.rentas_indefinidas.length > 0) {
+                    document.getElementById('consolidar-indefinidas-lista').textContent =
+                        data.rentas_indefinidas.map(function (r) {
+                            return 'SUC' + r.id_sucursal + '-' + String(r.folio || r.id).padStart(4, '0');
+                        }).join(', ');
+                    document.getElementById('consolidar-indefinidas').style.display = '';
+                }
 
                 if (!data.rentas || data.rentas.length === 0) {
                     document.getElementById('consolidar-sin-rentas').style.display = '';
