@@ -19,8 +19,8 @@
         <!-- Aviso: rentas indefinidas que aún no se pueden cobrar -->
         <div id="consolidar-indefinidas" class="alert alert-warning" style="display:none;">
           <i class="bi bi-exclamation-triangle me-1"></i>
-          Estas rentas no tienen fecha de entrada y no se incluyen en el estado de cuenta.
-          Registra su fecha de entrada para poder cobrarlas:
+          Rentas sin fecha de entrada NO se incluyen en el estado de cuenta.
+          Registre su fecha de entrada para poder cobrarlas:
           <span id="consolidar-indefinidas-lista" class="fw-semibold"></span>
         </div>
 
@@ -47,23 +47,22 @@
                           </th>
                           <th>Folio</th>
                           <th>Salida</th>
-                          <th>Total</th>
-                          <th>Pagado</th>
-                          <th class="text-danger">Pendiente</th>
-                          <th>A pagar</th>
+                          <th>Entrada</th>
+                          <th class="text-end">Saldo a pagar</th>
+                          <th class="text-end consolidar-col-abono" style="display:none;">Se abona</th>
                         </tr>
                       </thead>
                       <tbody id="consolidar-rentas-tbody">
                       </tbody>
                       <tfoot class="fw-bold table-secondary">
                         <tr>
-                          <td colspan="5" class="text-end">Total adeudo (seleccionado):</td>
-                          <td class="text-danger">$<span id="consolidar-total-adeudo">0.00</span></td>
-                          <td>$<span id="consolidar-total-aplicar">0.00</span></td>
+                          <td colspan="4" class="text-end">Total a pagar (seleccionado):</td>
+                          <td class="text-end text-danger">$<span id="consolidar-total-adeudo">0.00</span></td>
+                          <td class="text-end consolidar-col-abono" style="display:none;">$<span id="consolidar-total-aplicar">0.00</span></td>
                         </tr>
                       </tfoot>
                     </table>
-                    <small class="text-muted d-block px-2 py-1">Desmarca las rentas que no quieras incluir en este estado de cuenta / pago.</small>
+                    <small class="text-muted d-block px-2 py-1">El saldo a pagar ya incluye IVA, traslado y descuenta los abonos previos. Desmarca las rentas que no quieras incluir en este estado de cuenta / pago.</small>
                   </div>
                 </div>
               </div>
@@ -136,7 +135,7 @@
                   <!-- Preview -->
                   <div class="alert alert-info py-2 mb-0">
                     <div class="d-flex justify-content-between">
-                      <span>Total + IVA:</span>
+                      <span>Total a pagar:</span>
                       <strong class="text-danger">$<span id="consolidar-preview-adeudo">0.00</span></strong>
                     </div>
                     <div class="d-flex justify-content-between">
@@ -148,7 +147,7 @@
                       <strong>$<span id="consolidar-preview-total-final">0.00</span></strong>
                     </div>
                     <hr class="my-1">
-                    <div class="d-flex justify-content-between" id="consolidar-preview-cambio-row" style="display:none;">
+                    <div class="d-flex justify-content-between d-none" id="consolidar-preview-cambio-row">
                       <span>Cambio a entregar:</span>
                       <strong class="text-primary">$<span id="consolidar-preview-cambio">0.00</span></strong>
                     </div>

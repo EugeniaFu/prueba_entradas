@@ -6,7 +6,7 @@
     'use strict';
 
     let clienteId = null;
-    let estadoCuenta = null; // { rentas, cadenas, ordenRaiz, saldo_favor, total_adeudo }
+    let estadoCuenta = null; // { rentas, rentas_indefinidas, saldo_favor, total_adeudo }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -36,17 +36,9 @@
             .map(function (cb) { return parseInt(cb.getAttribute('data-renta-id'), 10); });
     }
 
-    // Actualiza el checkbox "Seleccionar todas" y el de cada cadena según el
-    // estado (marcado/parcial/vacío) de sus eslabones.
+    // Actualiza el checkbox "Seleccionar todas" según el estado
+    // (marcado/parcial/vacío) de las rentas.
     function sincronizarCheckboxesPadre() {
-        document.querySelectorAll('.consolidar-check-cadena').forEach(function (cbCadena) {
-            const raizId = cbCadena.getAttribute('data-raiz-id');
-            const hijos = Array.from(document.querySelectorAll('.consolidar-check-renta[data-raiz-id="' + raizId + '"]'));
-            const marcados = hijos.filter(function (h) { return h.checked; }).length;
-            cbCadena.checked = marcados === hijos.length;
-            cbCadena.indeterminate = marcados > 0 && marcados < hijos.length;
-        });
-
         const todas = document.querySelectorAll('.consolidar-check-renta');
         const todasMarcadas = document.querySelectorAll('.consolidar-check-renta:checked');
         const checkTodas = document.getElementById('consolidar-check-todas');
@@ -117,20 +109,14 @@
             cell.textContent = fmt(pago);
         });
 
-        // Aggregate per chain header
-        estadoCuenta.ordenRaiz.forEach(function (raizId) {
-            var cadena = estadoCuenta.cadenas[raizId];
-            if (cadena.eslabones.length <= 1) return;
-            var chainCell = document.getElementById('consolidar-aplicar-cadena-' + raizId);
-            if (!chainCell) return;
-            var chainTotal = cadena.eslabones.reduce(function (s, e) {
-                var c = document.getElementById('consolidar-aplicar-' + e.id);
-                return s + (c ? parseFloat(c.textContent) : 0);
-            }, 0);
-            chainCell.textContent = fmt(chainTotal);
+        // La columna "Se abona" solo se muestra cuando el monto no alcanza para
+        // liquidar todo lo seleccionado (pago parcial): ahí sí importa ver a qué
+        // rentas se aplica el dinero (de la más antigua a la más reciente).
+        const esPagoParcial = disponible > 0 && !cubreTodo;
+        document.querySelectorAll('#modalConsolidarPago .consolidar-col-abono').forEach(function (el) {
+            el.style.display = esPagoParcial ? '' : 'none';
         });
 
-        
         const excedente = Math.max(0, round2(disponible - totalACobrar));
 
         // Campo de "Cambio a entregar" — solo aplica en efectivo con excedente
@@ -154,7 +140,7 @@
         document.getElementById('consolidar-total-aplicar').textContent = fmt(totalAplicar);
         document.getElementById('consolidar-total-adeudo').textContent = fmt(totalAdeudo);
 
-        // "Total + IVA": el total de las rentas seleccionadas, ya redondeado
+        // "Total a pagar": el saldo de las rentas seleccionadas, ya redondeado
         // si el método es Efectivo (informativo, así se va a cobrar).
         document.getElementById('consolidar-preview-adeudo').textContent = fmt(totalRedondeadoInfo);
 
@@ -168,12 +154,10 @@
         document.getElementById('consolidar-preview-total-final').textContent = fmt(totalFinal);
 
         const cambioRow = document.getElementById('consolidar-preview-cambio-row');
-        if (esEfectivo && excedente > 0.01) {
-            cambioRow.style.display = '';
-            document.getElementById('consolidar-preview-cambio').textContent = fmt(cambioEntregado);
-        } else {
-            cambioRow.style.display = 'none';
-        }
+        // Se usa d-none (no style.display) porque la fila es d-flex, que en
+        // Bootstrap lleva !important y le gana a un display:none inline.
+        cambioRow.classList.toggle('d-none', !(esEfectivo && excedente > 0.01));
+        document.getElementById('consolidar-preview-cambio').textContent = fmt(cambioEntregado);
 
         document.getElementById('consolidar-preview-remanente').textContent = fmt(saldoFavorGenerado);
     }
@@ -216,81 +200,44 @@
                     return;
                 }
 
-                // Agrupar por cadena
-                var cadenas = {};
-                var ordenRaiz = [];
-                data.rentas.forEach(function (r) {
-                    var raizId = r.raiz_id;
-                    if (!cadenas[raizId]) {
-                        cadenas[raizId] = { folio_raiz: r.folio_raiz, eslabones: [] };
-                        ordenRaiz.push(raizId);
-                    }
-                    cadenas[raizId].eslabones.push(r);
-                });
-                estadoCuenta.cadenas = cadenas;
-                estadoCuenta.ordenRaiz = ordenRaiz;
-
                 // Build table
                 const tbody = document.getElementById('consolidar-rentas-tbody');
                 tbody.innerHTML = '';
 
-                ordenRaiz.forEach(function (raizId) {
-                    var cadena = cadenas[raizId];
-                    var eslabones = cadena.eslabones;
-                    var numReno = eslabones.length - 1;
-                    var folioStr = '#' + String(cadena.folio_raiz || raizId).padStart(4, '0');
+                // Fecha de entrada + si el equipo ya regresó o sigue en la obra
+                function celdaEntrada(r) {
+                    var finalizada = (r.estado_renta || '').toLowerCase().trim() === 'finalizada';
+                    var badge = finalizada
+                        ? '<span class="badge bg-success ms-1" style="font-size:.7em;">Finalizada</span>'
+                        : '<span class="badge bg-warning text-dark ms-1" style="font-size:.7em;">En renta</span>';
+                    return (r.fecha_entrada || '') + badge;
+                }
 
-                    if (eslabones.length > 1) {
-                        // Fila encabezado de cadena (selecciona/deselecciona todos sus eslabones)
-                        var totalCadena = eslabones.reduce(function(s,e){ return s + e.total; }, 0);
-                        var pagadoCadena = eslabones.reduce(function(s,e){ return s + e.pagado; }, 0);
-                        var saldoCadena  = eslabones.reduce(function(s,e){ return s + e.saldo_pendiente; }, 0);
-                        var renoLabel = numReno + ' renovaci' + (numReno === 1 ? 'ón' : 'ones');
-                        var trH = document.createElement('tr');
-                        trH.className = 'table-primary fw-semibold';
-                        trH.innerHTML =
-                            '<td><input type="checkbox" class="form-check-input consolidar-check-cadena" data-raiz-id="' + raizId + '" checked></td>' +
-                            '<td colspan="2">' +
-                              '<span class="badge bg-primary me-1">' + folioStr + '</span>' +
-                              '<span class="badge bg-secondary" style="font-size:.7em;">' + renoLabel + '</span>' +
-                            '</td>' +
-                            '<td>$' + fmt(totalCadena) + '</td>' +
-                            '<td>$' + fmt(pagadoCadena) + '</td>' +
-                            '<td class="text-danger">$' + fmt(saldoCadena) + '</td>' +
-                            '<td class="text-primary">$<span id="consolidar-aplicar-cadena-' + raizId + '">0.00</span></td>';
-                        tbody.appendChild(trH);
+                // Todas las rentas como filas independientes, de la más vieja a la
+                // más nueva (por id = orden de creación del folio). Las renovaciones
+                // solo llevan una etiqueta; el agrupado por cadena queda en el PDF.
+                // Ojo: se ordena una copia; estadoCuenta.rentas conserva el orden del
+                // backend, que es el mismo con el que se reparte el pago.
+                var rentasOrdenadas = data.rentas.slice().sort(function (a, b) { return a.id - b.id; });
 
-                        // Sub-filas por eslabón, cada una con su propio checkbox
-                        eslabones.forEach(function (r) {
-                            var trE = document.createElement('tr');
-                            trE.className = 'small text-muted';
-                            trE.innerHTML =
-                                '<td><input type="checkbox" class="form-check-input consolidar-check-renta" data-renta-id="' + r.id + '" data-raiz-id="' + raizId + '" checked></td>' +
-                                '<td class="ps-1"><span class="badge bg-secondary" style="opacity:.75;">#' + String(r.folio || r.id).padStart(4, '0') + '</span></td>' +
-                                '<td>' + (r.fecha_salida || '') + '</td>' +
-                                '<td>$' + fmt(r.total) + '</td>' +
-                                '<td>$' + fmt(r.pagado) + '</td>' +
-                                '<td class="text-danger">$' + fmt(r.saldo_pendiente) + '</td>' +
-                                '<td class="text-primary">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
-                            tbody.appendChild(trE);
-                        });
-                    } else {
-                        // Renta sin renovaciones — fila normal
-                        var r = eslabones[0];
-                        var tr = document.createElement('tr');
-                        tr.innerHTML =
-                            '<td><input type="checkbox" class="form-check-input consolidar-check-renta" data-renta-id="' + r.id + '" data-raiz-id="' + raizId + '" checked></td>' +
-                            '<td><span class="badge bg-secondary">' + folioStr + '</span></td>' +
-                            '<td>' + (r.fecha_salida || '') + '</td>' +
-                            '<td>$' + fmt(r.total) + '</td>' +
-                            '<td>$' + fmt(r.pagado) + '</td>' +
-                            '<td class="text-danger fw-bold">$' + fmt(r.saldo_pendiente) + '</td>' +
-                            '<td class="text-primary fw-bold">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
-                        tbody.appendChild(tr);
-                    }
+                rentasOrdenadas.forEach(function (r) {
+                    var folioStr = '#' + String(r.folio || r.id).padStart(4, '0');
+                    var renoBadge = r.renta_asociada_id
+                        ? '<span class="badge bg-info text-dark ms-1" style="font-size:.7em;" title="Renovación de #' +
+                            String(r.folio_raiz || '').padStart(4, '0') + '">Renovación</span>'
+                        : '';
+                    var tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td><input type="checkbox" class="form-check-input consolidar-check-renta" data-renta-id="' + r.id + '" checked></td>' +
+                        '<td><span class="badge bg-secondary">' + folioStr + '</span>' + renoBadge + '</td>' +
+                        '<td>' + (r.fecha_salida || '') + '</td>' +
+                        '<td>' + celdaEntrada(r) + '</td>' +
+                        '<td class="text-end text-danger fw-bold">$' + fmt(r.saldo_pendiente) + '</td>' +
+                        '<td class="text-end text-primary fw-bold consolidar-col-abono" style="display:none;">$<span id="consolidar-aplicar-' + r.id + '">0.00</span></td>';
+                    tbody.appendChild(tr);
                 });
 
-                document.getElementById('consolidar-badge-rentas').textContent = ordenRaiz.length;
+                document.getElementById('consolidar-badge-rentas').textContent = rentasOrdenadas.length;
                 document.getElementById('consolidar-total-adeudo').textContent = fmt(data.total_adeudo);
                 document.getElementById('consolidar-saldo-favor').textContent = fmt(data.saldo_favor);
                 document.getElementById('consolidar-preview-adeudo').textContent = fmt(data.total_adeudo);
@@ -356,6 +303,14 @@
         });
         modalEl.addEventListener('change', function (e) {
             if (e.target.id === 'consolidar-usar-saldo-favor') actualizarPreview();
+            // Al salir del campo, si se escribió más cambio del que sobra (o un
+            // negativo), se corrige el valor mostrado al rango permitido.
+            if (e.target.id === 'consolidar-cambio-entregado') {
+                const max = parseFloat(e.target.max) || 0;
+                const val = parseFloat(e.target.value) || 0;
+                e.target.value = Math.min(Math.max(val, 0), max).toFixed(2);
+                actualizarPreview();
+            }
             if (e.target.id === 'consolidar-metodo') {
                 cambioEditadoManualmente = false;
                 const metodo = e.target.value;
@@ -368,17 +323,6 @@
             if (e.target.id === 'consolidar-check-todas') {
                 const marcado = e.target.checked;
                 document.querySelectorAll('.consolidar-check-renta').forEach(function (cb) {
-                    cb.checked = marcado;
-                });
-                cambioEditadoManualmente = false;
-                actualizarPreview();
-            }
-
-            // Checkbox de cadena (marca/desmarca todos sus eslabones)
-            if (e.target.classList.contains('consolidar-check-cadena')) {
-                const raizId = e.target.getAttribute('data-raiz-id');
-                const marcado = e.target.checked;
-                document.querySelectorAll('.consolidar-check-renta[data-raiz-id="' + raizId + '"]').forEach(function (cb) {
                     cb.checked = marcado;
                 });
                 cambioEditadoManualmente = false;

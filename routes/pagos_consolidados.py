@@ -139,7 +139,7 @@ def get_estado_cuenta(cliente_id):
 
         cursor.execute("""
             SELECT r.id, r.folio, r.id_sucursal,
-                   r.fecha_salida, r.fecha_programada,
+                   r.fecha_salida, r.fecha_programada, r.fecha_entrada,
                    r.estado_renta, r.estado_pago,
                    r.renta_asociada_id,
                    COALESCE(r.renta_asociada_id, r.id) AS raiz_id,
@@ -186,6 +186,7 @@ def get_estado_cuenta(cliente_id):
             if r['saldo_pendiente'] > 0.50:
                 r['fecha_salida'] = r['fecha_salida'].strftime('%d/%m/%Y') if r['fecha_salida'] else ''
                 r['fecha_programada'] = r['fecha_programada'].strftime('%d/%m/%Y') if r['fecha_programada'] else ''
+                r['fecha_entrada'] = r['fecha_entrada'].strftime('%d/%m/%Y') if r['fecha_entrada'] else ''
                 r['raiz_id'] = int(r['raiz_id'])
                 r['folio_raiz'] = int(r['folio_raiz']) if r['folio_raiz'] else r['folio']
                 r['renta_asociada_id'] = int(r['renta_asociada_id']) if r['renta_asociada_id'] else None
@@ -647,14 +648,13 @@ def pdf_estado_cuenta(cliente_id):
         total_adeudo = sum(r['saldo_pendiente'] for r in rentas)
         neto_a_pagar = max(0.0, total_adeudo - saldo_favor) if usar_saldo_favor else total_adeudo
 
-        # SUBTOTAL/IVA mostrados se calculan sobre lo que REALMENTE falta pagar
-        # (saldo_pendiente), no sobre el subtotal/iva original completo de cada
-        # renta — si ya hubo abonos, el subtotal/iva originales ya no reflejan
-        # lo que queda por cobrar. Se desglosa el saldo pendiente en su propia
-        # base (÷1.16) + IVA, nunca se le vuelve a calcular IVA fresco encima
-        # de un monto que ya lo traía incluido (evita cobrar IVA dos veces).
-        subtotal_general = round(sum(r['saldo_pendiente'] / 1.16 for r in rentas), 2)
-        iva_general = round(total_adeudo - subtotal_general, 2)
+        # SUBTOTAL/IVA/TOTAL son los de las rentas completas (tal cual están
+        # guardados en rentas); los abonos previos se restan aparte, en su
+        # propia línea. TOTAL − ABONOS = total_adeudo, sin recalcular IVA.
+        subtotal_general = round(sum(r['subtotal'] for r in rentas), 2)
+        iva_general = round(sum(r['iva_monto'] for r in rentas), 2)
+        total_general = round(sum(r['total_con_iva'] for r in rentas), 2)
+        abonos_general = round(sum(r['pagado'] for r in rentas), 2)
         plantilla_renta = cliente.get('plantilla_cotizacion') or cliente.get('plantilla_renta')
 
     finally:
@@ -836,14 +836,30 @@ def pdf_estado_cuenta(cliente_id):
     can.drawRightString(545, y, f"${iva_general:.2f}")
     y -= 14
 
+    hay_descuentos = abonos_general > 0.01 or (usar_saldo_favor and saldo_favor > 0)
+    if hay_descuentos:
+        can.setFont("Helvetica-Bold", 10)
+        can.drawRightString(465, y, "TOTAL:")
+        can.drawRightString(545, y, f"${total_general:.2f}")
+        y -= 14
+
+    if abonos_general > 0.01:
+        can.setFont("Carlito", 10)
+        can.setFillColorRGB(0, 0.45, 0)
+        can.drawRightString(465, y, "ABONOS:")
+        can.drawRightString(545, y, f"-${abonos_general:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y -= 14
+
     if usar_saldo_favor and saldo_favor > 0:
+        can.setFont("Carlito", 10)
         can.setFillColorRGB(0, 0.5, 0)
         can.drawRightString(465, y, "SALDO A FAVOR:")
         can.drawRightString(545, y, f"-${saldo_favor:.2f}")
         can.setFillColorRGB(0, 0, 0)
         y -= 15
     can.setFont("Helvetica-Bold", 11)
-    can.drawRightString(465, y, "TOTAL:")
+    can.drawRightString(465, y, "TOTAL A PAGAR:" if hay_descuentos else "TOTAL:")
     can.drawRightString(545, y, f"${neto_a_pagar:.2f}")
     y -= 10
 
@@ -1057,7 +1073,12 @@ def pdf_comprobante_consolidado(cliente_id):
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
                            0
-                       ) AS total_pagado_renta
+                       ) AS total_pagado_renta,
+                       COALESCE(
+                           (SELECT SUM(pp.monto) FROM prefacturas pp
+                            WHERE pp.renta_id = r.id AND pp.pagada = 1 AND pp.id < p.id),
+                           0
+                       ) AS abonos_previos_renta
                 FROM prefacturas p
                 JOIN rentas r ON p.renta_id = r.id
                 WHERE p.folio = %s AND r.cliente_id = %s AND p.tipo = 'abono'
@@ -1088,7 +1109,12 @@ def pdf_comprobante_consolidado(cliente_id):
                        COALESCE(
                            (SELECT SUM(pp.monto) FROM prefacturas pp WHERE pp.renta_id = r.id AND pp.pagada = 1),
                            0
-                       ) AS total_pagado_renta
+                       ) AS total_pagado_renta,
+                       COALESCE(
+                           (SELECT SUM(pp.monto) FROM prefacturas pp
+                            WHERE pp.renta_id = r.id AND pp.pagada = 1 AND pp.id < p.id),
+                           0
+                       ) AS abonos_previos_renta
                 FROM prefacturas p
                 JOIN rentas r ON p.renta_id = r.id
                 WHERE p.id IN ({fmt_ids})
@@ -1119,7 +1145,18 @@ def pdf_comprobante_consolidado(cliente_id):
         """, (cliente_id, folio_num))
         saldo_favor_row = cursor.fetchone()
         saldo_favor_aplicado = round(float(saldo_favor_row['monto'] or 0), 2) if saldo_favor_row else 0.0
-        total_renta = round(total_general - saldo_favor_aplicado, 2)
+
+        # Lo que se debía al momento de este pago (total − abonos anteriores)
+        # contra lo que se aplicó en este folio. Si se liquidó, lo aplicado ya
+        # trae el redondeo de efectivo (ver pago_consolidado), así que es el
+        # monto real cobrado; si fue parcial no se redondea nada.
+        abonos_previos = round(sum(float(r['abonos_previos_renta'] or 0) for r in rentas_unicas.values()), 2)
+        adeudo_antes = round(total_general - abonos_previos, 2)
+        pagado_ahora = round(sum(float(f['monto'] or 0) for f in filas), 2)
+        restante = round(adeudo_antes - pagado_ahora, 2)
+        if restante <= 0.50:  # umbral de redondeo en efectivo
+            restante = 0.0
+        total_a_pagar = pagado_ahora if restante == 0 else adeudo_antes
 
         # Detalle de productos por renta (mismo bloque visual que pdf_estado_cuenta)
         for f in filas:
@@ -1353,10 +1390,25 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawRightString(570, y_totales, f"${iva_general:.2f}")
     y_totales -= 12
 
+    # Sin abonos anteriores, TOTAL ya es lo cobrado (con redondeo si aplica);
+    # con abonos, TOTAL es el de las rentas completas y abajo se descuentan.
     can.setFont("Helvetica-Bold", 9)
     can.drawString(400, y_totales, "TOTAL:")
-    can.drawRightString(570, y_totales, f"${total_general:.2f}")
+    can.drawRightString(570, y_totales, f"${(total_general if abonos_previos > 0.01 else total_a_pagar):.2f}")
     y_totales -= 14
+
+    if abonos_previos > 0.01:
+        can.setFont("Carlito", 10)
+        can.setFillColorRGB(0, 0.45, 0)
+        can.drawString(400, y_totales, "ABONOS ANTERIORES:")
+        can.drawRightString(570, y_totales, f"-${abonos_previos:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y_totales -= 12
+
+        can.setFont("Helvetica-Bold", 9)
+        can.drawString(400, y_totales, "TOTAL A PAGAR:")
+        can.drawRightString(570, y_totales, f"${total_a_pagar:.2f}")
+        y_totales -= 14
 
     if saldo_favor_aplicado > 0:
         can.setFont("Carlito", 10)
@@ -1365,11 +1417,6 @@ def pdf_comprobante_consolidado(cliente_id):
         can.drawRightString(570, y_totales, f"-${saldo_favor_aplicado:.2f}")
         can.setFillColorRGB(0, 0, 0)
         y_totales -= 12
-
-    can.setFont("Helvetica-Bold", 9)
-    can.drawString(400, y_totales, "TOTAL RENTA:")
-    can.drawRightString(570, y_totales, f"${total_renta:.2f}")
-    y_totales -= 14
 
     # Método(s) de pago
     metodos_unicos = list(dict.fromkeys(f['metodo_pago'] for f in filas))
@@ -1387,6 +1434,14 @@ def pdf_comprobante_consolidado(cliente_id):
     can.drawString(400, y_totales, "CAMBIO:")
     can.drawRightString(570, y_totales, f"${cambio_operacion:.2f}")
     y_totales -= 12
+
+    if restante > 0:
+        can.setFont("Helvetica-Bold", 9)
+        can.setFillColorRGB(0.7, 0, 0)
+        can.drawString(400, y_totales, "RESTANTE:")
+        can.drawRightString(570, y_totales, f"${restante:.2f}")
+        can.setFillColorRGB(0, 0, 0)
+        y_totales -= 12
 
 
     # ── Avisos (igual que prefactura) ────────────────────────────────────────
