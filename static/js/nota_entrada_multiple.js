@@ -321,6 +321,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 </tr>
             `).join('');
 
+            // Igual que la nota de entrada normal: si llegó tarde, la secretaria
+            // decide si se cobra el retraso (desmarcado por default).
+            const diasRetraso = parseInt(renta.dias_retraso) || 0;
+            const opcionRetraso = diasRetraso > 0 ? `
+                        <div class="alert alert-warning py-1 px-2 mt-2 mb-0 d-flex align-items-center justify-content-between">
+                            <span><i class="bi bi-clock-history me-1"></i>${diasRetraso} día(s) de retraso</span>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input nem-cobrar-retraso" type="checkbox"
+                                    id="nem-cobrar-retraso-${rentaId}" data-renta-id="${rentaId}">
+                                <label class="form-check-label" for="nem-cobrar-retraso-${rentaId}">¿Cobrar días de retraso?</label>
+                            </div>
+                        </div>` : '';
+
             return `
                 <div class="card mb-3">
                     <div class="card-header">
@@ -328,6 +341,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span class="text-muted">(Folio salida: ${String(renta.folio_salida).padStart(5, '0')})</span>
                         &mdash; ${renta.direccion_obra || 'Sin dirección'}
                         <span class="badge bg-success float-end">Cierra al 100%</span>
+                        ${opcionRetraso}
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -465,7 +479,8 @@ document.addEventListener('DOMContentLoaded', function () {
             observaciones,
             rentas: rentaIds.map(rentaId => ({
                 renta_id: rentaId,
-                piezas: window.notaEntradaMultiplePiezas[rentaId]
+                piezas: window.notaEntradaMultiplePiezas[rentaId],
+                cobrar_retraso: !!bloquesPiezasDiv.querySelector(`#nem-cobrar-retraso-${rentaId}`)?.checked
             }))
         };
 

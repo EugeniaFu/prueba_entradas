@@ -451,6 +451,23 @@ class RentasService:
         return cursor.fetchall()
 
     @staticmethod
+    def _calcular_dias_retraso(fecha_entrada, ahora):
+        """
+        Días de retraso al devolver en `ahora`: el límite es las 10:00 del día
+        siguiente a fecha_entrada y cada día iniciado después cuenta completo
+        (misma regla que /cobros_retraso/preview). Sin fecha_entrada no hay retraso.
+        """
+        if not fecha_entrada:
+            return 0
+        if isinstance(fecha_entrada, datetime):
+            fecha_entrada = fecha_entrada.date()
+        fecha_limite_dt = datetime.combine(fecha_entrada + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
+        if ahora <= fecha_limite_dt:
+            return 0
+        delta = ahora - fecha_limite_dt
+        return delta.days + (1 if delta.seconds > 0 else 0)
+
+    @staticmethod
     def obtener_rentas_pendientes_cliente(cliente_id, sucursal_id):
         """
         Lista las rentas activas de un cliente en una sucursal dada que aún tienen
@@ -519,6 +536,7 @@ class RentasService:
                     'traslado': renta['traslado'] or 'ninguno',
                     'fecha_salida': renta['fecha_salida'].strftime('%Y-%m-%d') if renta['fecha_salida'] else None,
                     'fecha_entrada': renta['fecha_entrada'].strftime('%Y-%m-%d') if renta['fecha_entrada'] else None,
+                    'dias_retraso': RentasService._calcular_dias_retraso(renta['fecha_entrada'], get_local_now_naive()),
                     'piezas': piezas_pendientes
                 })
 
@@ -588,18 +606,15 @@ class RentasService:
                             "Solo se pueden consolidar rentas que cierran al 100%."
                         )
 
-                # Calcular si esta renta en particular llega con retraso (cada
-                # renta consolidada puede estar o no vencida; no se cobra aquí,
-                # solo se marca para que el flujo normal de "Cobrar Retraso" la
-                # detecte después)
+                # Igual que la nota de entrada normal: el retraso solo queda
+                # pendiente de cobro si la secretaria marcó "¿Cobrar retraso?"
+                # en esa renta Y de verdad llegó tarde (se recalcula aquí, no se
+                # confía en los días que mande el navegador). No se cobra aquí,
+                # solo se marca para el flujo normal de "Cobrar Retraso".
                 estado_retraso_renta = 'Sin Retraso'
-                if renta_row['fecha_entrada']:
-                    fecha_base = renta_row['fecha_entrada']
-                    if isinstance(fecha_base, datetime):
-                        fecha_base = fecha_base.date()
-                    fecha_limite_dt = datetime.combine(fecha_base + timedelta(days=1), datetime.strptime('10:00', '%H:%M').time())
-                    if get_local_now_naive() > fecha_limite_dt:
-                        estado_retraso_renta = 'Retraso Pendiente'
+                if item.get('cobrar_retraso') and RentasService._calcular_dias_retraso(
+                        renta_row['fecha_entrada'], get_local_now_naive()) > 0:
+                    estado_retraso_renta = 'Retraso Pendiente'
 
                 info_rentas.append({
                     'renta_id': renta_id,
